@@ -1,0 +1,26 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Decision tooling state (generated; see ADR-0006 — no index is committed)
+.adr-kit/
+.project-index/
+adr-index.json
+
+# Private eval fixtures (real cookbook photos, personal recipes) — never public
+evals/fixtures/private/
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Local tool and editor state
+.DS_Store
+.idea/
+.vscode/

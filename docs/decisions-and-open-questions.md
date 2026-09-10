@@ -1,7 +1,9 @@
 # Cookframe — Decisions & Intentionally Open Questions
 
-Status: Discovery baseline  
+Status: Frozen discovery snapshot — later revisions live in [`product-decisions/`](product-decisions/) and [`adr/`](adr/), not here  
 Purpose: Distinguish product decisions from implementation-time discovery so missing detail is not mistaken for an omission.
+
+This document is not edited to reflect later changes. Its §1 decisions are adopted wholesale as Cookframe's founding product decisions by [PDR-0001](product-decisions/PDR-0001-adopt-discovery-baseline-as-founding-product-decisions.md); a revision is made by a new record that supersedes the specific item. Its §2 questions carry stable `OQ-NN` ids so records can name which question they close.
 
 ## 1. Decisions fixed during discovery
 
@@ -79,29 +81,29 @@ Purpose: Distinguish product decisions from implementation-time discovery so mis
 
 Do not decide these only to make the spec look complete:
 
-- exact framework/router;
-- TypeScript vs. another implementation language if real constraints justify a change;
-- database technology;
-- JSON vs. relational physical persistence;
-- hosting platform/reference deployment;
-- object/blob storage implementation;
-- model provider;
-- model SDK/library;
-- exact provider adapter interfaces;
-- background-job mechanism;
-- exact shortcut packaging/distribution mechanism;
-- exact mobile component/layout system;
-- eager vs. background vs. lazy Cooking Plan generation;
-- exact capture-eval thresholds;
-- exact scaling-classification algorithm;
-- exact safe URL-fetch implementation;
-- exact capability-token format/lifetime/revocation mechanism;
-- exact Bring integration mechanism after spike;
-- exact hero-image compression/storage variants;
-- exact unit conversion behavior;
-- semantic ingredient alias vocabulary;
-- Focus Mode;
-- sophisticated intermediate-food-state graph.
+- **OQ-01** exact framework/router;
+- **OQ-02** TypeScript vs. another implementation language if real constraints justify a change;
+- **OQ-03** database technology;
+- **OQ-04** JSON vs. relational physical persistence;
+- **OQ-05** hosting platform/reference deployment;
+- **OQ-06** object/blob storage implementation;
+- **OQ-07** model provider;
+- **OQ-08** model SDK/library;
+- **OQ-09** exact provider adapter interfaces;
+- **OQ-10** background-job mechanism;
+- **OQ-11** exact shortcut packaging/distribution mechanism;
+- **OQ-12** exact mobile component/layout system;
+- **OQ-13** eager vs. background vs. lazy Cooking Plan generation;
+- **OQ-14** exact capture-eval thresholds;
+- **OQ-15** exact scaling-classification algorithm;
+- **OQ-16** exact safe URL-fetch implementation;
+- **OQ-17** exact capability-token format/lifetime/revocation mechanism;
+- **OQ-18** exact Bring integration mechanism after spike;
+- **OQ-19** exact hero-image compression/storage variants;
+- **OQ-20** exact unit conversion behavior;
+- **OQ-21** semantic ingredient alias vocabulary;
+- **OQ-22** Focus Mode;
+- **OQ-23** sophisticated intermediate-food-state graph.
 
 ## 3. Open product tasks before broader public release
 

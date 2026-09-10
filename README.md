@@ -73,6 +73,12 @@ Start with:
 - [`docs/validation-and-evaluation.md`](docs/validation-and-evaluation.md)
 - [`docs/decisions-and-open-questions.md`](docs/decisions-and-open-questions.md)
 
+Implementation discovery:
+
+- [`docs/implementation-discovery-plan.md`](docs/implementation-discovery-plan.md) — spikes, open questions and the planned vertical slices
+- [`docs/adr/`](docs/adr/) — architectural decision records
+- [`docs/product-decisions/`](docs/product-decisions/) — product decision records
+
 ## License
 
 Cookframe is licensed under the [MIT License](LICENSE).
