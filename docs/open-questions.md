@@ -3,9 +3,9 @@
 The single place where Cookframe's open implementation questions are tracked. Each keeps a stable
 `OQ-NN` id so a decision record can name the question it closes.
 
-`OQ-01`–`OQ-23` originate in [`decisions-and-open-questions.md`](decisions-and-open-questions.md) §2,
-which is the frozen discovery snapshot and is not updated. `OQ-24` onwards were found during
-implementation.
+`OQ-01`–`OQ-23` originate in the discovery phase, `OQ-24` onwards were found during implementation,
+and `OQ-25`–`OQ-33` are the release-readiness items below. This file is the live register; the
+discovery-era wording is kept in [`archive/`](archive/).
 
 | Id | Question | State |
 |---|---|---|
@@ -33,6 +33,25 @@ implementation.
 | OQ-22 | Focus Mode | out of V1 scope |
 | OQ-23 | sophisticated intermediate-food-state graph | out of V1 scope |
 | OQ-24 | capture and normalization: one physical model call or two | open |
+
+## Release readiness
+
+These do not block implementation, but must be resolved before Cookframe is presented as a generally
+usable self-hosted project.
+
+| Id | Question | State |
+|---|---|---|
+| OQ-25 | final self-hosting instructions | open |
+| OQ-26 | configuration/secrets documentation | open |
+| OQ-27 | data export/backup contract | open |
+| OQ-28 | public fixture licensing/provenance | open |
+| OQ-29 | contributor guidance | open |
+| OQ-30 | dependency/third-party attribution | open |
+| OQ-31 | security reporting process | open |
+| OQ-32 | product/repository description polish | open |
+| OQ-33 | name/domain/package collision check if broader distribution requires it | open |
+
+## Closing a question
 
 A question is closed by a decision record, by evidence from a spike, or by being ruled out of scope.
 When it closes, update its state here and name what closed it.

@@ -19,7 +19,7 @@ pretending that 49 separate records were each deliberated as records.
 ## Decision
 
 Adopt the fixed product decisions in
-[`../decisions-and-open-questions.md`](../decisions-and-open-questions.md) §1 wholesale as
+[`../archive/discovery-decision-log.md`](../archive/discovery-decision-log.md) §1 wholesale as
 Cookframe's founding product decisions, by reference rather than by copy.
 
 That document is frozen as the historical discovery snapshot. It is not edited to reflect later

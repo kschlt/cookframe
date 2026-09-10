@@ -5,11 +5,6 @@
 *.pem
 *.key
 
-# Decision tooling state (generated; see ADR-0006 — no index is committed)
-.adr-kit/
-.project-index/
-adr-index.json
-
 # Private eval fixtures (real cookbook photos, personal recipes) — never public
 evals/fixtures/private/
 

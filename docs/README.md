@@ -25,8 +25,8 @@ stack? If yes, it is a product decision. If no, it is architectural.
 
 ## History
 
-- [`decisions-and-open-questions.md`](decisions-and-open-questions.md) — the frozen discovery
-  snapshot. Kept as a record of what discovery fixed and deferred; superseded by the decision
-  records above.
+- [`archive/discovery-decision-log.md`](archive/discovery-decision-log.md) — the discovery-era
+  decision log. Kept as a record of what discovery concluded and why; superseded for current status
+  by the records above.
 
 <!-- index:end -->

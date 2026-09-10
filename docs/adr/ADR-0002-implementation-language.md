@@ -43,11 +43,6 @@ contract defined once and reused for validation, persistence and mapping.
   TypeScript harness or a separate Python eval tool reading committed fixtures.
 - Multimodal and ML tooling ecosystems are richer in Python.
 
-### Neutral
-
-- `adr-kit` being a Python tool is unrelated: it is a development tool invoked via `uvx`, never a
-  runtime dependency of the product.
-
 ## Alternatives considered
 
 **Python.** Stronger eval, notebook and ML ecosystem — relevant given how much of this product's

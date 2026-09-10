@@ -1,9 +1,18 @@
 # Cookframe — Decisions & Intentionally Open Questions
 
-Status: Frozen discovery snapshot — later revisions live in [`product-decisions/`](product-decisions/) and [`adr/`](adr/), not here  
-Purpose: Distinguish product decisions from implementation-time discovery so missing detail is not mistaken for an omission.
+Status: **Archived.** The discovery-era decision log, kept as a historical record. Not maintained.
 
-This document is not edited to reflect later changes. Its §1 decisions are adopted wholesale as Cookframe's founding product decisions by [PDR-0001](product-decisions/PDR-0001-adopt-discovery-baseline-as-founding-product-decisions.md); a revision is made by a new record that supersedes the specific item. Its §2 questions carry stable `OQ-NN` ids so records can name which question they close.
+This file records what pre-implementation discovery fixed (§1), deferred (§2) and required (§3, §4).
+Its content has since moved on and it is superseded by:
+
+- [`../product-decisions/`](../product-decisions/) and [`../adr/`](../adr/) — the live decision records.
+  `PDR-0001` adopts §1 below as Cookframe's founding product decisions.
+- [`../open-questions.md`](../open-questions.md) — the live register of open questions, carrying the
+  `OQ-NN` ids introduced in §2 and the release-readiness items from §3.
+- [`../validation-and-evaluation.md`](../validation-and-evaluation.md) — the validation gates behind
+  the spikes named in §4.
+
+Read it for what discovery concluded and why. Do not read it for current status.
 
 ## 1. Decisions fixed during discovery
 
