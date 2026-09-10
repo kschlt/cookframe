@@ -8,45 +8,6 @@
   "hooks": {
     "SessionStart": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" sessionstart-nomatcher",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" sessionstart-startup",
-            "timeout": 10
-          }
-        ],
-        "matcher": "startup"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" sessionstart-resume",
-            "timeout": 10
-          }
-        ],
-        "matcher": "resume"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" sessionstart-pipe",
-            "timeout": 10
-          }
-        ],
-        "matcher": "startup|resume"
-      },
-      {
         "matcher": "startup",
         "hooks": [
           {
@@ -71,16 +32,6 @@
     ],
     "PreToolUse": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" pretooluse-empty",
-            "timeout": 10
-          }
-        ],
-        "matcher": ""
-      },
-      {
         "matcher": "",
         "hooks": [
           {
@@ -99,29 +50,9 @@
             "timeout": 30
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" pretooluse-bash",
-            "timeout": 10
-          }
-        ],
-        "matcher": "Bash"
       }
     ],
     "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" posttooluse-empty",
-            "timeout": 10
-          }
-        ],
-        "matcher": ""
-      },
       {
         "matcher": "",
         "hooks": [
@@ -139,16 +70,6 @@
       }
     ],
     "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/canary.sh\" stop-empty",
-            "timeout": 10
-          }
-        ],
-        "matcher": ""
-      },
       {
         "matcher": "",
         "hooks": [
