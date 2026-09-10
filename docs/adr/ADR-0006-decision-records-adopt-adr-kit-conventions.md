@@ -5,16 +5,6 @@ status: accepted
 date: 2026-09-10
 tags: ["decisions", "adr", "documentation", "tooling"]
 constrained_by: ["PDR-0001"]
-policy:
-  architecture:
-    required_structure:
-      - path: "docs/adr"
-        description: "Architectural decision records: ids ADR-NNNN, front-matter valid against adr-kit's adr.schema.json"
-      - path: "docs/product-decisions"
-        description: "Product decision records: ids PDR-NNNN, same grammar and lifecycle, kept outside docs/adr because PDR ids do not match adr-kit's id pattern"
-  rationales:
-    - "adr-kit already provides schema, immutability, index generation and enforcement; duplicating it would create a mechanism a future decision engine has to displace."
-    - "Committing conforming data and no tooling means any decision engine can adopt these records later with nothing to migrate."
 ---
 
 ## Context
@@ -53,6 +43,9 @@ Conform to `adr-kit`'s contract as **data**, and ship no decision tooling of our
   own semantics. The schema sets `additionalProperties: true`, so those custom keys are schema-legal.
 - No index is committed and no generator or validator is written. `adr-kit`'s index is a derived
   artefact; its tooling state (`.adr-kit/`, `.project-index/`, `adr-index.json`) is ignored.
+- **No record carries an enforcement `policy` block until there is code to enforce against.** A
+  policy block describes lint and boundary rules for a real module layout; writing one before the
+  code exists means inventing constraints to satisfy a validator.
 
 ## Consequences
 
@@ -74,6 +67,10 @@ Conform to `adr-kit`'s contract as **data**, and ship no decision tooling of our
 
 ### Neutral
 
+- `adr-kit`'s policy-completeness check requires every `accepted` record to carry a structured
+  `policy` block, so running it today reports an error for each accepted record here. That is
+  expected and is not a defect in these records: no enforcement policy is written until there is a
+  module layout to enforce. Nothing in this repository gates on that check.
 - `adr-kit` is a development tool invoked via `uvx`, not a runtime dependency, so its being Python
   while the product is TypeScript is irrelevant.
 - Whether this repository ships MCP configuration wiring `adr-kit` into an agent is a separate

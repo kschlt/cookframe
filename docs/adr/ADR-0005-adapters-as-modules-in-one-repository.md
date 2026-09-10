@@ -6,21 +6,6 @@ date: 2026-09-10
 tags: ["repository", "adapters", "boundaries", "packaging"]
 constrained_by: ["PDR-0001"]
 related_to: ["ADR-0001"]
-policy:
-  architecture:
-    layer_boundaries:
-      - rule: "The recipe core must not depend on any source or output adapter"
-        action: warn
-        message: "Adapters depend on the core, never the reverse (ADR-0005)"
-      - rule: "Source and output adapters must not import one another"
-        action: warn
-        message: "Adapters are siblings behind the core, not a chain (ADR-0005)"
-      - rule: "Bring-specific mapping and policy must not appear in core or ontology modules"
-        action: warn
-        message: "Bring is an adapter with its own contract (PDR-0001, invariant 11)"
-  rationales:
-    - "Repository separation is not the mechanism that keeps adapters replaceable; module boundaries and boundary tests are."
-    - "One repository keeps the self-hosting artefact a single container (ADR-0001)."
 ---
 
 ## Context
@@ -58,9 +43,6 @@ Revisit only on a concrete trigger:
 
 - Module boundaries are easier to violate than repository boundaries, so boundary tests carry real
   weight rather than being decoration.
-- The boundary rules in this record's `policy` block are declared with `action: warn` because module
-  paths depend on ADR-0001 and ADR-0002, which are not yet accepted. They tighten to `block` once
-  those land and the paths are real.
 - A future split costs more than starting split would have.
 
 ## Alternatives considered
