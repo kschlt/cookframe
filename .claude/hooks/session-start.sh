@@ -25,12 +25,37 @@ MACH_REPO="kschlt/aos"
 notes=()
 say() { notes+=("$1"); }
 
+# The remote's default branch, or "main" if it cannot be asked.
+default_branch() {
+  local b
+  b="$(git -C "$1" ls-remote --symref origin HEAD 2>/dev/null \
+       | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2; exit }')"
+  printf '%s' "${b:-main}"
+}
+
 # Fast-forward an existing checkout onto its origin. 0 = now current, 1 = could not.
 sync_to_origin() {
   local dest="$1" branch
   branch="$(git -C "$dest" rev-parse --abbrev-ref HEAD 2>/dev/null)" || return 1
   git -C "$dest" fetch --quiet origin 2>/dev/null || return 1
   git -C "$dest" merge --ff-only --quiet "origin/$branch" 2>/dev/null || return 1
+  return 0
+}
+
+# Put a FRESHLY CLONED layer on the remote's default branch, with tracking.
+#
+# Load-bearing, not cosmetic. This host's attached repositories are checked out on a
+# per-session branch, and a clone of such a sibling inherits that branch. The instance must
+# not branch: aos reads origin/main at session start, and a session-end state push onto a
+# session branch is state the next session does not find. Only ever called right after a
+# clone, never on a checkout that might carry unpushed local commits.
+pin_to_default_branch() {
+  local dest="$1" b; b="$(default_branch "$dest")"
+  [ "$(git -C "$dest" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$b" ] && return 0
+  git -C "$dest" fetch --quiet origin 2>/dev/null || return 1
+  git -C "$dest" checkout --quiet -B "$b" "origin/$b" 2>/dev/null || return 1
+  git -C "$dest" branch --quiet --set-upstream-to="origin/$b" "$b" 2>/dev/null
+  say "$2: pinned to $b (was on another branch)"
   return 0
 }
 
@@ -50,7 +75,12 @@ mount_layer() {
     if [ -n "$(git -C "$dest" status --porcelain 2>/dev/null)" ]; then
       say "$name: present with uncommitted changes — left untouched."
     elif sync_to_origin "$dest"; then
-      say "$name: up to date."
+      local on want; on="$(git -C "$dest" rev-parse --abbrev-ref HEAD)"; want="$(default_branch "$dest")"
+      if [ "$on" != "$want" ]; then
+        say "$name: up to date, but on branch '$on' instead of '$want' — state pushed from here does NOT land on $want. Move it deliberately; not touched, it may hold unpushed commits."
+      else
+        say "$name: up to date."
+      fi
     else
       say "$name: present; could not fast-forward onto $slug — left as is, may be stale."
     fi
@@ -59,6 +89,7 @@ mount_layer() {
 
   if [ -d "$sibling/.git" ] && git clone --quiet "$sibling" "$dest" 2>/dev/null; then
     git -C "$dest" remote set-url origin "$url"
+    pin_to_default_branch "$dest" "$name"
     if sync_to_origin "$dest"; then
       say "$name: cloned from sibling checkout, fast-forwarded to $slug."
       return 0
@@ -69,6 +100,7 @@ mount_layer() {
   fi
 
   if git clone --quiet "$url" "$dest" 2>/dev/null; then
+    pin_to_default_branch "$dest" "$name"
     say "$name: cloned from $slug."
     return 0
   fi
@@ -76,6 +108,7 @@ mount_layer() {
   # Last resort: an unreconcilable sibling beats nothing at all, but say so plainly.
   if [ -d "$sibling/.git" ] && git clone --quiet "$sibling" "$dest" 2>/dev/null; then
     git -C "$dest" remote set-url origin "$url"
+    pin_to_default_branch "$dest" "$name"
     say "$name: MOUNTED FROM SIBLING WITHOUT VERIFYING against $slug — state may be stale or diverged."
     return 0
   fi
