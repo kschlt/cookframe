@@ -73,9 +73,9 @@ Start with:
 - [`docs/validation-and-evaluation.md`](docs/validation-and-evaluation.md)
 - [`docs/decisions-and-open-questions.md`](docs/decisions-and-open-questions.md)
 
-Implementation discovery:
+Decisions:
 
-- [`docs/implementation-discovery-plan.md`](docs/implementation-discovery-plan.md) — spikes, open questions and the planned vertical slices
+- [`docs/decision-status.md`](docs/decision-status.md) — what is decided, what is still open, and what will close it
 - [`docs/adr/`](docs/adr/) — architectural decision records
 - [`docs/product-decisions/`](docs/product-decisions/) — product decision records
 

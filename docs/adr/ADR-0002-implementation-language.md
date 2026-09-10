@@ -1,7 +1,7 @@
 ---
 id: "ADR-0002"
 title: "TypeScript as the implementation language"
-status: proposed
+status: accepted
 date: 2026-09-10
 tags: ["language", "typescript", "schema"]
 decides: ["OQ-02"]
@@ -10,6 +10,11 @@ related_to: ["ADR-0001", "ADR-0003"]
 ---
 
 ## Context
+
+Slice 0 cannot be written without a language, so this decision is forced now. The only argument
+against TypeScript — that evaluation work is more pleasant in Python — turns out not to bear on it:
+the eval harness can be Python reading committed JSON fixtures whatever the product is written in. No
+evidence is pending, so there is nothing to wait for.
 
 The product baseline deferred the language explicitly, allowing a change away from TypeScript "if
 real constraints justify a change".
