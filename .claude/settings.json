@@ -8,11 +8,13 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume",
         "hooks": [
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\"",
-            "timeout": 300
+            "timeout": 120,
+            "statusMessage": "Mounting the .aos layer"
           }
         ]
       }

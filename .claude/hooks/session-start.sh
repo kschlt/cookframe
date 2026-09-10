@@ -102,5 +102,10 @@ if [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then
   say "WARNING: host tree is not clean after mount — inspect before committing."
 fi
 
-printf 'aos mount: %s\n' "${notes[*]:-nothing to do}" >&2
+# Report on stdout as a hook systemMessage so the outcome is VISIBLE in the session —
+# a mount that silently did not happen is the failure this whole file exists to prevent.
+# Also on stderr, for a by-hand run outside the hook.
+summary="${notes[*]:-nothing to do}"
+printf 'aos mount: %s\n' "$summary" >&2
+printf '{"systemMessage": "aos mount: %s"}\n' "$(printf '%s' "$summary" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 exit 0
