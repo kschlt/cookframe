@@ -62,22 +62,8 @@ The exact technology stack, hosting target, model provider and visual component 
 
 ## Documentation
 
-Start with:
-
-- [`docs/product-vision-and-scope.md`](docs/product-vision-and-scope.md)
-- [`docs/recipe-ontology.md`](docs/recipe-ontology.md)
-- [`docs/cooking-ux.md`](docs/cooking-ux.md)
-- [`docs/adapter-architecture.md`](docs/adapter-architecture.md)
-- [`docs/ai-processing-and-reprocessing.md`](docs/ai-processing-and-reprocessing.md)
-- [`docs/open-source-self-hosting-principles.md`](docs/open-source-self-hosting-principles.md)
-- [`docs/validation-and-evaluation.md`](docs/validation-and-evaluation.md)
-- [`docs/decisions-and-open-questions.md`](docs/decisions-and-open-questions.md)
-
-Decisions:
-
-- [`docs/decision-status.md`](docs/decision-status.md) — what is decided, what is still open, and what will close it
-- [`docs/adr/`](docs/adr/) — architectural decision records
-- [`docs/product-decisions/`](docs/product-decisions/) — product decision records
+See [`docs/`](docs/) for the product and architecture baseline, the decision records, and the open
+questions.
 
 ## License
 
