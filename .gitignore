@@ -19,3 +19,18 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# aos:begin id=host-ignore rev=2 managed by aos touchpoint writer - do not edit by hand
+# The instance — its own nested state repo (D11), always host-ignored. Deliberately
+# NO trailing slash: a trailing-slash pattern matches only real directories, never a
+# symlink, and an ephemeral host may mount .aos as a symlink to a sibling clone.
+.aos
+# aos:end id=host-ignore
+
+# `.claude/` here is a REAL directory, not aos's symlink into .aos/sys/.claude — the
+# SessionStart hook that mounts .aos/ has to be committed, or a fresh container has no way
+# to bootstrap itself. Only that bootstrap is tracked. Everything the machinery owns is
+# linked in at session start and stays out of this public repo.
+.claude/skills
+.claude/agents
+.claude/settings.local.json

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Bash(git reset --hard:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/monitor-pre.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/monitor-pre.py\"",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/capture-pre.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/capture-pre.py\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/monitor-post.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/monitor-post.py\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/check-context-threshold.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/check-context-threshold.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/capture-stop.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/.aos/sys/core/scripts/capture-stop.py\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
