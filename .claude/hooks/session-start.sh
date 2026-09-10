@@ -25,37 +25,62 @@ MACH_REPO="kschlt/aos"
 notes=()
 say() { notes+=("$1"); }
 
-# Mount one layer. Prefers a sibling clone the harness may have placed next to this
-# checkout, because an environment's setup phase has no outbound access to github.com;
-# falls back to a network clone, which needs the repo attached to the session.
+# Fast-forward an existing checkout onto its origin. 0 = now current, 1 = could not.
+sync_to_origin() {
+  local dest="$1" branch
+  branch="$(git -C "$dest" rev-parse --abbrev-ref HEAD 2>/dev/null)" || return 1
+  git -C "$dest" fetch --quiet origin 2>/dev/null || return 1
+  git -C "$dest" merge --ff-only --quiet "origin/$branch" 2>/dev/null || return 1
+  return 0
+}
+
+# Mount one layer.
+#
+# A sibling checkout the harness may have placed next to this one is preferred as a SOURCE,
+# because an environment's setup phase has no outbound access to github.com — but never as
+# the authority. It is whatever some earlier session left behind, and after a force-push its
+# history may not even be related to the remote's. So: clone from it for speed, then
+# fast-forward onto origin; if that is impossible, discard it and clone from the remote.
+# The canonical remote always wins; a stale sibling is only ever kept as a last resort, loudly.
 mount_layer() {
-  local dest="$1" slug="$2" sibling="$SIBLINGS/$3"
+  local dest="$1" slug="$2" name="$3" sibling="$SIBLINGS/$3"
+  local url="https://github.com/$slug"
 
   if [ -d "$dest/.git" ]; then
     if [ -n "$(git -C "$dest" status --porcelain 2>/dev/null)" ]; then
-      say "$3: present, uncommitted changes — left untouched."
-    elif git -C "$dest" fetch --quiet origin 2>/dev/null &&
-         git -C "$dest" merge --ff-only --quiet '@{u}' 2>/dev/null; then
-      say "$3: up to date."
+      say "$name: present with uncommitted changes — left untouched."
+    elif sync_to_origin "$dest"; then
+      say "$name: up to date."
     else
-      say "$3: present; not fast-forwardable — left as is."
+      say "$name: present; could not fast-forward onto $slug — left as is, may be stale."
     fi
     return 0
   fi
 
-  if [ -d "$sibling/.git" ] &&
-     git clone --quiet "$sibling" "$dest" 2>/dev/null; then
-    git -C "$dest" remote set-url origin "https://github.com/$slug"
-    say "$3: cloned from sibling checkout; origin -> $slug."
+  if [ -d "$sibling/.git" ] && git clone --quiet "$sibling" "$dest" 2>/dev/null; then
+    git -C "$dest" remote set-url origin "$url"
+    if sync_to_origin "$dest"; then
+      say "$name: cloned from sibling checkout, fast-forwarded to $slug."
+      return 0
+    fi
+    # The sibling cannot be reconciled with the remote. Prefer the remote.
+    rm -rf "$dest"
+    say "$name: sibling checkout diverged from $slug — discarded it."
+  fi
+
+  if git clone --quiet "$url" "$dest" 2>/dev/null; then
+    say "$name: cloned from $slug."
     return 0
   fi
 
-  if git clone --quiet "https://github.com/$slug" "$dest" 2>/dev/null; then
-    say "$3: cloned from $slug."
+  # Last resort: an unreconcilable sibling beats nothing at all, but say so plainly.
+  if [ -d "$sibling/.git" ] && git clone --quiet "$sibling" "$dest" 2>/dev/null; then
+    git -C "$dest" remote set-url origin "$url"
+    say "$name: MOUNTED FROM SIBLING WITHOUT VERIFYING against $slug — state may be stale or diverged."
     return 0
   fi
 
-  say "$3: COULD NOT MOUNT ($slug). Attach the repository to this session, then re-run this script."
+  say "$name: COULD NOT MOUNT ($slug). Attach the repository to this session, then re-run this script."
   return 1
 }
 
