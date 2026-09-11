@@ -74,15 +74,35 @@ session's permission mode. Keep it.
 
 The two requirements pull against each other. The hook needs this repository to be the only
 attachment; the mount needs the private repositories to be attached, because the credential
-proxy authenticates only for attached repositories. They are reconcilable, because attachment
-need not happen at session start: a repository attached mid-session gets credentials without
-moving the working directory.
+proxy authenticates only for attached repositories. They are reconcilable, and this is measured
+rather than assumed: **attachment need not happen at session start**, and a repository attached
+mid-session gets git credentials without moving the working directory.
 
-So start the session with **`cookframe` alone**, and attach `kschlt/cookframe-aos` and
-`kschlt/aos` as the first action, before running the command at the top of this file. The
-`SessionStart` hook will already have reported `COULD NOT MOUNT`, because at that moment the
-private repositories were not yet reachable. That is expected, and the run at the top of the
-file is what mounts them.
+Measured 2026-09-11 in a session started with this repository alone, `git ls-remote` against
+each of the three:
+
+| | before attaching | after attaching |
+| --- | --- | --- |
+| `kschlt/cookframe` | `exit 0` | `exit 0` |
+| `kschlt/cookframe-aos` | `exit 128` | `exit 0` |
+| `kschlt/aos` | `exit 128` | `exit 0` |
+
+The working directory stayed `/home/user/cookframe` throughout, so the hook layer survived the
+attachment. The sequence is therefore:
+
+1. Start the session with **`cookframe` as the only attached repository**. The `SessionStart`
+   hook fires and reports `COULD NOT MOUNT` — correct at that moment, because the private
+   repositories are not yet reachable.
+2. Attach `kschlt/cookframe-aos` and `kschlt/aos` from inside the session.
+3. Run the command at the top of this file. That is what mounts them.
+
+**Known cost of doing it this way: the skills are on disk but not registered in the session that
+mounted them.** `reloadSkills` only has an effect when it is a hook's response to the harness; a
+mount run by hand prints it to stdout, where nothing consumes it. So the twelve `.aos` skills
+(`/intake`, `/shape`, `/close`, …) are linked and readable, but not offered as commands in that
+session. Everything that does not depend on the skill roster does work — including run capture,
+measured writing `.aos/logs/<run>.jsonl`, and buffering the tool calls made *before* the mount
+existed rather than losing them.
 
 ### What is lost when the hook layer is inert
 
