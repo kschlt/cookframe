@@ -40,40 +40,64 @@ check and pulls the instance up to its remote. Both are idempotent.
 expected outcome for anyone but the maintainer, and it is not an error to fix. For the
 maintainer it means `kschlt/cookframe-aos` and `kschlt/aos` are not reachable from this session.
 
-There is a `SessionStart` hook in `.claude/settings.json` that runs the same script. **It does
-not fire in this environment — do not rely on it.** What is measured, not assumed:
+### Whether the hook fires depends on how the session was started
 
-- A dependency-free canary under all four hook events and every matcher form — eight
-  registrations, none fired.
-- `.claude/settings.json` is not loaded **at all**, not merely its `hooks` key: a `deny` rule
-  in the same file does not take effect either.
-- It is not about several repositories being attached. Measured again with this repository as
-  the sole attached repository and the session's working directory: same result.
-- `CLAUDE.md` and `.claude/skills/` do load in those same sessions.
+There is a `SessionStart` hook in `.claude/settings.json` that runs the same script. In a cloud
+session it fires only when **this repository is the session's working directory**. Measured
+2026-09-11, in two otherwise identical sessions:
 
-The hook is kept because it does work in a local CLI session. In a cloud session the
-instruction at the top of this file is the mechanism.
+| | `cookframe` attached alone | three repositories attached |
+| --- | --- | --- |
+| working directory | `/home/user/cookframe` | `/home/user` |
+| `.claude/settings.json` | loaded | not loaded |
+| `.mcp.json` (a diagnostic, since removed) | loaded | not loaded |
+| `SessionStart` hook | **fires** | no trace |
+| `CLAUDE.md`, `.claude/rules/`, `.claude/skills/` | loaded | loaded |
+| cloning an unattached private repository | `could not read Username` | resolves |
 
-**Both private repositories must be attached to the session.** An unattached private repository
-cannot be cloned — `could not read Username for 'https://github.com'` — while an attached one
-resolves normally. The credential proxy authenticates only for attached repositories.
+With more than one repository attached, the working directory is their common parent, so nothing
+project-scoped in this repository is read. That is the whole mechanism. The number of attached
+repositories matters only because it decides the working directory.
 
-Once mounted, read `.aos/sys/core/CLAUDE.md` for the session protocol and work from there. Only
-the bootstrap — `.claude/settings.json` and `.claude/hooks/` — is in this repository; the tool,
-its skills and all of its state live under `.aos/`, which is not tracked here.
+An earlier version of this file said the hook never fires, and that `.claude/settings.json` is
+not loaded at all in this environment. **Both claims were wrong.** They rested on a session
+whose canary had already been deleted, so an absent trace proved nothing either way. The script
+now writes an unconditional entry line to `/tmp/cookframe-aos-mount.log`, which makes "did it
+run" answerable afterwards instead of inferable.
 
-### Consequences of the hook layer being inert
+`.claude/settings.json` carries one deliberate oddity for this reason: an `env` entry
+`COOKFRAME_SETTINGS_CANARY`. `echo "$COOKFRAME_SETTINGS_CANARY"` answers "were project settings
+loaded at all" in one call, and unlike a `permissions` probe it cannot be confounded by the
+session's permission mode. Keep it.
 
-Worth knowing before you trust something that is supposed to happen by itself:
+### Attach this repository alone, then attach the private ones from inside the session
 
-- **No run-capture and no audit log.** `capture-pre.py` and `monitor-pre.py` are `PreToolUse`
+The two requirements pull against each other. The hook needs this repository to be the only
+attachment; the mount needs the private repositories to be attached, because the credential
+proxy authenticates only for attached repositories. They are reconcilable, because attachment
+need not happen at session start: a repository attached mid-session gets credentials without
+moving the working directory.
+
+So start the session with **`cookframe` alone**, and attach `kschlt/cookframe-aos` and
+`kschlt/aos` as the first action, before running the command at the top of this file. The
+`SessionStart` hook will already have reported `COULD NOT MOUNT`, because at that moment the
+private repositories were not yet reachable. That is expected, and the run at the top of the
+file is what mounts them.
+
+### What is lost when the hook layer is inert
+
+A session started with several repositories attached has no hook layer for its whole lifetime,
+and it cannot be revived: `SessionStart` does not re-fire, and `PreToolUse`, `PostToolUse` and
+`Stop` are never registered at all. The mount still works by hand. These do not:
+
+- **Run capture and the audit log.** `capture-pre.py` and `monitor-pre.py` are `PreToolUse`
   hooks, so `/inspect` has no run to analyse and `.aos/logs/` stays empty. The scripts
   themselves work when invoked directly.
-- **No context-threshold warning.** `check-context-threshold.py` never fires, so nothing tells
+- **The context-threshold warning.** `check-context-threshold.py` never fires, so nothing tells
   you to `/close pause` — watch context yourself.
-- **State is pushed only when someone pushes it.** Mutations auto-commit inside the instance,
-  but the push is a session-boundary step: `python3 .aos/sys/core/scripts/freshness.py end`, or
-  the work stays in a container that gets reclaimed.
+- **The session-end state push.** Mutations auto-commit inside the instance, but the push is a
+  session-boundary step: run `python3 .aos/sys/core/scripts/freshness.py end`, or the work stays
+  in a container that gets reclaimed.
 
 <!-- aos:begin id=task-workflow rev=1 managed by aos touchpoint writer - do not edit by hand -->
 This project's backlog, session protocol, and workflow tooling are managed by **aos** (the meta-workflow layer mounted at `.aos/`). Machinery lives at `.aos/sys/`; the authoritative session protocol is `.aos/sys/core/CLAUDE.md`. Instance state (backlog, specs, work-log) lives in the nested state repo at `.aos/` (host-ignored, its own git history). Do not edit this managed region by hand.

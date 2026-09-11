@@ -1,9 +1,0 @@
-{
-  "_comment": "TEMPORARY DIAGNOSTIC — delete with the other settings canaries. The command does not exist on purpose: nothing executes, but a connection ATTEMPT proves this repo's .mcp.json was read. The documentation lists .mcp.json as carrying over into cloud sessions; that is what is being tested.",
-  "mcpServers": {
-    "cookframe-mcp-canary": {
-      "command": "/nonexistent/cookframe-mcp-canary",
-      "args": []
-    }
-  }
-}
