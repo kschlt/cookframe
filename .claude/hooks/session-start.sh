@@ -140,5 +140,9 @@ fi
 # Also on stderr, for a by-hand run outside the hook.
 summary="${notes[*]:-nothing to do}"
 printf 'aos mount: %s\n' "$summary" >&2
-printf '{"systemMessage": "aos mount: %s"}\n' "$(printf '%s' "$summary" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+esc="$(printf '%s' "$summary" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+# reloadSkills makes Claude Code rescan skills and commands after the SessionStart hooks
+# finish, so skills this mount just linked in are usable in the SAME session rather than
+# only the next one. Harmless when nothing changed.
+printf '{"systemMessage": "aos mount: %s", "hookSpecificOutput": {"hookEventName": "SessionStart", "reloadSkills": true}}\n' "$esc"
 exit 0
