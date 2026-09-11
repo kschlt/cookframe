@@ -41,11 +41,22 @@ expected outcome for anyone but the maintainer, and it is not an error to fix. F
 maintainer it means `kschlt/cookframe-aos` and `kschlt/aos` are not reachable from this session.
 
 There is a `SessionStart` hook in `.claude/settings.json` that runs the same script. **It does
-not fire in this environment — do not rely on it.** Measured with a dependency-free canary
-registered under every hook event: eight registrations, none fired, across `SessionStart`,
-`PreToolUse`, `PostToolUse` and `Stop`, and across every matcher form including none at all. In
-the same sessions `CLAUDE.md` and `.claude/skills/` load normally. The hook is kept because it
-does work in a local CLI session; in a cloud session the instruction above is the mechanism.
+not fire in this environment — do not rely on it.** What is measured, not assumed:
+
+- A dependency-free canary under all four hook events and every matcher form — eight
+  registrations, none fired.
+- `.claude/settings.json` is not loaded **at all**, not merely its `hooks` key: a `deny` rule
+  in the same file does not take effect either.
+- It is not about several repositories being attached. Measured again with this repository as
+  the sole attached repository and the session's working directory: same result.
+- `CLAUDE.md` and `.claude/skills/` do load in those same sessions.
+
+The hook is kept because it does work in a local CLI session. In a cloud session the
+instruction at the top of this file is the mechanism.
+
+**Both private repositories must be attached to the session.** An unattached private repository
+cannot be cloned — `could not read Username for 'https://github.com'` — while an attached one
+resolves normally. The credential proxy authenticates only for attached repositories.
 
 Once mounted, read `.aos/sys/core/CLAUDE.md` for the session protocol and work from there. Only
 the bootstrap — `.claude/settings.json` and `.claude/hooks/` — is in this repository; the tool,

@@ -22,6 +22,13 @@ SIBLINGS="$(dirname "$ROOT")"
 STATE_REPO="kschlt/cookframe-aos"   # PRIVATE — must be attached to the session to clone
 MACH_REPO="kschlt/aos"
 
+# Unconditional entry trace. Whether this script ran at all is otherwise unanswerable
+# after the fact, and that question has cost several sessions. /tmp survives between
+# sessions on this host, so the line is durable evidence either way.
+printf '%s invoked root=%s cpd=%s\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ROOT" "${CLAUDE_PROJECT_DIR:-<unset>}" \
+  >> /tmp/cookframe-aos-mount.log 2>/dev/null
+
 notes=()
 say() { notes+=("$1"); }
 
@@ -117,7 +124,8 @@ mount_layer() {
   return 1
 }
 
-mkdir -p "$AOS"
+# No mkdir here on purpose. git clone creates the destination, including parents, so an
+# empty .aos/ is never left behind as a false "something mounted" signal.
 mount_layer "$AOS"      "$STATE_REPO" "cookframe-aos" || true
 mount_layer "$AOS/sys"  "$MACH_REPO"  "aos"           || true
 
