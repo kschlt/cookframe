@@ -96,19 +96,31 @@ attachment. The sequence is therefore:
 2. Attach `kschlt/cookframe-aos` and `kschlt/aos` from inside the session.
 3. Run the command at the top of this file. That is what mounts them.
 
-**Known cost of doing it this way: the skills are on disk but not registered in the session that
+**Cost of doing it this way: the skills are on disk but not registered in the session that
 mounted them.** `reloadSkills` only has an effect when it is a hook's response to the harness; a
-mount run by hand prints it to stdout, where nothing consumes it. So the twelve `.aos` skills
+mount run by hand prints it to stdout, where nothing consumes it. So the `.aos` skills
 (`/intake`, `/shape`, `/close`, …) are linked and readable, but not offered as commands in that
-session. Everything that does not depend on the skill roster does work — including run capture,
-measured writing `.aos/logs/<run>.jsonl`, and buffering the tool calls made *before* the mount
-existed rather than losing them.
+session.
 
-### What is lost when the hook layer is inert
+### The maintainer's environment registers the bootstrap outside this repository
 
-A session started with several repositories attached has no hook layer for its whole lifetime,
-and it cannot be revived: `SessionStart` does not re-fire, and `PreToolUse`, `PostToolUse` and
-`Stop` are never registered at all. The mount still works by hand. These do not:
+Measured 2026-09-14: with a `SessionStart` hook registered at a scope the working directory
+cannot move — not in this repository — a session with **three repositories attached** came up
+with `.aos` and `.aos/sys` mounted, the symlinks in place, and all twelve skills **invocable**,
+all of it before the first action. `reloadSkills` works there because it is a real hook response.
+
+That configuration lives in the maintainer's cloud environment, not here, and **nothing in this
+repository should grow a dependency on it.** Project scope behaves exactly as the table above
+says either way: `.claude/settings.json` is read only when this repository is the working
+directory. What the outside registration buys is that the mount no longer needs a working
+directory it cannot control.
+
+### What is lost when no hook layer is active
+
+With several repositories attached and no registration outside this repository, project settings
+are never read, and `SessionStart`, `PreToolUse`, `PostToolUse` and `Stop` are never registered
+for the session's whole lifetime — it cannot be revived from inside. The mount still works by
+hand. These do not:
 
 - **Run capture and the audit log.** `capture-pre.py` and `monitor-pre.py` are `PreToolUse`
   hooks, so `/inspect` has no run to analyse and `.aos/logs/` stays empty. The scripts
@@ -118,6 +130,10 @@ and it cannot be revived: `SessionStart` does not re-fire, and `PreToolUse`, `Po
 - **The session-end state push.** Mutations auto-commit inside the instance, but the push is a
   session-boundary step: run `python3 .aos/sys/core/scripts/freshness.py end`, or the work stays
   in a container that gets reclaimed.
+
+A registration outside this repository restores the first two only if it invokes those scripts
+itself; registering a `SessionStart` mount alone does not. The last one is a session-boundary
+step in every configuration.
 
 <!-- aos:begin id=task-workflow rev=1 managed by aos touchpoint writer - do not edit by hand -->
 This project's backlog, session protocol, and workflow tooling are managed by **aos** (the meta-workflow layer mounted at `.aos/`). Machinery lives at `.aos/sys/`; the authoritative session protocol is `.aos/sys/core/CLAUDE.md`. Instance state (backlog, specs, work-log) lives in the nested state repo at `.aos/` (host-ignored, its own git history). Do not edit this managed region by hand.
