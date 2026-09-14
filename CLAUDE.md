@@ -132,8 +132,13 @@ hand. These do not:
   in a container that gets reclaimed.
 
 A registration outside this repository restores the first two only if it invokes those scripts
-itself; registering a `SessionStart` mount alone does not. The last one is a session-boundary
-step in every configuration.
+itself — and only if it runs them **with the working directory inside the project**. The aos
+scripts locate their instance from `AOS_INSTANCE_ROOT` or by walking up from the current
+directory; they do not read `CLAUDE_PROJECT_DIR`, so passing it is not enough. Measured
+2026-09-14: with the working directory at `/home/user` every capture child exited zero having
+written nothing, and the audit log began filling on the next tool call as soon as the working
+directory moved into the project. The last item is a session-boundary step in every
+configuration.
 
 <!-- aos:begin id=task-workflow rev=1 managed by aos touchpoint writer - do not edit by hand -->
 This project's backlog, session protocol, and workflow tooling are managed by **aos** (the meta-workflow layer mounted at `.aos/`). Machinery lives at `.aos/sys/`; the authoritative session protocol is `.aos/sys/core/CLAUDE.md`. Instance state (backlog, specs, work-log) lives in the nested state repo at `.aos/` (host-ignored, its own git history). Do not edit this managed region by hand.
