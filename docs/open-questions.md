@@ -9,7 +9,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 
 | Id | Question | State |
 |---|---|---|
-| OQ-01 | exact framework/router | open |
+| OQ-01 | exact framework/router | closed by ADR-0007 |
 | OQ-02 | TypeScript vs. another implementation language if real constraints justify a change | closed by ADR-0002 |
 | OQ-03 | database technology | open |
 | OQ-04 | JSON vs. relational physical persistence | open |
