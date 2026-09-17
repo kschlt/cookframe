@@ -13,15 +13,15 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-02 | TypeScript vs. another implementation language if real constraints justify a change | closed by ADR-0002 |
 | OQ-03 | database technology | open |
 | OQ-04 | JSON vs. relational physical persistence | open |
-| OQ-05 | hosting platform/reference deployment | open |
+| OQ-05 | hosting platform/reference deployment | open — posture settled by PDR-0002; the platform is decided by its own ADR once S3 reports |
 | OQ-06 | object/blob storage implementation | open |
 | OQ-07 | model provider | open — configuration, not a record (ADR-0004) |
 | OQ-08 | model SDK/library | open — configuration, not a record (ADR-0004) |
 | OQ-09 | exact provider adapter interfaces | closed by ADR-0004 |
 | OQ-10 | background-job mechanism | open |
-| OQ-11 | exact shortcut packaging/distribution mechanism | open |
+| OQ-11 | exact shortcut packaging/distribution mechanism | closed by PDR-0003 |
 | OQ-12 | exact mobile component/layout system | open |
-| OQ-13 | eager vs. background vs. lazy Cooking Plan generation | open |
+| OQ-13 | eager vs. background vs. lazy Cooking Plan generation | closed by PDR-0004 |
 | OQ-14 | exact capture-eval thresholds | open |
 | OQ-15 | exact scaling-classification algorithm | out of V1 scope |
 | OQ-16 | exact safe URL-fetch implementation | open |
