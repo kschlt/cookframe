@@ -11,7 +11,7 @@ import pathlib
 HERE = pathlib.Path(__file__).resolve().parent
 PAGES = HERE / "pages"
 
-IMAGE = ("https://raw.githubusercontent.com/kschlt/cookframe/main/"
+IMAGE = ("https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/"
          "spikes/bring-compat/pages/fixture-image.png")
 
 STEPS = [
