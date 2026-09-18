@@ -2,18 +2,18 @@
   "fixture": "bring-compat/multi-yield-scaling",
   "item": "CFV1-S3",
   "endpoint": "https://api.getbring.com/rest/bringrecipes/parser",
-  "pages_pinned_at": "edd0d5e14b165f7c73e2c89b692f0455bdfce966",
+  "pages_pinned_at": "8dd4e259091f97feb2c6a2f04a1878d8dc77c650",
   "observations": [
     {
       "case": "multiple-yields",
-      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/multi-yield.html",
       "parser_params": {},
       "http_status": 200,
       "content_type": "application/json;charset=UTF-8",
       "response": {
         "name": "Mehrere Yields",
         "author": "Cookframe Fixture",
-        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/multi-yield.html",
         "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
         "imageWidth": 640,
         "imageHeight": 360,
@@ -66,14 +66,14 @@
     },
     {
       "case": "no-yield",
-      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/no-yield.html",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/no-yield.html",
       "parser_params": {},
       "http_status": 200,
       "content_type": "application/json;charset=UTF-8",
       "response": {
         "name": "Ohne Yield",
         "author": "Cookframe Fixture",
-        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/no-yield.html",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/no-yield.html",
         "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
         "imageWidth": 640,
         "imageHeight": 360,
@@ -125,14 +125,14 @@
     },
     {
       "case": "yield-bare-number",
-      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/yield-bare-number.html",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/yield-bare-number.html",
       "parser_params": {},
       "http_status": 200,
       "content_type": "application/json;charset=UTF-8",
       "response": {
         "name": "Yield als blosse Zahl",
         "author": "Cookframe Fixture",
-        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/yield-bare-number.html",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/yield-bare-number.html",
         "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
         "imageWidth": 640,
         "imageHeight": 360,
@@ -185,7 +185,7 @@
     },
     {
       "case": "baseline-requested-8",
-      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
       "parser_params": {
         "requestedQuantity": "8"
       },
@@ -194,10 +194,10 @@
       "response": {
         "name": "Kartoffelgratin (Baseline)",
         "author": "Cookframe Fixture",
-        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
-        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/main/spikes/bring-compat/pages/fixture-image.png",
-        "imageWidth": 1024,
-        "imageHeight": 576,
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
         "items": [
           {
             "itemId": "Kartoffeln",
@@ -271,7 +271,7 @@
     },
     {
       "case": "baseline-requested-2",
-      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
       "parser_params": {
         "requestedQuantity": "2"
       },
@@ -280,10 +280,10 @@
       "response": {
         "name": "Kartoffelgratin (Baseline)",
         "author": "Cookframe Fixture",
-        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
-        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/main/spikes/bring-compat/pages/fixture-image.png",
-        "imageWidth": 1024,
-        "imageHeight": 576,
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
         "items": [
           {
             "itemId": "Kartoffeln",
@@ -357,7 +357,7 @@
     },
     {
       "case": "baseline-base-2-requested-8",
-      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
       "parser_params": {
         "baseQuantity": "2",
         "requestedQuantity": "8"
@@ -367,10 +367,10 @@
       "response": {
         "name": "Kartoffelgratin (Baseline)",
         "author": "Cookframe Fixture",
-        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
-        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/main/spikes/bring-compat/pages/fixture-image.png",
-        "imageWidth": 1024,
-        "imageHeight": 576,
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
         "items": [
           {
             "itemId": "Kartoffeln",
@@ -444,7 +444,7 @@
     },
     {
       "case": "multi-yield-requested-8",
-      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/multi-yield.html",
       "parser_params": {
         "requestedQuantity": "8"
       },
@@ -453,7 +453,7 @@
       "response": {
         "name": "Mehrere Yields",
         "author": "Cookframe Fixture",
-        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/multi-yield.html",
         "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
         "imageWidth": 640,
         "imageHeight": 360,

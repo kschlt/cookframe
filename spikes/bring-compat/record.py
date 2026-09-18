@@ -9,6 +9,7 @@ fixtures pin: a later Bring change makes them fail loudly.
 Usage: python3 spikes/bring-compat/record.py [--sha <commit>]
 """
 import argparse
+import base64
 import json
 import pathlib
 import subprocess
@@ -22,6 +23,10 @@ DEEPLINK = "https://api.getbring.com/rest/bringrecipes/deeplink"
 RAW = "https://raw.githubusercontent.com/kschlt/cookframe"
 
 # fixture id -> list of (case name, page path or absolute url, extra parser params)
+# Filled in by hand from spikes/bring-compat/protocol.md — the questions that live in
+# the Bring app rather than in its HTTP traffic.
+DEVICE_PLACEHOLDER = "UNOBSERVED — see spikes/bring-compat/protocol.md"
+
 CASES = {
     "ingredient-parsing": [
         ("baseline", "baseline.html", {}),
@@ -50,6 +55,7 @@ CASES = {
     "no-image": [
         ("image-absent", "no-image.html", {}),
         ("image-url-404", "broken-image.html", {}),
+        # control: baseline carries a resolvable image pinned to its commit
         ("image-present-control", "baseline.html", {}),
     ],
     "tokenized-url": [
@@ -85,6 +91,22 @@ def get(url, params):
             return r.status, r.headers.get("content-type", ""), r.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         return e.code, e.headers.get("content-type", ""), e.read().decode("utf-8")
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+def head_only(url, params):
+    """Return (status, Location) without following the redirect."""
+    opener = urllib.request.build_opener(NoRedirect)
+    req = urllib.request.Request(f"{url}?{urllib.parse.urlencode(params)}")
+    try:
+        with opener.open(req, timeout=60) as r:
+            return r.status, r.headers.get("location")
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get("location")
 
 
 def body(text):
@@ -126,10 +148,40 @@ def main():
         (FIXTURES / f"{fid}.json").write_text(
             json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    # the deeplink the app actually opens, for one page, so the hand-off is pinned too
-    src = url_for(args.sha, "baseline.html")
-    status, ctype, _ = get(DEEPLINK, {"url": src, "source": "web"})
-    print("deeplink:", status)
+    # The deeplink the app actually opens. Recorded without following the redirect:
+    # the Location header is the observable, and its `src` payload is what a share
+    # would carry.
+    share = {
+        "fixture": "bring-compat/share-propagation",
+        "item": "CFV1-S3",
+        "endpoint": DEEPLINK,
+        "pages_pinned_at": args.sha,
+        "observations": [],
+        "device_observations": DEVICE_PLACEHOLDER,
+    }
+    for name, page in [("baseline", "baseline.html"),
+                       ("capability-url",
+                        "t/9f2c7ae4b1d04c6f8e3a5b7c9d1e2f30/recipe.html")]:
+        src = url_for(args.sha, page)
+        status, location = head_only(DEEPLINK, {"url": src, "source": "web"})
+        decoded = None
+        if location:
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)
+            raw_src = q.get("src", [None])[0]
+            if raw_src:
+                pad = "=" * (-len(raw_src) % 4)
+                decoded = base64.b64decode(raw_src + pad).decode("utf-8", "replace")
+        share["observations"].append({
+            "case": name,
+            "source_url": src,
+            "http_status": status,
+            "location": location,
+            "decoded_src": decoded,
+            "source_url_recoverable_from_share_link": bool(decoded and src in decoded),
+        })
+        print(f"share-propagation/{name}: {status}")
+    (FIXTURES / "share-propagation.json").write_text(
+        json.dumps(share, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

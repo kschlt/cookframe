@@ -1,0 +1,25 @@
+{
+  "fixture": "bring-compat/share-propagation",
+  "item": "CFV1-S3",
+  "endpoint": "https://api.getbring.com/rest/bringrecipes/deeplink",
+  "pages_pinned_at": "8dd4e259091f97feb2c6a2f04a1878d8dc77c650",
+  "observations": [
+    {
+      "case": "baseline",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
+      "http_status": 302,
+      "location": "https://getbring.onelink.me/ZAzR/9nsy974d",
+      "decoded_src": null,
+      "source_url_recoverable_from_share_link": false
+    },
+    {
+      "case": "capability-url",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/t/9f2c7ae4b1d04c6f8e3a5b7c9d1e2f30/recipe.html",
+      "http_status": 302,
+      "location": "https://getbring.onelink.me/ZAzR/5zx37qjm",
+      "decoded_src": null,
+      "source_url_recoverable_from_share_link": false
+    }
+  ],
+  "device_observations": "UNOBSERVED — see spikes/bring-compat/protocol.md"
+}
