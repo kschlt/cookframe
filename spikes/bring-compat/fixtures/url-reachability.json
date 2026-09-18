@@ -1,0 +1,148 @@
+{
+  "fixture": "bring-compat/url-reachability",
+  "item": "CFV1-S3",
+  "endpoint": "https://api.getbring.com/rest/bringrecipes/parser",
+  "pages_pinned_at": "8dd4e259091f97feb2c6a2f04a1878d8dc77c650",
+  "observations": [
+    {
+      "case": "private-repo-raw",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe-aos/main/README.md",
+      "parser_params": {},
+      "http_status": 400,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "title": "Bad Request",
+        "status": 400,
+        "detail": "recipe url is not reachable: recipeUrl='https://raw.githubusercontent.com/kschlt/cookframe-aos/main/README.md', method=GET, requestedUrl='https://raw.githubusercontent.com/kschlt/cookframe-aos/main/README.md', httpStatus=404, httpMessage='Not Found', protocol=http/1.1, contentType='text/plain; charset=utf-8', contentLength='14', location='null', redirectedFrom=null, durationMs=20"
+      }
+    },
+    {
+      "case": "http-scheme",
+      "source_url": "http://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Kartoffelgratin (Baseline)",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "http://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/baseline.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "1",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "1 TL",
+            "stock": false
+          }
+        ],
+        "yield": "4 Portionen",
+        "baseQuantity": 4,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "1",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "1 TL",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "loopback",
+      "source_url": "https://127.0.0.1/recipe.html",
+      "parser_params": {},
+      "http_status": 403,
+      "content_type": "text/html",
+      "response": "<html>\r\n<head><title>403 Forbidden</title></head>\r\n<body>\r\n<center><h1>403 Forbidden</h1></center>\r\n</body>\r\n</html>"
+    },
+    {
+      "case": "private-network",
+      "source_url": "http://10.0.0.1/recipe.html",
+      "parser_params": {},
+      "http_status": 400,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "title": "Bad Request",
+        "status": 400,
+        "detail": "recipe url is not reachable: recipeUrl='http://10.0.0.1/recipe.html', method=GET, error=SocketTimeoutException: connect timed out"
+      }
+    },
+    {
+      "case": "nonexistent-host",
+      "source_url": "https://cookframe-s3-does-not-exist.example/recipe.html",
+      "parser_params": {},
+      "http_status": 400,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "title": "Bad Request",
+        "status": 400,
+        "detail": "recipe url is not reachable: recipeUrl='https://cookframe-s3-does-not-exist.example/recipe.html', method=GET, error=UnknownHostException: cookframe-s3-does-not-exist.example: Name or service not known"
+      }
+    },
+    {
+      "case": "path-404",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/{base}/spikes/bring-compat/pages/does-not-exist.html",
+      "parser_params": {},
+      "http_status": 400,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "title": "Bad Request",
+        "status": 400,
+        "detail": "recipe url is not reachable: recipeUrl='https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/{base}/spikes/bring-compat/pages/does-not-exist.html', method=GET, requestedUrl='https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/%7Bbase%7D/spikes/bring-compat/pages/does-not-exist.html', httpStatus=404, httpMessage='Not Found', protocol=http/1.1, contentType='text/plain; charset=utf-8', contentLength='14', location='null', redirectedFrom=null, durationMs=26"
+      }
+    }
+  ]
+}

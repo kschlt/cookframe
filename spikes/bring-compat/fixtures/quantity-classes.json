@@ -1,0 +1,256 @@
+{
+  "fixture": "bring-compat/quantity-classes",
+  "item": "CFV1-S3",
+  "endpoint": "https://api.getbring.com/rest/bringrecipes/parser",
+  "pages_pinned_at": "8dd4e259091f97feb2c6a2f04a1878d8dc77c650",
+  "observations": [
+    {
+      "case": "exact",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/quantity-exact.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Mengen exakt",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/quantity-exact.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Mehl",
+            "spec": "200 g",
+            "stock": false
+          },
+          {
+            "itemId": "Milch",
+            "spec": "250 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Olivenöl",
+            "spec": "3 EL",
+            "stock": false
+          },
+          {
+            "itemId": "Eier",
+            "spec": "2 Stück",
+            "stock": false
+          },
+          {
+            "itemId": "Wasser",
+            "spec": "1,5 l",
+            "stock": false
+          }
+        ],
+        "yield": "4 Portionen",
+        "baseQuantity": 4,
+        "ingredients": [
+          {
+            "itemId": "Mehl",
+            "spec": "200 g",
+            "stock": false
+          },
+          {
+            "itemId": "Milch",
+            "spec": "250 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Olivenöl",
+            "spec": "3 EL",
+            "stock": false
+          },
+          {
+            "itemId": "Eier",
+            "spec": "2 Stück",
+            "stock": false
+          },
+          {
+            "itemId": "Wasser",
+            "spec": "1,5 l",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "vague",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/quantity-vague.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Mengen vage",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/quantity-vague.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Salz",
+            "spec": "etwas",
+            "stock": false
+          },
+          {
+            "itemId": "eine Prise Muskat",
+            "altIcon": "Paprikapulver",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "eine Handvoll Basilikum",
+            "altIcon": "Basilikum",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Pfeffer nach Geschmack",
+            "altIcon": "Pfefferkörner",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Öl zum Braten",
+            "altIcon": "Fleisch",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Mehl",
+            "stock": false
+          }
+        ],
+        "yield": "4 Portionen",
+        "baseQuantity": 4,
+        "ingredients": [
+          {
+            "itemId": "Salz",
+            "spec": "etwas",
+            "stock": false
+          },
+          {
+            "itemId": "eine Prise Muskat",
+            "altIcon": "Paprikapulver",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "eine Handvoll Basilikum",
+            "altIcon": "Basilikum",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Pfeffer nach Geschmack",
+            "altIcon": "Pfefferkörner",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Öl zum Braten",
+            "altIcon": "Fleisch",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Mehl",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "ranged",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/quantity-ranged.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Mengen als Bereich",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/quantity-ranged.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Olivenöl",
+            "spec": "2-3 EL",
+            "stock": false
+          },
+          {
+            "itemId": "Mehl",
+            "spec": "400–500 g",
+            "stock": false
+          },
+          {
+            "itemId": "bis 2 TL Senf",
+            "spec": "1",
+            "altIcon": "Senf",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Zwiebeln",
+            "spec": "2 - 3",
+            "stock": false
+          },
+          {
+            "itemId": "Zimt",
+            "spec": "1⁄2–1 TL",
+            "stock": false
+          }
+        ],
+        "yield": "4 Portionen",
+        "baseQuantity": 4,
+        "ingredients": [
+          {
+            "itemId": "Olivenöl",
+            "spec": "2-3 EL",
+            "stock": false
+          },
+          {
+            "itemId": "Mehl",
+            "spec": "400–500 g",
+            "stock": false
+          },
+          {
+            "itemId": "bis 2 TL Senf",
+            "spec": "1",
+            "altIcon": "Senf",
+            "altSection": "Zutaten & Gewürze",
+            "stock": false
+          },
+          {
+            "itemId": "Zwiebeln",
+            "spec": "2 - 3",
+            "stock": false
+          },
+          {
+            "itemId": "Zimt",
+            "spec": "1⁄2–1 TL",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    }
+  ]
+}

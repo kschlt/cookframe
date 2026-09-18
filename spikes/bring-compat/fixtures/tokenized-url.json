@@ -1,0 +1,80 @@
+{
+  "fixture": "bring-compat/tokenized-url",
+  "item": "CFV1-S3",
+  "endpoint": "https://api.getbring.com/rest/bringrecipes/parser",
+  "pages_pinned_at": "8dd4e259091f97feb2c6a2f04a1878d8dc77c650",
+  "observations": [
+    {
+      "case": "unguessable-path",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/t/9f2c7ae4b1d04c6f8e3a5b7c9d1e2f30/recipe.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Capability-URL",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/t/9f2c7ae4b1d04c6f8e3a5b7c9d1e2f30/recipe.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "yield": "4 Portionen",
+        "baseQuantity": 4,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "unguessable-path-plus-query-token",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/t/9f2c7ae4b1d04c6f8e3a5b7c9d1e2f30/recipe.html?token=s3-observation-token",
+      "parser_params": {},
+      "http_status": 400,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "title": "Bad Request",
+        "status": 400,
+        "detail": "recipe url is not reachable: recipeUrl='https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/t/9f2c7ae4b1d04c6f8e3a5b7c9d1e2f30/recipe.html?token=s3-observation-token', method=GET, requestedUrl='https://raw.githubusercontent.com/kschlt/cookframe/8dd4e259091f97feb2c6a2f04a1878d8dc77c650/spikes/bring-compat/pages/t/9f2c7ae4b1d04c6f8e3a5b7c9d1e2f30/recipe.html?token=s3-observation-token', httpStatus=404, httpMessage='Not Found', protocol=http/1.1, contentType='text/plain; charset=utf-8', contentLength='14', location='null', redirectedFrom=null, durationMs=19"
+      }
+    }
+  ]
+}
