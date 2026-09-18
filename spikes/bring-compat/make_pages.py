@@ -66,6 +66,16 @@ def base(**over):
     return r
 
 
+# --- baseline -------------------------------------------------------------
+page("baseline.html", "Kartoffelgratin (Baseline)",
+     "Vollstaendige Referenzfassung: Autor, erreichbares Bild, ein Yield, nur exakte Mengen.",
+     base(name="Kartoffelgratin (Baseline)",
+          description="Vollstaendige Referenzfassung.",
+          recipeIngredient=[
+              "800 g Kartoffeln", "200 ml Rahm", "100 g Gruyere",
+              "1 Knoblauchzehe", "1 TL Salz",
+          ]))
+
 # --- author: required versus tolerated -----------------------------------
 page("missing-author.html", "Kartoffelgratin (ohne Autor)",
      "Autorfeld fehlt vollstaendig.",

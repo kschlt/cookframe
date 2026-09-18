@@ -1,0 +1,508 @@
+{
+  "fixture": "bring-compat/multi-yield-scaling",
+  "item": "CFV1-S3",
+  "endpoint": "https://api.getbring.com/rest/bringrecipes/parser",
+  "pages_pinned_at": "edd0d5e14b165f7c73e2c89b692f0455bdfce966",
+  "observations": [
+    {
+      "case": "multiple-yields",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Mehrere Yields",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "yield": "4 Portionen",
+        "baseQuantity": 4,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "no-yield",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/no-yield.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Ohne Yield",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/no-yield.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "baseQuantity": 4,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "yield-bare-number",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/yield-bare-number.html",
+      "parser_params": {},
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Yield als blosse Zahl",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/yield-bare-number.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "yield": "6",
+        "baseQuantity": 6,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "800 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "200 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "100 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "baseline-requested-8",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+      "parser_params": {
+        "requestedQuantity": "8"
+      },
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Kartoffelgratin (Baseline)",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/main/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 1024,
+        "imageHeight": 576,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "1600 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "400 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "200 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "2",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "2 TL",
+            "stock": false
+          }
+        ],
+        "yield": "8 Portionen",
+        "baseQuantity": 8,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "1600 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "400 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "200 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "2",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "2 TL",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "baseline-requested-2",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+      "parser_params": {
+        "requestedQuantity": "2"
+      },
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Kartoffelgratin (Baseline)",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/main/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 1024,
+        "imageHeight": 576,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "400 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "100 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "50 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "0.5",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "0.5 TL",
+            "stock": false
+          }
+        ],
+        "yield": "2 Portionen",
+        "baseQuantity": 2,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "400 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "100 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "50 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "0.5",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "0.5 TL",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "baseline-base-2-requested-8",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+      "parser_params": {
+        "baseQuantity": "2",
+        "requestedQuantity": "8"
+      },
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Kartoffelgratin (Baseline)",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/baseline.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/main/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 1024,
+        "imageHeight": 576,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "3200 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "800 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "400 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "4",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "4 TL",
+            "stock": false
+          }
+        ],
+        "yield": "16 Portionen",
+        "baseQuantity": 8,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "3200 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "800 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "400 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          },
+          {
+            "itemId": "Knoblauchzehe",
+            "spec": "4",
+            "altIcon": "Knoblauch",
+            "altSection": "Früchte & Gemüse",
+            "stock": false
+          },
+          {
+            "itemId": "Salz",
+            "spec": "4 TL",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    },
+    {
+      "case": "multi-yield-requested-8",
+      "source_url": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+      "parser_params": {
+        "requestedQuantity": "8"
+      },
+      "http_status": 200,
+      "content_type": "application/json;charset=UTF-8",
+      "response": {
+        "name": "Mehrere Yields",
+        "author": "Cookframe Fixture",
+        "linkOutUrl": "https://raw.githubusercontent.com/kschlt/cookframe/edd0d5e14b165f7c73e2c89b692f0455bdfce966/spikes/bring-compat/pages/multi-yield.html",
+        "imageUrl": "https://raw.githubusercontent.com/kschlt/cookframe/9872eea1600e8949fa95177aa6c496240b5ed085/spikes/bring-compat/pages/fixture-image.png",
+        "imageWidth": 640,
+        "imageHeight": 360,
+        "items": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "1600 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "400 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "200 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "yield": "8 Portionen",
+        "baseQuantity": 8,
+        "ingredients": [
+          {
+            "itemId": "Kartoffeln",
+            "spec": "1600 g",
+            "stock": false
+          },
+          {
+            "itemId": "Rahm",
+            "spec": "400 ml",
+            "stock": false
+          },
+          {
+            "itemId": "Gruyere",
+            "spec": "200 g",
+            "altIcon": "Käse",
+            "altSection": "Milch & Käse",
+            "stock": false
+          }
+        ],
+        "likeCount": 0,
+        "tags": [
+          "bring_recipe_parser"
+        ],
+        "enableQuantityChange": true
+      }
+    }
+  ]
+}
