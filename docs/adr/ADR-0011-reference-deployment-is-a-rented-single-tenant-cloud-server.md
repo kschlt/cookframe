@@ -1,7 +1,7 @@
 ---
 id: "ADR-0011"
 title: "Reference deployment: a rented single-tenant cloud server with its own domain"
-status: proposed
+status: accepted
 date: 2026-09-18
 tags: ["hosting", "deployment", "bring"]
 constrained_by: ["PDR-0002"]
