@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.git
+.aos
+.env
+.env.*
+!.env.example
+evals/fixtures/private

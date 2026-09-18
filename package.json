@@ -1,0 +1,37 @@
+{
+  "name": "cookframe",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Convert heterogeneous recipe sources into a durable, provider-independent Canonical Recipe.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:schema-contract": "vitest run tests/schema",
+    "test:normalization-invariant": "vitest run tests/normalization",
+    "test:url-fetch-security": "vitest run tests/url-fetch",
+    "test:watch": "vitest",
+    "eval": "tsx evals/harness.ts",
+    "quality": "npm run typecheck && biome ci . && vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0",
+    "yaml": "^2.7.0"
+  }
+}
