@@ -38,6 +38,38 @@
       "decoded_src": "https://api.getbring.com/rest/v2/bringtemplates/content/98ea6c60-f6da-4db1-bf77-34cf604753cf",
       "finding": "A Bring-side share of one of Bring's OWN inspiration recipes is type=TEMPLATE and carries only a Bring-internal content id — NOT any external source URL. Safe by construction for Bring's own catalog."
     },
-    "open_q7_test": "Import an externally-sourced recipe (our capability-URL page), then use Bring's share button and decode the resulting link: is it type=TEMPLATE (Bring-internal, safe) or type=RECIPE carrying our source/capability URL? This is the decisive privacy test — pending."
+    "open_q7_test": "Import an externally-sourced recipe (our capability-URL page), then use Bring's share button and decode the resulting link: is it type=TEMPLATE (Bring-internal, safe) or type=RECIPE carrying our source/capability URL? This is the decisive privacy test — pending.",
+    "q7_share_of_imported_recipe": {
+      "verdict": "NO — a Bring-side share does NOT propagate the source or capability URL",
+      "method": "Kornelius imported recipes from our external raw.githubusercontent pages (incl. the capability-URL page with a secret path), then used Bring's share button and sent the resulting onelink back.",
+      "samples": [
+        {
+          "page": "capability-url",
+          "shortlink": "https://getbring.onelink.me/ZAzR/ta39ia3u",
+          "type": "TEMPLATE",
+          "src": "https://api.getbring.com/rest/v2/bringtemplates/content/7b9f7127-97e9-4906-b2bb-0a9a480b94ae",
+          "carries_source_url": false
+        },
+        {
+          "page": "multi-yield",
+          "shortlink": "https://getbring.onelink.me/ZAzR/p59nyxp7",
+          "type": "TEMPLATE",
+          "src": "https://api.getbring.com/rest/v2/bringtemplates/content/bf940050-6cc3-42cf-9460-c44e837c63f3",
+          "carries_source_url": false
+        },
+        {
+          "page": "no-image",
+          "shortlink": "https://getbring.onelink.me/ZAzR/9z4d5pxt",
+          "type": "TEMPLATE",
+          "src": "https://api.getbring.com/rest/v2/bringtemplates/content/234f1d78-1a5c-4b82-b72c-c3bb64a8967d",
+          "carries_source_url": false
+        }
+      ],
+      "mechanism": "On share, Bring re-uploads the recipe to its OWN template store (a fresh bringtemplates/content/<uuid>) and the share link (type=TEMPLATE) points to that internal id. The recipient receives a Bring content reference, never our external URL or its secret path. Same shape as Bring's own Inspiration shares.",
+      "residual_note": "The recipe CONTENT is copied onto Bring's servers as a template; the source URL / capability token is NOT handed to the recipient. Whether Bring internally retains a linkOut inside the template content is a Bring-side retention question, not a third-party propagation one."
+    },
+    "q4_multi_yield_on_device": "Import of the multi-yield page showed '4 Portionen' only (the first declared yield); the extra yields (12 Muffins / 1 Blech) were discarded — confirms the API finding in the app.",
+    "q5_no_image_on_device": "No-image page imported cleanly; no image shown, all else intact.",
+    "q6_capability_url_on_device": "Capability-URL page (secret path) imported identically to a plain page; 'Öffne Website' return-nav present."
   }
 }

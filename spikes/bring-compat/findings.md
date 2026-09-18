@@ -159,24 +159,34 @@ bearer token that Bring retains.
 
 ## Q7 — What a Bring-side share propagates (the privacy question)
 
-**Verdict (app — pending; API strongly constrains it): the deep link Bring generates is an
-opaque OneLink shortlink that does NOT expose the source URL. Whether a *share* carries the
-recipe contents or a re-openable link is the on-device half.**
+**Verdict: NO — a Bring-side share does NOT propagate the source or the capability URL.
+Confirmed on device (2026-09-18).**
 
-- The deep link `record.py` captured for both `baseline.html` and the capability-URL page is a
-  302 to `https://getbring.onelink.me/ZAzR/<opaque>` — a different opaque code each call, with
-  **no source URL recoverable from the shortlink** (`source_url_recoverable_from_share_link:
-  false` in the fixture). So the *import* deep link does not leak the source URL to a third party.
-- **But** the parser retains `linkOutUrl` = the full source URL (Q6). The open question is
-  whether Bring's own *share* of an imported recipe re-exposes that `linkOutUrl` or the
-  capability URL to the recipient. This cannot be answered from HTTP alone and is the single most
-  important on-device observation — `protocol.md` Q7, designed so a negative answer is as well
-  evidenced as a positive one.
+Kornelius imported recipes from our external pages — including the capability-URL page whose
+secret is in the path — then used Bring's own share button and sent back the resulting links.
+All four decoded the same way:
 
-Fixture: `bring-compat/share-propagation` (import deep links pinned; device observations pending).
-**Provisional adapter rule:** assume, until the device observation confirms otherwise, that a
-capability URL handed to Bring **may** be propagated by a Bring-side share, because Bring retains
-it as `linkOutUrl`. Design OQ-17's token lifetime/revocation for that worst case.
+- The share is an opaque OneLink shortlink → `deeplink.getbring.com/import?type=TEMPLATE&src=…`.
+- `src` base64-decodes to a **fresh Bring-internal template id**
+  (`api.getbring.com/rest/v2/bringtemplates/content/<uuid>`), a different one each share.
+- **None carried our `raw.githubusercontent.com` URL or the capability path.**
+
+Mechanism: on share, Bring **re-uploads the recipe to its own template store** and shares a
+reference to that internal copy — the identical shape to Bring's own "Inspiration" shares. The
+recipient gets a Bring content id, never our external URL. (The earlier provisional worst-case
+assumption is therefore disproved for the share path.)
+
+Residual, and worth stating precisely: the recipe **content** is copied onto Bring's servers as
+a template when shared; the **source URL / capability token is not** handed to the recipient.
+Whether Bring internally keeps a linkOut inside that template content is a Bring-side *retention*
+question, not a third-party *propagation* one — and propagation was the privacy risk this
+question was about.
+
+Fixture: `bring-compat/share-propagation` (import deep links + four decoded on-device shares).
+**Adapter rule (OQ-17), revised:** a Bring-side share does not leak the capability URL, so the
+token does not have to survive being forwarded by a recipient. It must still assume Bring itself
+**retains** the URL as `linkOutUrl` (Q6) — so design the token's lifetime/revocation around
+Bring's own retention, not around downstream sharing.
 
 ---
 
@@ -192,8 +202,10 @@ it as `linkOutUrl`. Design OQ-17's token lifetime/revocation for that worst case
    Bring's reported image dimensions.
 6. Capability secret goes in the URL **path**, never the query. Bring retains the full source URL
    as `linkOutUrl`, so treat the capability URL as a retained bearer token.
-7. The import deep link is opaque and does not leak the source URL; a Bring-side *share* might —
-   confirm on device (Q7) and design token revocation for the worst case.
+7. Neither the import deep link nor a Bring-side share leaks the source/capability URL
+   (Q7, device-confirmed): a share re-uploads the recipe to Bring's own template store and points
+   at that internal copy. Design the token's lifetime/revocation around Bring's *retention* of the
+   URL (Q6), not around downstream forwarding.
 
 ## Documented vs observed — where they diverge
 
