@@ -1,0 +1,148 @@
+{
+  "id": "recipe-fixture-0001",
+  "schemaVersion": "1.0.0",
+  "title": "Kartoffelgratin",
+  "description": "A synthetic public fixture exercising the ontology's future-readiness case (recipe-ontology §12): two contextual yields, one source nutrition statement with an ambiguous per-serving basis, and source-provided classifications.",
+  "authors": ["Cookframe Fixture"],
+  "sourceName": "Cookframe Fixtures",
+  "sourceClassifications": [
+    {
+      "kind": "cuisine",
+      "sourceText": "Swiss",
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    },
+    {
+      "kind": "difficulty",
+      "sourceText": "simple",
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    }
+  ],
+  "yields": [
+    {
+      "id": "y-side",
+      "sourceText": "4 servings as a side dish",
+      "valueExpression": { "sourceText": "4", "kind": "exact", "value": 4 },
+      "unit": "servings",
+      "contextText": "as a side dish",
+      "scalingEligibility": "unknown",
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    },
+    {
+      "id": "y-main",
+      "sourceText": "2 persons as a main course",
+      "valueExpression": { "sourceText": "2", "kind": "exact", "value": 2 },
+      "unit": "persons",
+      "contextText": "as a main course",
+      "scalingEligibility": "unknown",
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    }
+  ],
+  "times": [
+    {
+      "type": "bake",
+      "sourceLabel": "Backzeit",
+      "durationExpression": { "sourceText": "45 min", "kind": "exact", "value": 45, "unit": "min" },
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    }
+  ],
+  "ingredientGroups": [
+    {
+      "id": "g-main",
+      "sourceRefs": [{ "blockId": "b-ing-group" }],
+      "ingredients": [
+        {
+          "id": "i-potato",
+          "sourceText": "800 g Kartoffeln",
+          "quantityExpression": { "sourceText": "800", "kind": "exact", "value": 800 },
+          "unit": "g",
+          "name": "Kartoffeln",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [{ "blockId": "b-ing-1" }]
+        },
+        {
+          "id": "i-salt",
+          "sourceText": "Salz nach Geschmack",
+          "name": "Salz",
+          "qualifiers": ["nach Geschmack"],
+          "scalingEligibility": "non_scalable",
+          "sourceRefs": [{ "blockId": "b-ing-2" }]
+        }
+      ]
+    }
+  ],
+  "instructionSections": [
+    {
+      "id": "s-main",
+      "sourceRefs": [{ "blockId": "b-instr-group" }],
+      "steps": [
+        {
+          "id": "st-1",
+          "sourceText": "Kartoffeln in Scheiben schneiden und 45 Minuten bei 180 Grad backen.",
+          "normalizedActionText": "Kartoffeln in Scheiben schneiden und backen.",
+          "sourceRefs": [{ "blockId": "b-instr-1" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-potato",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "45 Minuten",
+                "kind": "exact",
+                "value": 45,
+                "unit": "min"
+              },
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "temperatures": [
+            {
+              "sourceText": "180 Grad",
+              "valueExpression": { "sourceText": "180", "kind": "exact", "value": 180 },
+              "unit": "C",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        }
+      ]
+    }
+  ],
+  "nutritionStatements": [
+    {
+      "id": "n-1",
+      "sourceText": "approximately 297 kcal per serving",
+      "basis": { "kind": "per_serving", "sourceText": "per serving" },
+      "facts": [
+        {
+          "nutrient": "energy",
+          "sourceLabel": "kcal",
+          "valueExpression": {
+            "sourceText": "297",
+            "kind": "approximate",
+            "value": 297,
+            "qualifierText": "approximately"
+          },
+          "unit": "kcal",
+          "sourceRefs": [{ "blockId": "b-meta" }]
+        }
+      ],
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    }
+  ],
+  "provenance": {
+    "sourceSnapshotId": "snap-fixture-0001",
+    "sourceSnapshotVersion": 1,
+    "targetOntologyVersion": "1.0.0",
+    "runId": "run-fixture-0001"
+  }
+}

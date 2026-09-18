@@ -1,0 +1,44 @@
+{
+  "id": "snap-fixture-0001",
+  "version": 1,
+  "sourceType": "url",
+  "sourceUrl": "https://example.invalid/kartoffelgratin",
+  "sourceSite": "Cookframe Fixtures",
+  "capturedText": "Kartoffelgratin\n4 servings as a side dish; 2 persons as a main course\n800 g Kartoffeln\nSalz nach Geschmack\nKartoffeln in Scheiben schneiden und 45 Minuten bei 180 Grad backen.",
+  "blocks": [
+    { "id": "b-title", "order": 0, "type": "title", "text": "Kartoffelgratin" },
+    {
+      "id": "b-meta",
+      "order": 1,
+      "type": "metadata",
+      "text": "4 servings as a side dish; 2 persons as a main course; approximately 297 kcal per serving; simple; Swiss"
+    },
+    {
+      "id": "b-ing-group",
+      "order": 2,
+      "type": "ingredient_group",
+      "heading": "Zutaten",
+      "text": "Zutaten"
+    },
+    { "id": "b-ing-1", "order": 3, "type": "ingredient", "text": "800 g Kartoffeln" },
+    { "id": "b-ing-2", "order": 4, "type": "ingredient", "text": "Salz nach Geschmack" },
+    {
+      "id": "b-instr-group",
+      "order": 5,
+      "type": "instruction_group",
+      "heading": "Zubereitung",
+      "text": "Zubereitung"
+    },
+    {
+      "id": "b-instr-1",
+      "order": 6,
+      "type": "instruction",
+      "text": "Kartoffeln in Scheiben schneiden und 45 Minuten bei 180 Grad backen."
+    }
+  ],
+  "captureProvenance": {
+    "sourceAdapter": "url-source-adapter",
+    "adapterVersion": "0.0.0-fixture",
+    "runId": "capture-run-fixture-0001"
+  }
+}
