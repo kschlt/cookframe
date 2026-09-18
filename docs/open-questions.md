@@ -13,7 +13,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-02 | TypeScript vs. another implementation language if real constraints justify a change | closed by ADR-0002 |
 | OQ-03 | database technology | open |
 | OQ-04 | JSON vs. relational physical persistence | open |
-| OQ-05 | hosting platform/reference deployment | open — posture settled by PDR-0002; the platform is decided by its own ADR once S3 reports |
+| OQ-05 | hosting platform/reference deployment | open — decision proposed in ADR-0011 (rented single-tenant cloud server); closes on acceptance |
 | OQ-06 | object/blob storage implementation | closed by ADR-0009 |
 | OQ-07 | model provider | open — configuration, not a record (ADR-0004) |
 | OQ-08 | model SDK/library | open — configuration, not a record (ADR-0004) |
