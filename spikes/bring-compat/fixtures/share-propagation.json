@@ -21,5 +21,23 @@
       "source_url_recoverable_from_share_link": false
     }
   ],
-  "device_observations": "UNOBSERVED — see spikes/bring-compat/protocol.md"
+  "device_observations": {
+    "observed_at": "2026-09-18",
+    "observer": "Kornelius (phone, Bring iOS)",
+    "baseline_import_confirmed": {
+      "author_rendered": "Cookframe Fixture shown; Bring did not fabricate one",
+      "ingredients": "all 5 parsed as tiles",
+      "synonym_normalization": "source 'Rahm' displayed as 'Sahne' — Bring normalizes ingredient synonyms for display",
+      "return_navigation": "'Öffne Website' button links back to the source page (Q6, app-confirmed)",
+      "share_button_present": "box-with-arrow icon beside 'Öffne Website' (the Q7 mechanism)",
+      "scaling_control": "'4 Portionen' with +/- (Q4 control present)"
+    },
+    "bring_own_inspiration_share_structure": {
+      "sample_shortlink": "https://getbring.onelink.me/ZAzR/w39uc3rd",
+      "resolves_to": "https://deeplink.getbring.com/import?type=TEMPLATE&src=<base64>",
+      "decoded_src": "https://api.getbring.com/rest/v2/bringtemplates/content/98ea6c60-f6da-4db1-bf77-34cf604753cf",
+      "finding": "A Bring-side share of one of Bring's OWN inspiration recipes is type=TEMPLATE and carries only a Bring-internal content id — NOT any external source URL. Safe by construction for Bring's own catalog."
+    },
+    "open_q7_test": "Import an externally-sourced recipe (our capability-URL page), then use Bring's share button and decode the resulting link: is it type=TEMPLATE (Bring-internal, safe) or type=RECIPE carrying our source/capability URL? This is the decisive privacy test — pending."
+  }
 }
