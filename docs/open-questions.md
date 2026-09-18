@@ -9,22 +9,22 @@ discovery-era wording is kept in [`archive/`](archive/).
 
 | Id | Question | State |
 |---|---|---|
-| OQ-01 | exact framework/router | open |
+| OQ-01 | exact framework/router | closed by ADR-0007 |
 | OQ-02 | TypeScript vs. another implementation language if real constraints justify a change | closed by ADR-0002 |
 | OQ-03 | database technology | open |
 | OQ-04 | JSON vs. relational physical persistence | open |
-| OQ-05 | hosting platform/reference deployment | open |
-| OQ-06 | object/blob storage implementation | open |
+| OQ-05 | hosting platform/reference deployment | closed by ADR-0011 (rented single-tenant cloud server) |
+| OQ-06 | object/blob storage implementation | closed by ADR-0009 |
 | OQ-07 | model provider | open — configuration, not a record (ADR-0004) |
 | OQ-08 | model SDK/library | open — configuration, not a record (ADR-0004) |
 | OQ-09 | exact provider adapter interfaces | closed by ADR-0004 |
-| OQ-10 | background-job mechanism | open |
-| OQ-11 | exact shortcut packaging/distribution mechanism | open |
+| OQ-10 | background-job mechanism | closed by ADR-0008 |
+| OQ-11 | exact shortcut packaging/distribution mechanism | closed by PDR-0003 |
 | OQ-12 | exact mobile component/layout system | open |
-| OQ-13 | eager vs. background vs. lazy Cooking Plan generation | open |
+| OQ-13 | eager vs. background vs. lazy Cooking Plan generation | closed by PDR-0004 |
 | OQ-14 | exact capture-eval thresholds | open |
 | OQ-15 | exact scaling-classification algorithm | out of V1 scope |
-| OQ-16 | exact safe URL-fetch implementation | open |
+| OQ-16 | exact safe URL-fetch implementation | closed by ADR-0010 |
 | OQ-17 | exact capability-token format/lifetime/revocation mechanism | open |
 | OQ-18 | exact Bring integration mechanism after spike | open |
 | OQ-19 | exact hero-image compression/storage variants | open |
