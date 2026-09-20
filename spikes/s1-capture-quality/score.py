@@ -9,9 +9,14 @@ the threshold names (proof: capture-quality/per-field-scoring).
 
 Output: scores.json (machine-readable, per field + per class + edge classes +
 verdict) and a printed report. The verdict is PASS only if every field bar and
-every quantity-edge bar is met (proof: capture-quality/oq14-verdict).
+every quantity-edge bar is met (proof: capture-quality/oq14-verdict) — AND the
+captures are not byte-identical to their truth. A circularity guard downgrades
+the verdict to INCONCLUSIVE_CIRCULAR when every present capture equals its truth,
+because a correct read of self-authored content cannot be told from a copy of the
+answer, so a PASS would be tautological (see oq14-verdict.md).
 
 Usage: python3 spikes/s1-capture-quality/score.py [--model sonnet]
+       python3 spikes/s1-capture-quality/score.py --selftest
 """
 from __future__ import annotations
 
@@ -120,6 +125,12 @@ def load_json(p: Path):
         return None
 
 
+def canon_json(o) -> str:
+    """Order-independent canonical form, for the circularity guard: a capture
+    canonically equal to its truth measures nothing about capture accuracy."""
+    return json.dumps(o, sort_keys=True, ensure_ascii=False)
+
+
 def match_ingredient(truth_ing, captured_list):
     """Find the captured ingredient whose normalized name equals the truth name."""
     tn = norm_str(truth_ing.get("name"))
@@ -152,6 +163,8 @@ def score(model: str):
     per_class = {}
     missing_runs = []
     per_fixture = []
+    captures_present = 0
+    identical_to_truth = 0
 
     for entry in manifest["fixtures"]:
         fid, cls = entry["id"], entry["class"]
@@ -162,6 +175,12 @@ def score(model: str):
         if cap is None:
             missing_runs.append(run_path.name)
             continue
+        captures_present += 1
+        # Circularity guard: a capture byte-identical to the truth it is scored
+        # against proves nothing about capture accuracy — a correct read of
+        # self-authored content and a copy of the answer are indistinguishable.
+        if canon_json(cap) == canon_json(truth):
+            identical_to_truth += 1
 
         fx = {"id": fid, "class": cls, "checks": []}
 
@@ -200,10 +219,6 @@ def score(model: str):
 
         # ingredients: name / quantity / unit, per truth ingredient
         cap_ings = cap.get("ingredients") or []
-        fixture_has_fraction = any(
-            isinstance(norm_qty(i.get("quantity")), float) and "/" in str(i.get("quantity"))
-            for i in (truth.get("ingredients") or [])
-        )
         for ing in truth.get("ingredients") or []:
             m = match_ingredient(ing, cap_ings)
             name_ok = m is not None
@@ -251,22 +266,18 @@ def score(model: str):
             c_split = cap.get("split_reserved") or []
             ok_s = True
             for sr in t_split:
+                # Both the used amount AND the reserved amount must survive as a
+                # STRUCTURED pair (THRESHOLD.md split/reserved rule). A loose
+                # "the numbers appear somewhere in the instructions" fallback is
+                # deliberately NOT accepted: losing the reserve→later-step binding
+                # is exactly the silent failure this field guards, so a capture
+                # that mentions "150 g" without tying it to a reserve is a miss.
                 found = any(
                     norm_str(sr["use"]) in norm_str(cs.get("use"))
                     and norm_str(sr["reserve"]) in norm_str(cs.get("reserve"))
                     for cs in c_split
                 )
-                # also accept the amounts appearing anywhere in the captured instructions
-                use_num = re.search(r"\d+\s*\w*", sr["use"])
-                res_num = re.search(r"\d+\s*\w*", sr["reserve"])
-                blob = " ".join(c_steps)
-                inline_ok = (
-                    use_num
-                    and res_num
-                    and norm_str(use_num.group()) in blob
-                    and norm_str(res_num.group()) in blob
-                )
-                ok_s = ok_s and (found or bool(inline_ok))
+                ok_s = ok_s and found
             check("split_reserved", ok_s)
 
         # nutrition (per source-provided field)
@@ -308,11 +319,23 @@ def score(model: str):
             failing.append(f"edge:{k} {r:.2%} < {bar:.0%}")
 
     verdict = "PASS" if not failing and not missing_runs else "FAIL"
+
+    # Circularity override: if every present capture is byte-identical to its
+    # truth, the numeric bars are tautological and a PASS would be meaningless.
+    # The gate can only be established on captures whose ground truth is
+    # independent of the reader — see oq14-verdict.md.
+    circular = captures_present > 0 and identical_to_truth == captures_present
+    if circular:
+        verdict = "INCONCLUSIVE_CIRCULAR"
+
     result = {
         "model": model,
         "verdict": verdict,
         "failing_fields": failing,
         "missing_runs": missing_runs,
+        "captures_present": captures_present,
+        "identical_to_truth": identical_to_truth,
+        "circular": circular,
         "field_scores": field_rates,
         "edge_class_scores": edge_rates,
         "per_class_scores": class_rates,
@@ -343,6 +366,13 @@ def score(model: str):
         rate = r["rate"]
         shown = "n/a" if rate is None else f"{rate:.0%} ({r['hit']}/{r['total']})"
         print(f"  {k:34s} {shown}")
+    if circular:
+        print(
+            f"\nCIRCULARITY GUARD: {identical_to_truth}/{captures_present} captures are "
+            "byte-identical to their truth. The measurement is circular — a correct read of\n"
+            "self-authored content is indistinguishable from a copy of the answer, so the "
+            "numeric bars above are tautological and cannot establish OQ-14 (see oq14-verdict.md)."
+        )
     print(f"\nVERDICT (OQ-14): {verdict}")
     if failing:
         print("  failing:", "; ".join(failing))
@@ -366,6 +396,16 @@ def selftest() -> int:
         ("unit mismatch caught", norm_unit("tsp") != norm_unit("tbsp")),
         ("ingredient match by name", match_ingredient({"name": "Garlic"}, [{"name": "garlic"}]) is not None),
         ("missing ingredient caught", match_ingredient({"name": "miso"}, [{"name": "tofu"}]) is None),
+        # circularity guard: a capture identical to its truth is flagged circular;
+        # one that differs is not (the guard that stops a tautological PASS)
+        (
+            "circular guard: identical flagged",
+            canon_json({"title": "A", "n": 1}) == canon_json({"n": 1, "title": "A"}),
+        ),
+        (
+            "circular guard: differing not flagged",
+            canon_json({"title": "A"}) != canon_json({"title": "B"}),
+        ),
     ]
     ok = True
     print("# scorer self-test (discrimination proof)\n")

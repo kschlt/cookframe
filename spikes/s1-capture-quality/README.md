@@ -34,36 +34,40 @@ reject a wrong capture. A number that cannot come out the other way proves nothi
    accepted. Only then are the real captures scored.
 5. **Verdict.** PASS only if **every** bar is met; a partial pass is a fail with the fields named.
 
-## Result (model: sonnet)
+## Result: **INCONCLUSIVE** — the synthetic measurement is circular
 
-Scorer self-test: **PASS** (every planted mismatch caught, every correct value accepted).
-Every field bar and every quantity-edge bar **met** across the 13 fixture classes — including the
-three hardened ones. Full figures in `oq14-verdict.md` and `scores-sonnet.json`.
+Scorer self-test: **PASS** (every planted mismatch caught, every correct value accepted). Every
+field bar reads 100% across all 13 classes. **But the verdict is not PASS**, because those numbers
+measure nothing about capture accuracy — the evaluation is circular by construction, and scan
+deletion stays disabled. Full reasoning in `oq14-verdict.md`. In short:
 
-## Limitations — read before acting on the PASS
+- Every fixture is **self-authored**: the same author wrote the recipe rendered into the PNG and
+  the truth it is scored against. On legible content a correct read reproduces the truth exactly —
+  confirmed: all 13 captures in `runs/` are byte-for-byte identical to their truth files. The eval
+  therefore cannot tell a genuine perfect capture from an answer copied from the truth; 100% is the
+  expected outcome of either and evidence of neither.
+- Independently, the vision model read through every degradation a synthetic HTML render can
+  produce (steep angle + perspective + blur, an occluding glare band, 7px low-contrast metadata)
+  across two rounds of hardening, with no miss. Pushing degradation further would manufacture a
+  failure a human could not read either. The circularity is inherent to self-authored synthetic
+  fixtures, not a defect in these files.
 
-This is a **synthetic floor, not the full gate.** The honest reading of the result is not "capture
-is solved"; it is "within the difficulty a synthetic HTML fixture can produce, this model missed
-nothing, and the scorer is proven able to fail."
+`runs/` and `scores-sonnet.json` are kept as the concrete **demonstration** of that circularity —
+they are not OQ-14 evidence.
 
-- **Synthetic fixtures derive from crisp text.** Even under heavy blur, an occluding glare band,
-  a steep angle, or 7px low-contrast type, the underlying glyphs are geometrically clean, and a
-  capable vision model reads through the degradation. Two rounds of hardening did not produce a
-  single miss. Escalating degradation until the model fails would manufacture a failure a human
-  could not read either — it would test nothing. So the limiting factor on gate **confidence** is
-  fixture realism, not model capability or scorer design.
-- **Real photographs are the missing evidence.** Genuine phone photos of cookbook pages carry
-  focus falloff, sensor noise, paper texture, ink bleed and handwriting that synthetic renders do
-  not. Those live **outside** `kschlt/cookframe` (S1 constraint) as a private supplement.
+## What establishing OQ-14 requires
+
+A fixture set whose ground truth is **independent of the capture**: real cookbook photographs and
+personal recipes, human-transcribed, carrying focus falloff, sensor noise, paper texture, ink
+bleed and handwriting that synthetic renders cannot. Per the S1 constraint that set is
+owner-controlled and lives **outside** `kschlt/cookframe`. This spike delivers the reusable,
+pre-registered, self-tested apparatus (threshold, generator, scorer, verdict format) for that run;
+it does not, and on synthetic data cannot, produce the measurement itself.
+
 - **Small-n on the rare classes.** split/reserved, multiple-yields, nutrition, classification and
-  ingredient-group each have one representative fixture, so their per-field percentages are 1-for-1,
-  not a distribution. They establish presence and correctness, not a rate.
+  ingredient-group each have one representative fixture — enough to exercise the apparatus, not to
+  yield a rate.
 - **One model, one provider.** The run records the model; provider choice is `ADR-0004`/`OQ-07`.
-
-Because the capability is irreversible, the operational recommendation (in `oq14-verdict.md`) is
-that **scan deletion stays disabled** until the same pre-registered bars are cleared on the
-real-photo private set. The synthetic PASS validates the methodology and the scorer; it does not
-by itself justify discarding a user's only copy of a scan.
 
 ## Reproduce
 

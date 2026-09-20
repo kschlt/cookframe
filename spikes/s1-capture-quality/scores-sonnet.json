@@ -1,8 +1,11 @@
 {
   "model": "sonnet",
-  "verdict": "PASS",
+  "verdict": "INCONCLUSIVE_CIRCULAR",
   "failing_fields": [],
   "missing_runs": [],
+  "captures_present": 13,
+  "identical_to_truth": 13,
+  "circular": true,
   "field_scores": {
     "ingredient.quantity": {
       "rate": 1.0,
