@@ -12,7 +12,36 @@
  * normalization providers replace this behind the same seam.
  */
 import { type CanonicalRecipe, SCHEMA_VERSION } from "../../schema/index.js"
-import type { NormalizationProvider } from "./providers.js"
+import type { RawBlock } from "./block-id-policy.js"
+import type { CaptureProvider, CaptureResult, NormalizationProvider } from "./providers.js"
+
+/**
+ * Create a deterministic fake capture provider (no model, no network). It decodes
+ * the input bytes as UTF-8 and segments on blank lines: the first block is the
+ * title, the rest are instruction blocks, in reading order. The segmentation is a
+ * pure function of the bytes, so the same input always yields the same
+ * segmentation — the "stable segmentation" precondition under which the block-id
+ * policy makes ids stable. It assigns NO ids: {@link CaptureResult} carries
+ * {@link RawBlock}s, and the policy is the sole source of ids. Real vision
+ * capture replaces this behind the same seam.
+ */
+export function createFakeCaptureProvider(): CaptureProvider {
+  return {
+    async capture(input): Promise<CaptureResult> {
+      const capturedText = new TextDecoder().decode(input)
+      const segments = capturedText
+        .split(/\n\s*\n/)
+        .map((s) => s.replace(/\s+/g, " ").trim())
+        .filter((s) => s.length > 0)
+      const blocks: RawBlock[] = segments.map((text, index) => ({
+        order: index,
+        type: index === 0 ? "title" : "instruction",
+        text,
+      }))
+      return { sourceType: "image", capturedText, blocks }
+    },
+  }
+}
 
 /** Create a deterministic fake normalization provider (no model, no network). */
 export function createFakeNormalizationProvider(): NormalizationProvider {
