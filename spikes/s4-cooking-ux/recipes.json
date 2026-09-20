@@ -1,0 +1,281 @@
+{
+  "recipes": [
+    {
+      "title": "Bell Pepper Rice Skillet",
+      "sourceUrl": "https://www.gaumenfreundin.de/paprika-reis-pfanne/",
+      "sourceSite": "gaumenfreundin.de",
+      "lang": "de->en",
+      "yield": "4 servings",
+      "flow": ["Prep", "Saute", "Simmer", "Season"],
+      "beforeYouStart": {
+        "setUp": ["Large skillet with lid"],
+        "startNow": ["Heat olive oil in the skillet"],
+        "fetchPrepare": [
+          {"item": "bell peppers, 1 kg mixed colors", "assumedAtHand": false},
+          {"item": "onion, 1", "assumedAtHand": false},
+          {"item": "garlic, 2 cloves", "assumedAtHand": false},
+          {"item": "ajvar (or tomato paste), 3 tbsp", "assumedAtHand": false},
+          {"item": "sweet paprika powder, 2 tsp", "assumedAtHand": false},
+          {"item": "rice, 250 g uncooked", "assumedAtHand": false},
+          {"item": "vegetable broth, 500 ml", "assumedAtHand": false},
+          {"item": "olive oil", "assumedAtHand": true},
+          {"item": "salt", "assumedAtHand": true},
+          {"item": "pepper", "assumedAtHand": true}
+        ]
+      },
+      "units": [
+        {
+          "n": 1,
+          "phase": "Prep",
+          "nowYouNeed": [
+            {"qty": "1 kg", "item": "bell peppers, mixed"},
+            {"qty": "1", "item": "onion"},
+            {"qty": "2 cloves", "item": "garlic"}
+          ],
+          "actionPlain": "Cut the bell peppers into bite-sized pieces. Finely chop the onion and garlic.",
+          "actionInline": "Cut 1 kg bell peppers into bite-sized pieces. Finely chop 1 onion and 2 garlic cloves.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 2,
+          "phase": "Saute",
+          "nowYouNeed": [
+            {"qty": "1 tbsp", "item": "olive oil"},
+            {"qty": "3 tbsp", "item": "ajvar (or tomato paste)"},
+            {"qty": "2 tsp", "item": "sweet paprika powder"}
+          ],
+          "actionPlain": "Heat the oil in the skillet. Saute the bell peppers and onion. Add the garlic, ajvar and paprika powder and fry briefly.",
+          "actionInline": "Heat 1 tbsp oil in the skillet. Saute the bell peppers and onion. Add the garlic, 3 tbsp ajvar and 2 tsp sweet paprika and fry briefly.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 3,
+          "phase": "Simmer",
+          "nowYouNeed": [
+            {"qty": "250 g", "item": "rice, uncooked"},
+            {"qty": "500 ml", "item": "vegetable broth"}
+          ],
+          "actionPlain": "Add the uncooked rice and broth. Cover and simmer on medium heat, stirring occasionally and adding a little water if needed.",
+          "actionInline": "Add 250 g uncooked rice and 500 ml vegetable broth. Cover and simmer on medium heat, stirring occasionally and adding a little water if needed.",
+          "reserve": null,
+          "critical": "Simmer covered ~20 min until rice is tender"
+        },
+        {
+          "n": 4,
+          "phase": "Season",
+          "nowYouNeed": [
+            {"qty": "to taste", "item": "salt and pepper"},
+            {"qty": "to taste", "item": "sweet paprika powder"}
+          ],
+          "actionPlain": "Season to taste with salt, pepper and paprika.",
+          "actionInline": "Season to taste with salt, pepper and paprika.",
+          "reserve": null,
+          "critical": null
+        }
+      ]
+    },
+    {
+      "title": "Spaghetti alla Nerano",
+      "sourceUrl": "https://www.giallozafferano.com/recipes/Spaghetti-alla-Nerano-spaghetti-with-zucchini.html",
+      "sourceSite": "giallozafferano.com",
+      "lang": "en",
+      "yield": "4 servings",
+      "flow": ["Fry", "Boil", "Infuse", "Toss", "Cream", "Serve"],
+      "beforeYouStart": {
+        "setUp": ["Mandoline", "Large frying pan", "Wide pan", "High-sided pot", "Slotted skimmer", "Tray lined with paper towels", "Coarse grater"],
+        "startNow": ["Heat frying oil to 150 °C (300 °F)", "Bring a high-sided pot of salted water to a boil"],
+        "fetchPrepare": [
+          {"item": "spaghetti, 11 oz", "assumedAtHand": false},
+          {"item": "Provolone del Monaco (or Caciocavallo), 5.3 oz", "assumedAtHand": false},
+          {"item": "zucchini, 25 oz", "assumedAtHand": false},
+          {"item": "Parmigiano Reggiano, 1/4 cup grated", "assumedAtHand": false},
+          {"item": "garlic, 1 clove", "assumedAtHand": false},
+          {"item": "basil, fresh", "assumedAtHand": false},
+          {"item": "extra virgin olive oil", "assumedAtHand": true},
+          {"item": "fine salt", "assumedAtHand": true},
+          {"item": "black pepper", "assumedAtHand": true}
+        ]
+      },
+      "units": [
+        {
+          "n": 1,
+          "phase": "Fry",
+          "nowYouNeed": [
+            {"qty": "25 oz", "item": "zucchini"},
+            {"qty": "as needed", "item": "extra virgin olive oil, for frying"}
+          ],
+          "actionPlain": "Wash and trim the zucchini, then thinly slice into rounds. Fry the slices in batches until golden.",
+          "actionInline": "Wash and trim 25 oz zucchini and thinly slice into rounds. Fry in batches in oil until golden.",
+          "reserve": null,
+          "critical": "Oil at 150 °C (300 °F); fry 5-6 min per batch until golden"
+        },
+        {
+          "n": 2,
+          "phase": "Fry",
+          "nowYouNeed": [
+            {"qty": "to taste", "item": "fine salt"},
+            {"qty": "to taste", "item": "basil"}
+          ],
+          "actionPlain": "Drain the fried zucchini on paper towels. Season with salt and scatter torn basil. Set aside.",
+          "actionInline": "Drain the fried zucchini on paper towels, season with salt and scatter torn basil. Set aside.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 3,
+          "phase": "Boil",
+          "nowYouNeed": [
+            {"qty": "1/4 cup", "item": "Parmigiano Reggiano"},
+            {"qty": "5.3 oz", "item": "Provolone del Monaco"},
+            {"qty": "11 oz", "item": "spaghetti"}
+          ],
+          "actionPlain": "Coarsely grate the Parmesan and Provolone. Cook the spaghetti in the boiling salted water until very al dente.",
+          "actionInline": "Coarsely grate 1/4 cup Parmesan and 5.3 oz Provolone. Cook 11 oz spaghetti in the boiling salted water until very al dente.",
+          "reserve": null,
+          "critical": "Cook spaghetti ~6 min, very al dente"
+        },
+        {
+          "n": 4,
+          "phase": "Infuse",
+          "nowYouNeed": [
+            {"qty": "2 1/2 tbsp", "item": "extra virgin olive oil"},
+            {"qty": "1 clove", "item": "garlic"}
+          ],
+          "actionPlain": "Heat oil in a wide pan. Add the whole garlic to infuse, then remove it. Add the fried zucchini.",
+          "actionInline": "Heat 2 1/2 tbsp oil in a wide pan. Infuse with 1 whole garlic clove, then remove it. Add the fried zucchini.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 5,
+          "phase": "Toss",
+          "nowYouNeed": [
+            {"qty": "1 ladle", "item": "pasta cooking water"}
+          ],
+          "actionPlain": "Add a ladle of pasta cooking water and saute briefly. Drain the spaghetti into the pan, saving the cooking water.",
+          "actionInline": "Add a ladle of pasta cooking water and saute briefly. Drain the spaghetti into the pan, saving the cooking water.",
+          "reserve": "Save the pasta cooking water for creaming.",
+          "critical": null
+        },
+        {
+          "n": 6,
+          "phase": "Cream",
+          "nowYouNeed": [
+            {"qty": "part of 5.3 oz", "item": "grated Provolone del Monaco", "split": true},
+            {"qty": "1/4 cup", "item": "grated Parmigiano Reggiano"},
+            {"qty": "as needed", "item": "reserved pasta cooking water"}
+          ],
+          "actionPlain": "Stir the spaghetti risotto-style, adding pasta water as needed. Off the heat, stir in part of the Provolone until creamy, then sprinkle over the Parmesan and the remaining Provolone.",
+          "actionInline": "Stir the spaghetti risotto-style ~3 min, adding pasta water as needed. Off the heat, stir in part of the 5.3 oz Provolone until creamy, then sprinkle over 1/4 cup Parmesan and the remaining Provolone.",
+          "reserve": "Remaining Provolone to sprinkle on top.",
+          "critical": "Take off the heat before adding cheese so it melts creamy, not clumpy"
+        },
+        {
+          "n": 7,
+          "phase": "Serve",
+          "nowYouNeed": [
+            {"qty": "to taste", "item": "basil"},
+            {"qty": "1 ladle", "item": "pasta cooking water"},
+            {"qty": "to taste", "item": "black pepper"}
+          ],
+          "actionPlain": "Stir in torn basil and a final ladle of pasta water. Finish with freshly ground black pepper and serve hot.",
+          "actionInline": "Stir in torn basil and a final ladle of pasta water. Finish with freshly ground black pepper and serve hot.",
+          "reserve": null,
+          "critical": null
+        }
+      ]
+    },
+    {
+      "title": "Gnocchi and Pumpkin Bake",
+      "sourceUrl": "https://www.gaumenfreundin.de/gnocchi-kuerbis-auflauf-mit-lauch-vegetarisch/",
+      "sourceSite": "gaumenfreundin.de",
+      "lang": "de->en",
+      "yield": "4 servings",
+      "flow": ["Prep", "Simmer", "Season", "Assemble", "Bake"],
+      "beforeYouStart": {
+        "setUp": ["Large frying pan", "Baking dish"],
+        "startNow": ["Preheat oven to 200 °C (conventional top/bottom heat)"],
+        "fetchPrepare": [
+          {"item": "Hokkaido pumpkin, 500 g", "assumedAtHand": false},
+          {"item": "red onion, 1", "assumedAtHand": false},
+          {"item": "garlic, 1 clove", "assumedAtHand": false},
+          {"item": "leek, 1 stalk", "assumedAtHand": false},
+          {"item": "tomato paste, 2 tbsp", "assumedAtHand": false},
+          {"item": "vegetable broth, 300 ml", "assumedAtHand": false},
+          {"item": "cream cheese, 200 g", "assumedAtHand": false},
+          {"item": "gnocchi, 500 g chilled", "assumedAtHand": false},
+          {"item": "grated mozzarella, 80 g", "assumedAtHand": false},
+          {"item": "curry powder", "assumedAtHand": false},
+          {"item": "nutmeg", "assumedAtHand": false},
+          {"item": "olive oil", "assumedAtHand": true},
+          {"item": "salt", "assumedAtHand": true},
+          {"item": "pepper", "assumedAtHand": true}
+        ]
+      },
+      "units": [
+        {
+          "n": 1,
+          "phase": "Prep",
+          "nowYouNeed": [
+            {"qty": "500 g", "item": "Hokkaido pumpkin"},
+            {"qty": "1", "item": "red onion"},
+            {"qty": "1 clove", "item": "garlic"},
+            {"qty": "1 stalk", "item": "leek"}
+          ],
+          "actionPlain": "Dice the pumpkin small. Finely chop the onion and garlic. Slice the leek into rings.",
+          "actionInline": "Dice 500 g pumpkin small. Finely chop 1 red onion and 1 garlic clove. Slice 1 leek into rings.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 2,
+          "phase": "Simmer",
+          "nowYouNeed": [
+            {"qty": "1 tbsp", "item": "olive oil"},
+            {"qty": "2 tbsp", "item": "tomato paste"},
+            {"qty": "300 ml", "item": "vegetable broth"}
+          ],
+          "actionPlain": "Heat the oil and saute the onion and garlic. Stir in the tomato paste and toast briefly. Add the broth, pumpkin and leek. Cover and simmer on medium heat.",
+          "actionInline": "Heat 1 tbsp oil and saute the onion and garlic. Stir in 2 tbsp tomato paste and toast briefly. Add 300 ml broth, the pumpkin and leek. Cover and simmer on medium heat.",
+          "reserve": null,
+          "critical": "Simmer covered 10 min"
+        },
+        {
+          "n": 3,
+          "phase": "Season",
+          "nowYouNeed": [
+            {"qty": "200 g", "item": "cream cheese"},
+            {"qty": "to taste", "item": "salt, pepper, nutmeg, curry powder"}
+          ],
+          "actionPlain": "Stir in the cream cheese. Season with salt, pepper, nutmeg and curry.",
+          "actionInline": "Stir in 200 g cream cheese. Season with salt, pepper, nutmeg and curry powder.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 4,
+          "phase": "Assemble",
+          "nowYouNeed": [
+            {"qty": "500 g", "item": "gnocchi"},
+            {"qty": "80 g", "item": "grated mozzarella"}
+          ],
+          "actionPlain": "Spread the gnocchi in a baking dish. Cover with the pumpkin mixture and scatter the mozzarella over the top.",
+          "actionInline": "Spread 500 g gnocchi in a baking dish. Cover with the pumpkin mixture and scatter 80 g grated mozzarella over the top.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 5,
+          "phase": "Bake",
+          "nowYouNeed": [],
+          "actionPlain": "Bake until golden and bubbling.",
+          "actionInline": "Bake 30 min until golden and bubbling.",
+          "reserve": null,
+          "critical": "Bake at 200 °C for 30 min"
+        }
+      ]
+    }
+  ]
+}
