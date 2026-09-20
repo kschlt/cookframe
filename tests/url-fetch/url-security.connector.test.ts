@@ -21,6 +21,7 @@
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
+import { gzipSync } from "node:zlib"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { ReasonCode } from "../../src/security/reason-codes.js"
 import {
@@ -87,6 +88,19 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
       const body = "x".repeat(8000)
       res.writeHead(200, { "content-type": "text/html", "content-length": String(body.length) })
       res.end(body)
+      return
+    }
+    case "/gzip-big": {
+      // A highly compressible 8 KB body: the *compressed* length declared here is
+      // tiny, but the decompressed stream far exceeds a small bound. Counting on
+      // Content-Length would wave it through — the guard must count decompressed.
+      const compressed = gzipSync(Buffer.from("x".repeat(8000)))
+      res.writeHead(200, {
+        "content-type": "text/html",
+        "content-encoding": "gzip",
+        "content-length": String(compressed.length),
+      })
+      res.end(compressed)
       return
     }
     case "/chunked-big": {
@@ -285,6 +299,18 @@ describe("CFV1-S5 safe-fetch connector", () => {
     const fetcher = makeFetcher({ maxBytes: 1000 })
     try {
       await expectRefusal(fetcher, local("/big"), ReasonCode.SIZE_LIMIT)
+    } finally {
+      await fetcher.close()
+    }
+  })
+
+  it("url-security/size-bound-fails-closed (decompressed, not Content-Length)", async () => {
+    // The bypass criterion 12 names: a small declared (compressed) length whose
+    // decompressed stream overflows the bound. Counting on the decompressed
+    // stream is what refuses it; a Content-Length check would let it through.
+    const fetcher = makeFetcher({ maxBytes: 1000 })
+    try {
+      await expectRefusal(fetcher, local("/gzip-big"), ReasonCode.SIZE_LIMIT)
     } finally {
       await fetcher.close()
     }

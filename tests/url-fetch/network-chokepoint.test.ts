@@ -13,10 +13,9 @@
  *
  * This is the enforcement of ADR-0010's central decision. The guard's guarantee —
  * resolve-and-pin, per-hop revalidation, the bounds — protects nothing if another
- * module can open its own socket. Today `src/security/` performs no network call
- * at all (the pre-flight is synchronous); when Slice 4 adds the undici connector
- * it lives here, inside the allowed directory, and this test keeps every other
- * module off the network.
+ * module can open its own socket. The undici connector (`src/security/safe-fetch.ts`)
+ * is the one network call in the tree; it lives inside the allowed directory, and
+ * this test keeps every other module off the network.
  */
 import { readFileSync } from "node:fs"
 import { dirname, join, relative, sep } from "node:path"
