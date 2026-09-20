@@ -1,0 +1,53 @@
+{
+  "title": "Lemon Herb Butter Beans",
+  "yields": [
+    "serves 4"
+  ],
+  "times": {
+    "prep": "10 min",
+    "cook": "15 min",
+    "total": "25 min"
+  },
+  "temperatures": [],
+  "ingredients": [
+    {
+      "name": "butter beans",
+      "quantity": "400",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "olive oil",
+      "quantity": "2",
+      "unit": "tbsp",
+      "group": null
+    },
+    {
+      "name": "lemon",
+      "quantity": "1",
+      "unit": null,
+      "group": null
+    },
+    {
+      "name": "parsley",
+      "quantity": "20",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "garlic",
+      "quantity": "2",
+      "unit": "cloves",
+      "group": null
+    }
+  ],
+  "instructions": [
+    "Drain and rinse the butter beans.",
+    "Warm the olive oil and soften the garlic.",
+    "Add the beans and the juice of the lemon.",
+    "Stir through the chopped parsley and serve."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

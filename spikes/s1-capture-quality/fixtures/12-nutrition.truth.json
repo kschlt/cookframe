@@ -1,0 +1,45 @@
+{
+  "title": "Protein Power Bowl",
+  "yields": [
+    "serves 2"
+  ],
+  "times": {
+    "prep": "15 min",
+    "cook": "10 min",
+    "total": "25 min"
+  },
+  "temperatures": [],
+  "ingredients": [
+    {
+      "name": "quinoa",
+      "quantity": "150",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "edamame",
+      "quantity": "120",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "avocado",
+      "quantity": "1",
+      "unit": null,
+      "group": null
+    }
+  ],
+  "instructions": [
+    "Cook the quinoa and let it cool.",
+    "Steam the edamame.",
+    "Assemble with sliced avocado."
+  ],
+  "split_reserved": [],
+  "nutrition": {
+    "calories": "480 kcal",
+    "protein": "22 g",
+    "fat": "19 g",
+    "carbohydrate": "54 g"
+  },
+  "classifications": {}
+}

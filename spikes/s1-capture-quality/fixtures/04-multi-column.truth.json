@@ -1,0 +1,53 @@
+{
+  "title": "Weeknight Veg Curry",
+  "yields": [
+    "serves 4"
+  ],
+  "times": {
+    "prep": "15 min",
+    "cook": "25 min",
+    "total": "40 min"
+  },
+  "temperatures": [],
+  "ingredients": [
+    {
+      "name": "sweet potato",
+      "quantity": "500",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "chickpeas",
+      "quantity": "400",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "coconut milk",
+      "quantity": "400",
+      "unit": "ml",
+      "group": null
+    },
+    {
+      "name": "curry paste",
+      "quantity": "3",
+      "unit": "tbsp",
+      "group": null
+    },
+    {
+      "name": "spinach",
+      "quantity": "100",
+      "unit": "g",
+      "group": null
+    }
+  ],
+  "instructions": [
+    "Peel and cube the sweet potato.",
+    "Fry the curry paste for one minute.",
+    "Add the sweet potato and coconut milk and simmer.",
+    "Stir in the chickpeas and spinach until wilted."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}
