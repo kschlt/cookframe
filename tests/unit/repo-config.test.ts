@@ -106,11 +106,30 @@ describe("CI workflow (ci.yml)", () => {
     expect(blocks).toBe(true)
   })
 
-  it("slice0/no-deploy-from-fork-prs — no deploy job, and no pull_request_target", () => {
-    // pull_request_target would run with secrets on fork PRs — forbidden.
+  it("slice0/no-deploy-from-fork-prs — no deploy step anywhere, and no pull_request_target", () => {
+    // pull_request_target would run fork PRs with our secrets and write token.
     expect(Object.keys(workflow.on)).not.toContain("pull_request_target")
-    const deployish = jobNames.filter((n) => /deploy|publish|release/i.test(n))
-    expect(deployish, `found deploy-like jobs: ${deployish.join(", ")}`).toHaveLength(0)
+
+    // A deploy can hide in a step inside an innocently-named job, not only in a
+    // job called "deploy" — so scan every step's `uses` and `run`, not just job
+    // names (the spec's Hint warns this is easy to reintroduce). `docker build`
+    // and `docker run` are NOT deploys; `docker push` and *-push-action are.
+    const deployUses =
+      /deploy|-push-action|pages.*deploy|\bpublish\b|aws-actions|wrangler|netlify|vercel|flyctl|railway/i
+    const deployRun =
+      /\b(npm|pnpm|yarn)\s+publish\b|docker\s+push\b|\bgh\s+release\s+create\b|netlify\s+deploy\b|\bvercel\b|wrangler\s+(deploy|publish)\b|aws\s+s3\s+sync\b|flyctl\s+deploy\b|railway\s+up\b|terraform\s+apply\b/i
+
+    const offenders: string[] = []
+    for (const [job, def] of Object.entries(workflow.jobs)) {
+      if (/deploy|publish|release/i.test(job)) offenders.push(`job:${job}`)
+      for (const step of def.steps ?? []) {
+        const uses = typeof step.uses === "string" ? step.uses : ""
+        const run = typeof step.run === "string" ? step.run : ""
+        if (uses && deployUses.test(uses)) offenders.push(`${job}:uses:${uses}`)
+        if (run && deployRun.test(run)) offenders.push(`${job}:run`)
+      }
+    }
+    expect(offenders, `deploy-like job/step found: ${offenders.join(", ")}`).toHaveLength(0)
   })
 })
 
@@ -159,6 +178,22 @@ describe("slice0/container-builds-and-runs", () => {
     const dockerfile = read("Dockerfile")
     expect(dockerfile).toMatch(/FROM\s+node:22/)
     expect(dockerfile).toMatch(/npm ci/)
+  })
+
+  it("CI actually builds the image and runs the quality gate inside it", () => {
+    const workflow = parseYaml(read(".github", "workflows", "ci.yml")) as {
+      jobs: Record<string, { steps?: Array<Record<string, unknown>> }>
+    }
+    const container = workflow.jobs["container"]
+    expect(container, "no container job in ci.yml").toBeTruthy()
+    const runs = (container?.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    expect(runs, "container job does not build the image").toMatch(/docker build/)
+    expect(runs, "container job does not run the quality gate").toMatch(
+      /docker run .*npm run quality/,
+    )
   })
 })
 

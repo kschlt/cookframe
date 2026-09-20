@@ -98,3 +98,16 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Actually builds the dev/CI container and runs the documented quality gate
+  # inside it, so "the container builds and runs the documented commands" is
+  # proven by execution rather than asserted from the Dockerfile text. This is
+  # a build only — it never pushes the image anywhere.
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t cookframe:ci .
+      - name: Run the quality gate inside the container
+        run: docker run --rm cookframe:ci npm run quality
