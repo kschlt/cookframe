@@ -34,3 +34,4 @@ coverage/
 .claude/skills
 .claude/agents
 .claude/settings.local.json
+__pycache__/

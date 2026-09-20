@@ -86,6 +86,17 @@ jobs:
       - run: npm ci
       - run: npm run test:url-fetch-security
 
+  slice1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:slice1
+
   # A finding here fails the build. gitleaks exits non-zero when it detects a
   # secret, and the step has no `continue-on-error`, so a leak blocks the PR.
   secret-scan:

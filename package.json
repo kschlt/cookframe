@@ -19,6 +19,7 @@
     "test:schema-contract": "vitest run tests/schema",
     "test:normalization-invariant": "vitest run tests/normalization",
     "test:url-fetch-security": "vitest run tests/url-fetch",
+    "test:slice1": "vitest run tests/slice1",
     "test:watch": "vitest",
     "eval": "tsx evals/harness.ts",
     "quality": "npm run typecheck && biome ci . && vitest run"
