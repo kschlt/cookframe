@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Cookframe S4 — Cooking UX hypotheses</title>
+    <!--
+      CFV1-S4 throwaway prototype. Plain HTML + CSS + vanilla JS, ONE file, no
+      dependency manifest and no build step (proof: cooking-ux/plain-html-prototype).
+      Deliberately unstyled beyond legibility — the spike warns that effort spent
+      making it pretty is effort spent biasing the result.
+
+      What it lets a real phone + a real recipe test (docs/cooking-ux.md §3, §11):
+        - Hypothesis A (a separate NOW YOU NEED block) vs Hypothesis B (quantities
+          inline in the action prose) — the SAME recipe, switched live.
+        - assumedAtHand suppression of retrieval reminders in FETCH / PREPARE,
+          reported on BOTH halves: what it removed, and a standing check that it
+          never touched START NOW (measured/state prerequisites).
+        - Cooking-unit granularity: the unit count is shown so the reader can judge
+          wall-of-paragraph vs 15-20 micro-steps.
+        - Split / reserved amounts rendered for salience (RESERVE / KEEP FOR LATER).
+
+      Recipe content is real, held as FUNCTIONAL DATA ONLY (quantities, action
+      verbs, splits, prerequisites, phases — facts/procedures, not creative prose)
+      in the #recipe-data block below, each with its source URL. See README.md.
+    -->
+    <style>
+      :root {
+        --ink: #1a1a1a;
+        --muted: #666;
+        --line: #d8d8d8;
+        --accent: #7a3b00;
+        --reserve-bg: #fff4e5;
+        --reserve-ink: #7a3b00;
+        --suppressed: #9a9a9a;
+        --bg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #ececec;
+          --muted: #a0a0a0;
+          --line: #3a3a3a;
+          --accent: #ffb066;
+          --reserve-bg: #2a1e0d;
+          --reserve-ink: #ffcf9c;
+          --suppressed: #6a6a6a;
+          --bg: #141414;
+        }
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        padding: 0 16px calc(48px + env(safe-area-inset-bottom, 0px));
+      }
+      header.controls {
+        position: sticky;
+        top: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--line);
+        padding: 10px 0;
+        margin: 0 -16px 8px;
+        padding-left: 16px;
+        padding-right: 16px;
+        z-index: 5;
+      }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .row + .row { margin-top: 8px; }
+      label.pick { font-size: 13px; color: var(--muted); }
+      select, button.toggle {
+        font: inherit;
+        font-size: 14px;
+        color: var(--ink);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 10px;
+        min-height: 40px;
+      }
+      button.toggle[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+      .seg button { border: none; border-radius: 0; min-width: 128px; }
+      .seg button + button { border-left: 1px solid var(--line); }
+      .meta { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+
+      h1.title { font-size: 22px; margin: 12px 0 2px; }
+      .flow { font-size: 14px; color: var(--muted); margin: 0 0 16px; }
+      .flow b { color: var(--ink); }
+
+      section.card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin: 0 0 14px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+      .sub {
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 700;
+        margin: 12px 0 4px;
+      }
+      ul { margin: 0; padding-left: 20px; }
+      li { margin: 2px 0; }
+      li.suppressed { color: var(--suppressed); text-decoration: line-through; }
+      .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; font-style: italic; }
+
+      .unit { border-top: 1px solid var(--line); padding: 14px 0; }
+      .unit:first-of-type { border-top: none; }
+      .unit-head { display: flex; gap: 8px; align-items: baseline; }
+      .unit-n { font-weight: 700; color: var(--accent); }
+      .unit-phase { font-size: 13px; color: var(--muted); }
+      .need { background: var(--reserve-bg); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+      .need .kicker { margin-bottom: 4px; }
+      .need .items { font-size: 16px; }
+      .need .split { font-weight: 700; }
+      .action { margin: 8px 0 0; }
+      .reserve {
+        background: var(--reserve-bg);
+        color: var(--reserve-ink);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin: 8px 0 0;
+        font-weight: 600;
+      }
+      .critical { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+      .count { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+      .src { font-size: 12px; color: var(--muted); margin-top: 6px; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <header class="controls">
+      <div class="row">
+        <label class="pick" for="recipe">Recipe</label>
+        <select id="recipe"></select>
+      </div>
+      <div class="row">
+        <div class="seg" role="group" aria-label="Layout hypothesis">
+          <button class="toggle" id="hypA" aria-pressed="true">A · NOW YOU NEED</button>
+          <button class="toggle" id="hypB" aria-pressed="false">B · inline</button>
+        </div>
+        <button class="toggle" id="suppress" aria-pressed="false">Hide at-hand basics</button>
+      </div>
+      <p class="meta" id="meta"></p>
+    </header>
+
+    <main id="app"></main>
+
+    <script id="recipe-data" type="application/json">
+{
+  "recipes": [
+    {
+      "title": "Bell Pepper Rice Skillet",
+      "sourceUrl": "https://www.gaumenfreundin.de/paprika-reis-pfanne/",
+      "sourceSite": "gaumenfreundin.de",
+      "lang": "de->en",
+      "yield": "4 servings",
+      "flow": ["Prep", "Saute", "Simmer", "Season"],
+      "beforeYouStart": {
+        "setUp": ["Large skillet with lid"],
+        "startNow": ["Heat olive oil in the skillet"],
+        "fetchPrepare": [
+          {"item": "bell peppers, 1 kg mixed colors", "assumedAtHand": false},
+          {"item": "onion, 1", "assumedAtHand": false},
+          {"item": "garlic, 2 cloves", "assumedAtHand": false},
+          {"item": "ajvar (or tomato paste), 3 tbsp", "assumedAtHand": false},
+          {"item": "sweet paprika powder, 2 tsp", "assumedAtHand": false},
+          {"item": "rice, 250 g uncooked", "assumedAtHand": false},
+          {"item": "vegetable broth, 500 ml", "assumedAtHand": false},
+          {"item": "olive oil", "assumedAtHand": true},
+          {"item": "salt", "assumedAtHand": true},
+          {"item": "pepper", "assumedAtHand": true}
+        ]
+      },
+      "units": [
+        {
+          "n": 1,
+          "phase": "Prep",
+          "nowYouNeed": [
+            {"qty": "1 kg", "item": "bell peppers, mixed"},
+            {"qty": "1", "item": "onion"},
+            {"qty": "2 cloves", "item": "garlic"}
+          ],
+          "actionPlain": "Cut the bell peppers into bite-sized pieces. Finely chop the onion and garlic.",
+          "actionInline": "Cut 1 kg bell peppers into bite-sized pieces. Finely chop 1 onion and 2 garlic cloves.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 2,
+          "phase": "Saute",
+          "nowYouNeed": [
+            {"qty": "1 tbsp", "item": "olive oil"},
+            {"qty": "3 tbsp", "item": "ajvar (or tomato paste)"},
+            {"qty": "2 tsp", "item": "sweet paprika powder"}
+          ],
+          "actionPlain": "Heat the oil in the skillet. Saute the bell peppers and onion. Add the garlic, ajvar and paprika powder and fry briefly.",
+          "actionInline": "Heat 1 tbsp oil in the skillet. Saute the bell peppers and onion. Add the garlic, 3 tbsp ajvar and 2 tsp sweet paprika and fry briefly.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 3,
+          "phase": "Simmer",
+          "nowYouNeed": [
+            {"qty": "250 g", "item": "rice, uncooked"},
+            {"qty": "500 ml", "item": "vegetable broth"}
+          ],
+          "actionPlain": "Add the uncooked rice and broth. Cover and simmer on medium heat, stirring occasionally and adding a little water if needed.",
+          "actionInline": "Add 250 g uncooked rice and 500 ml vegetable broth. Cover and simmer on medium heat, stirring occasionally and adding a little water if needed.",
+          "reserve": null,
+          "critical": "Simmer covered ~20 min until rice is tender"
+        },
+        {
+          "n": 4,
+          "phase": "Season",
+          "nowYouNeed": [
+            {"qty": "to taste", "item": "salt and pepper"},
+            {"qty": "to taste", "item": "sweet paprika powder"}
+          ],
+          "actionPlain": "Season to taste with salt, pepper and paprika.",
+          "actionInline": "Season to taste with salt, pepper and paprika.",
+          "reserve": null,
+          "critical": null
+        }
+      ]
+    },
+    {
+      "title": "Spaghetti alla Nerano",
+      "sourceUrl": "https://www.giallozafferano.com/recipes/Spaghetti-alla-Nerano-spaghetti-with-zucchini.html",
+      "sourceSite": "giallozafferano.com",
+      "lang": "en",
+      "yield": "4 servings",
+      "flow": ["Fry", "Boil", "Infuse", "Toss", "Cream", "Serve"],
+      "beforeYouStart": {
+        "setUp": ["Mandoline", "Large frying pan", "Wide pan", "High-sided pot", "Slotted skimmer", "Tray lined with paper towels", "Coarse grater"],
+        "startNow": ["Heat frying oil to 150 °C (300 °F)", "Bring a high-sided pot of salted water to a boil"],
+        "fetchPrepare": [
+          {"item": "spaghetti, 11 oz", "assumedAtHand": false},
+          {"item": "Provolone del Monaco (or Caciocavallo), 5.3 oz", "assumedAtHand": false},
+          {"item": "zucchini, 25 oz", "assumedAtHand": false},
+          {"item": "Parmigiano Reggiano, 1/4 cup grated", "assumedAtHand": false},
+          {"item": "garlic, 1 clove", "assumedAtHand": false},
+          {"item": "basil, fresh", "assumedAtHand": false},
+          {"item": "extra virgin olive oil", "assumedAtHand": true},
+          {"item": "fine salt", "assumedAtHand": true},
+          {"item": "black pepper", "assumedAtHand": true}
+        ]
+      },
+      "units": [
+        {
+          "n": 1,
+          "phase": "Fry",
+          "nowYouNeed": [
+            {"qty": "25 oz", "item": "zucchini"},
+            {"qty": "as needed", "item": "extra virgin olive oil, for frying"}
+          ],
+          "actionPlain": "Wash and trim the zucchini, then thinly slice into rounds. Fry the slices in batches until golden.",
+          "actionInline": "Wash and trim 25 oz zucchini and thinly slice into rounds. Fry in batches in oil until golden.",
+          "reserve": null,
+          "critical": "Oil at 150 °C (300 °F); fry 5-6 min per batch until golden"
+        },
+        {
+          "n": 2,
+          "phase": "Fry",
+          "nowYouNeed": [
+            {"qty": "to taste", "item": "fine salt"},
+            {"qty": "to taste", "item": "basil"}
+          ],
+          "actionPlain": "Drain the fried zucchini on paper towels. Season with salt and scatter torn basil. Set aside.",
+          "actionInline": "Drain the fried zucchini on paper towels, season with salt and scatter torn basil. Set aside.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 3,
+          "phase": "Boil",
+          "nowYouNeed": [
+            {"qty": "1/4 cup", "item": "Parmigiano Reggiano"},
+            {"qty": "5.3 oz", "item": "Provolone del Monaco"},
+            {"qty": "11 oz", "item": "spaghetti"}
+          ],
+          "actionPlain": "Coarsely grate the Parmesan and Provolone. Cook the spaghetti in the boiling salted water until very al dente.",
+          "actionInline": "Coarsely grate 1/4 cup Parmesan and 5.3 oz Provolone. Cook 11 oz spaghetti in the boiling salted water until very al dente.",
+          "reserve": null,
+          "critical": "Cook spaghetti ~6 min, very al dente"
+        },
+        {
+          "n": 4,
+          "phase": "Infuse",
+          "nowYouNeed": [
+            {"qty": "2 1/2 tbsp", "item": "extra virgin olive oil"},
+            {"qty": "1 clove", "item": "garlic"}
+          ],
+          "actionPlain": "Heat oil in a wide pan. Add the whole garlic to infuse, then remove it. Add the fried zucchini.",
+          "actionInline": "Heat 2 1/2 tbsp oil in a wide pan. Infuse with 1 whole garlic clove, then remove it. Add the fried zucchini.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 5,
+          "phase": "Toss",
+          "nowYouNeed": [
+            {"qty": "1 ladle", "item": "pasta cooking water"}
+          ],
+          "actionPlain": "Add a ladle of pasta cooking water and saute briefly. Drain the spaghetti into the pan, saving the cooking water.",
+          "actionInline": "Add a ladle of pasta cooking water and saute briefly. Drain the spaghetti into the pan, saving the cooking water.",
+          "reserve": "Save the pasta cooking water for creaming.",
+          "critical": null
+        },
+        {
+          "n": 6,
+          "phase": "Cream",
+          "nowYouNeed": [
+            {"qty": "part of 5.3 oz", "item": "grated Provolone del Monaco", "split": true},
+            {"qty": "1/4 cup", "item": "grated Parmigiano Reggiano"},
+            {"qty": "as needed", "item": "reserved pasta cooking water"}
+          ],
+          "actionPlain": "Stir the spaghetti risotto-style, adding pasta water as needed. Off the heat, stir in part of the Provolone until creamy, then sprinkle over the Parmesan and the remaining Provolone.",
+          "actionInline": "Stir the spaghetti risotto-style ~3 min, adding pasta water as needed. Off the heat, stir in part of the 5.3 oz Provolone until creamy, then sprinkle over 1/4 cup Parmesan and the remaining Provolone.",
+          "reserve": "Remaining Provolone to sprinkle on top.",
+          "critical": "Take off the heat before adding cheese so it melts creamy, not clumpy"
+        },
+        {
+          "n": 7,
+          "phase": "Serve",
+          "nowYouNeed": [
+            {"qty": "to taste", "item": "basil"},
+            {"qty": "1 ladle", "item": "pasta cooking water"},
+            {"qty": "to taste", "item": "black pepper"}
+          ],
+          "actionPlain": "Stir in torn basil and a final ladle of pasta water. Finish with freshly ground black pepper and serve hot.",
+          "actionInline": "Stir in torn basil and a final ladle of pasta water. Finish with freshly ground black pepper and serve hot.",
+          "reserve": null,
+          "critical": null
+        }
+      ]
+    },
+    {
+      "title": "Gnocchi and Pumpkin Bake",
+      "sourceUrl": "https://www.gaumenfreundin.de/gnocchi-kuerbis-auflauf-mit-lauch-vegetarisch/",
+      "sourceSite": "gaumenfreundin.de",
+      "lang": "de->en",
+      "yield": "4 servings",
+      "flow": ["Prep", "Simmer", "Season", "Assemble", "Bake"],
+      "beforeYouStart": {
+        "setUp": ["Large frying pan", "Baking dish"],
+        "startNow": ["Preheat oven to 200 °C (conventional top/bottom heat)"],
+        "fetchPrepare": [
+          {"item": "Hokkaido pumpkin, 500 g", "assumedAtHand": false},
+          {"item": "red onion, 1", "assumedAtHand": false},
+          {"item": "garlic, 1 clove", "assumedAtHand": false},
+          {"item": "leek, 1 stalk", "assumedAtHand": false},
+          {"item": "tomato paste, 2 tbsp", "assumedAtHand": false},
+          {"item": "vegetable broth, 300 ml", "assumedAtHand": false},
+          {"item": "cream cheese, 200 g", "assumedAtHand": false},
+          {"item": "gnocchi, 500 g chilled", "assumedAtHand": false},
+          {"item": "grated mozzarella, 80 g", "assumedAtHand": false},
+          {"item": "curry powder", "assumedAtHand": false},
+          {"item": "nutmeg", "assumedAtHand": false},
+          {"item": "olive oil", "assumedAtHand": true},
+          {"item": "salt", "assumedAtHand": true},
+          {"item": "pepper", "assumedAtHand": true}
+        ]
+      },
+      "units": [
+        {
+          "n": 1,
+          "phase": "Prep",
+          "nowYouNeed": [
+            {"qty": "500 g", "item": "Hokkaido pumpkin"},
+            {"qty": "1", "item": "red onion"},
+            {"qty": "1 clove", "item": "garlic"},
+            {"qty": "1 stalk", "item": "leek"}
+          ],
+          "actionPlain": "Dice the pumpkin small. Finely chop the onion and garlic. Slice the leek into rings.",
+          "actionInline": "Dice 500 g pumpkin small. Finely chop 1 red onion and 1 garlic clove. Slice 1 leek into rings.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 2,
+          "phase": "Simmer",
+          "nowYouNeed": [
+            {"qty": "1 tbsp", "item": "olive oil"},
+            {"qty": "2 tbsp", "item": "tomato paste"},
+            {"qty": "300 ml", "item": "vegetable broth"}
+          ],
+          "actionPlain": "Heat the oil and saute the onion and garlic. Stir in the tomato paste and toast briefly. Add the broth, pumpkin and leek. Cover and simmer on medium heat.",
+          "actionInline": "Heat 1 tbsp oil and saute the onion and garlic. Stir in 2 tbsp tomato paste and toast briefly. Add 300 ml broth, the pumpkin and leek. Cover and simmer on medium heat.",
+          "reserve": null,
+          "critical": "Simmer covered 10 min"
+        },
+        {
+          "n": 3,
+          "phase": "Season",
+          "nowYouNeed": [
+            {"qty": "200 g", "item": "cream cheese"},
+            {"qty": "to taste", "item": "salt, pepper, nutmeg, curry powder"}
+          ],
+          "actionPlain": "Stir in the cream cheese. Season with salt, pepper, nutmeg and curry.",
+          "actionInline": "Stir in 200 g cream cheese. Season with salt, pepper, nutmeg and curry powder.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 4,
+          "phase": "Assemble",
+          "nowYouNeed": [
+            {"qty": "500 g", "item": "gnocchi"},
+            {"qty": "80 g", "item": "grated mozzarella"}
+          ],
+          "actionPlain": "Spread the gnocchi in a baking dish. Cover with the pumpkin mixture and scatter the mozzarella over the top.",
+          "actionInline": "Spread 500 g gnocchi in a baking dish. Cover with the pumpkin mixture and scatter 80 g grated mozzarella over the top.",
+          "reserve": null,
+          "critical": null
+        },
+        {
+          "n": 5,
+          "phase": "Bake",
+          "nowYouNeed": [],
+          "actionPlain": "Bake until golden and bubbling.",
+          "actionInline": "Bake 30 min until golden and bubbling.",
+          "reserve": null,
+          "critical": "Bake at 200 °C for 30 min"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+
+    <script>
+      "use strict"
+
+      const DATA = JSON.parse(document.getElementById("recipe-data").textContent)
+      const state = { recipe: 0, hyp: "A", suppress: false }
+
+      const $ = (id) => document.getElementById(id)
+      const el = (tag, cls, text) => {
+        const n = document.createElement(tag)
+        if (cls) n.className = cls
+        if (text != null) n.textContent = text
+        return n
+      }
+
+      function populateRecipePicker() {
+        const sel = $("recipe")
+        DATA.recipes.forEach((r, i) => {
+          const o = el("option", null, r.title)
+          o.value = String(i)
+          sel.appendChild(o)
+        })
+        sel.value = String(state.recipe)
+      }
+
+      function renderBeforeYouStart(r) {
+        const card = el("section", "card")
+        card.appendChild(el("p", "kicker", "Before you start"))
+
+        if (r.beforeYouStart.setUp && r.beforeYouStart.setUp.length) {
+          card.appendChild(el("p", "sub", "Set up"))
+          const ul = el("ul")
+          for (const s of r.beforeYouStart.setUp) ul.appendChild(el("li", null, s))
+          card.appendChild(ul)
+        }
+
+        if (r.beforeYouStart.startNow && r.beforeYouStart.startNow.length) {
+          // START NOW is measured/state prerequisites — NEVER suppressed.
+          card.appendChild(el("p", "sub", "Start now"))
+          const ul = el("ul")
+          for (const s of r.beforeYouStart.startNow) ul.appendChild(el("li", null, s))
+          card.appendChild(ul)
+        }
+
+        if (r.beforeYouStart.fetchPrepare && r.beforeYouStart.fetchPrepare.length) {
+          card.appendChild(el("p", "sub", "Fetch / prepare"))
+          const ul = el("ul")
+          let hidden = 0
+          for (const f of r.beforeYouStart.fetchPrepare) {
+            const suppressed = state.suppress && f.assumedAtHand === true
+            const li = el("li", suppressed ? "suppressed" : null, f.item)
+            ul.appendChild(li)
+            if (suppressed) hidden++
+          }
+          card.appendChild(ul)
+          if (state.suppress) {
+            card.appendChild(
+              el(
+                "p",
+                "note",
+                hidden === 0
+                  ? "Suppression on: nothing was at-hand to hide here."
+                  : `Suppression on: ${hidden} at-hand basic(s) struck through. Check — is any real readiness step among them?`,
+              ),
+            )
+          }
+        }
+        return card
+      }
+
+      function renderUnitA(u) {
+        const box = el("div", "unit")
+        const head = el("div", "unit-head")
+        head.appendChild(el("span", "unit-n", `${u.n}`))
+        if (u.phase) head.appendChild(el("span", "unit-phase", `— ${u.phase}`))
+        box.appendChild(head)
+
+        if (u.nowYouNeed && u.nowYouNeed.length) {
+          const need = el("div", "need")
+          need.appendChild(el("p", "kicker", "Now you need"))
+          const items = el("p", "items")
+          u.nowYouNeed.forEach((ing, i) => {
+            if (i > 0) items.appendChild(document.createTextNode(" · "))
+            const span = el("span", ing.split ? "split" : null, `${ing.qty} ${ing.item}`)
+            items.appendChild(span)
+          })
+          need.appendChild(items)
+          box.appendChild(need)
+        }
+
+        box.appendChild(el("p", "action", u.actionPlain))
+        if (u.reserve) {
+          const res = el("p", "reserve", `RESERVE — ${u.reserve}`)
+          box.appendChild(res)
+        }
+        if (u.critical) box.appendChild(el("p", "critical", u.critical))
+        return box
+      }
+
+      function renderUnitB(u) {
+        const box = el("div", "unit")
+        const head = el("div", "unit-head")
+        head.appendChild(el("span", "unit-n", `${u.n}`))
+        if (u.phase) head.appendChild(el("span", "unit-phase", `— ${u.phase}`))
+        box.appendChild(head)
+
+        box.appendChild(el("p", "action", u.actionInline))
+        if (u.reserve) box.appendChild(el("p", "reserve", `Keep for later — ${u.reserve}`))
+        if (u.critical) box.appendChild(el("p", "critical", u.critical))
+        return box
+      }
+
+      function render() {
+        const r = DATA.recipes[state.recipe]
+        const app = $("app")
+        app.textContent = ""
+
+        app.appendChild(el("h1", "title", r.title))
+        if (r.flow && r.flow.length) {
+          const flow = el("p", "flow")
+          flow.appendChild(document.createTextNode("FLOW  "))
+          r.flow.forEach((p, i) => {
+            if (i > 0) flow.appendChild(document.createTextNode(" → "))
+            flow.appendChild(el("b", null, p))
+          })
+          app.appendChild(flow)
+        }
+
+        app.appendChild(renderBeforeYouStart(r))
+
+        const units = el("section", "card")
+        units.appendChild(el("p", "kicker", `Cooking — Hypothesis ${state.hyp}`))
+        units.appendChild(el("p", "count", `${r.units.length} cooking units`))
+        for (const u of r.units) {
+          units.appendChild(state.hyp === "A" ? renderUnitA(u) : renderUnitB(u))
+        }
+        app.appendChild(units)
+
+        const src = el("p", "src", `source (functional data only): ${r.sourceUrl}`)
+        app.appendChild(src)
+
+        $("meta").textContent =
+          state.hyp === "A"
+            ? "A: quantities in a NOW YOU NEED block, action prose without them."
+            : "B: quantities woven into the action prose, no separate block."
+      }
+
+      $("recipe").addEventListener("change", (e) => {
+        state.recipe = Number(e.target.value)
+        render()
+      })
+      $("hypA").addEventListener("click", () => {
+        state.hyp = "A"
+        $("hypA").setAttribute("aria-pressed", "true")
+        $("hypB").setAttribute("aria-pressed", "false")
+        render()
+      })
+      $("hypB").addEventListener("click", () => {
+        state.hyp = "B"
+        $("hypB").setAttribute("aria-pressed", "true")
+        $("hypA").setAttribute("aria-pressed", "false")
+        render()
+      })
+      $("suppress").addEventListener("click", () => {
+        state.suppress = !state.suppress
+        $("suppress").setAttribute("aria-pressed", String(state.suppress))
+        render()
+      })
+
+      populateRecipePicker()
+      render()
+    </script>
+  </body>
+</html>
