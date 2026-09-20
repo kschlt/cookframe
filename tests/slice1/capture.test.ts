@@ -89,7 +89,7 @@ describe("slice1/capture-block-ids-from-policy", () => {
     expect(snapshot.blocks.map((b) => b.id)).toEqual(expected)
   })
 
-  it("ids are content-derived: the same blocks in a different order give the same id set", async () => {
+  it("ids are content-derived: a block keeps its id regardless of its position", async () => {
     const forward: RawBlock[] = [
       { order: 0, type: "title", text: "Pancakes" },
       { order: 1, type: "instruction", text: "Whisk." },
@@ -100,7 +100,16 @@ describe("slice1/capture-block-ids-from-policy", () => {
     ]
     const a = await captureSnapshot(stubProvider(forward), policy, bytes("x"), ctx())
     const b = await captureSnapshot(stubProvider(reversed), policy, bytes("x"), ctx())
-    expect(new Set(a.blocks.map((x) => x.id))).toEqual(new Set(b.blocks.map((x) => x.id)))
+    const idFor = (blocks: typeof a.blocks, text: string): string | undefined =>
+      blocks.find((x) => x.text === text)?.id
+    // The same content yields the same id in either ordering. Asserted per block
+    // by value, not as a set: a positional scheme (`raw-0`/`raw-1`) would give
+    // the title `raw-0` forward and `raw-1` reversed, so this discriminates it —
+    // where a set-cardinality check would have passed vacuously.
+    expect(idFor(a.blocks, "Pancakes")).toBe(idFor(b.blocks, "Pancakes"))
+    expect(idFor(a.blocks, "Whisk.")).toBe(idFor(b.blocks, "Whisk."))
+    // And distinct content still gets distinct ids.
+    expect(idFor(a.blocks, "Pancakes")).not.toBe(idFor(a.blocks, "Whisk."))
   })
 })
 
