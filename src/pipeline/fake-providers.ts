@@ -25,7 +25,7 @@ export function createFakeNormalizationProvider(): NormalizationProvider {
       const provenance = {
         sourceSnapshotId: snapshot.id,
         sourceSnapshotVersion: snapshot.version,
-        targetOntologyVersion: SCHEMA_VERSION,
+        targetOntologyVersion: ctx.targetOntologyVersion,
         runId: ctx.runId,
         ...(ctx.normalizationModel !== undefined
           ? { normalizationModel: ctx.normalizationModel }

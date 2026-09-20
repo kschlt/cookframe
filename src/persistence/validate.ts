@@ -56,11 +56,16 @@ function collectSourceRefs(node: unknown, acc: SourceRef[]): void {
 }
 
 /**
- * Assert that every sourceRef in `canonical` resolves against `snapshot`:
- * a `blockId` must name a block present in the snapshot; a `payloadPointer`
- * requires the snapshot to carry a structured payload. Throws
- * {@link UnresolvedSourceRefError} on the first ref that does not — failing
+ * Assert that every sourceRef in `canonical` resolves against `snapshot`,
+ * throwing {@link UnresolvedSourceRefError} on the first that does not — failing
  * closed, never dropping the ref (the omission-over-coercion contract).
+ *
+ * A `blockId` is fully resolved: it must name a block present in the snapshot.
+ * A `payloadPointer` is resolved only as far as this unit needs: the snapshot
+ * must carry a structured payload for the pointer to have anything to address.
+ * Verifying that the pointer addresses an existing node *within* that payload is
+ * deferred to the unit that first produces payload-pointer refs (none does yet;
+ * the capture path that emits them is a later SL1 unit).
  */
 export function resolveSourceRefs(snapshot: SourceSnapshot, canonical: CanonicalRecipe): void {
   const blockIds = new Set(snapshot.blocks.map((b) => b.id))

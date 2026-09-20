@@ -26,13 +26,18 @@ class ProvisionalStore implements RecipeRepository {
   readonly #versions = new Map<string, CanonicalRecipe[]>()
 
   async storeSnapshot(snapshot: SourceSnapshot): Promise<void> {
-    // Validate before the store is touched: invalid input never persists.
+    // Validate before the store is touched: invalid input never persists. The
+    // Zod-parsed value is a fresh object graph, so the store never aliases the
+    // caller's input.
     const valid = validateSnapshot(snapshot)
     this.#snapshots.set(valid.id, valid)
   }
 
   async loadSnapshot(snapshotId: string): Promise<SourceSnapshot | undefined> {
-    return this.#snapshots.get(snapshotId)
+    // Hand back a copy: a caller mutating the result must not reach into stored
+    // state (the store's immutability cannot depend on caller discipline).
+    const stored = this.#snapshots.get(snapshotId)
+    return stored === undefined ? undefined : structuredClone(stored)
   }
 
   async appendCanonicalVersion(recipe: CanonicalRecipe): Promise<CanonicalVersion> {
@@ -41,7 +46,7 @@ class ProvisionalStore implements RecipeRepository {
     const existing = this.#versions.get(valid.id) ?? []
     existing.push(valid)
     this.#versions.set(valid.id, existing)
-    return { recipeId: valid.id, version: existing.length, recipe: valid }
+    return { recipeId: valid.id, version: existing.length, recipe: structuredClone(valid) }
   }
 
   async listLibrary(): Promise<readonly LibraryEntry[]> {
@@ -65,9 +70,10 @@ class ProvisionalStore implements RecipeRepository {
     const b = versions[versionB - 1]
     if (a === undefined) throw new RecipeVersionNotFoundError(recipeId, versionA)
     if (b === undefined) throw new RecipeVersionNotFoundError(recipeId, versionB)
+    // Copies, so comparing (or mutating) two runs cannot reach stored state.
     return [
-      { recipeId, version: versionA, recipe: a },
-      { recipeId, version: versionB, recipe: b },
+      { recipeId, version: versionA, recipe: structuredClone(a) },
+      { recipeId, version: versionB, recipe: structuredClone(b) },
     ]
   }
 }

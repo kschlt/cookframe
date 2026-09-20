@@ -170,7 +170,10 @@ describe("slice1/run-provenance-recorded", () => {
     await repo.storeSnapshot(snapshot)
     const v = await reprocess(repo, createFakeNormalizationProvider(), snapshot.id, {
       runId: "run-42",
-      targetOntologyVersion: "1.0.0",
+      // A sentinel distinct from SCHEMA_VERSION, so the assertion proves the
+      // context's targetOntologyVersion actually flows into provenance rather
+      // than matching a hardcoded default.
+      targetOntologyVersion: "onto-9.9.9",
       normalizationModel: "fake-normalizer-1",
       normalizationPromptVersions: ["norm-prompt@2"],
     })
@@ -178,7 +181,7 @@ describe("slice1/run-provenance-recorded", () => {
     expect(p.runId).toBe("run-42")
     expect(p.sourceSnapshotId).toBe(snapshot.id)
     expect(p.sourceSnapshotVersion).toBe(snapshot.version)
-    expect(p.targetOntologyVersion).toBe("1.0.0")
+    expect(p.targetOntologyVersion).toBe("onto-9.9.9")
     expect(p.normalizationModel).toBe("fake-normalizer-1")
     expect(p.normalizationPromptVersions).toEqual(["norm-prompt@2"])
   })
