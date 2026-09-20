@@ -1,0 +1,68 @@
+{
+  "id": "snap-fixture-structured-0001",
+  "version": 1,
+  "sourceType": "image",
+  "sourceSite": "Cookframe Fixtures",
+  "capturedText": "Zwetschgenkuchen\nMakes one 26 cm tart; about 12 slices\n\nFor the dough:\n250 g flour\n125 g butter, cold\n1 egg\n\nFor the topping:\n1 kg plums, halved\n2 tbsp sugar\n1 tsp cinnamon\n\nDough:\nRub the butter into the flour, add the egg, and chill for 30 minutes.\nPress into the tin.\n\nTopping:\nArrange the plums on the dough, scatter the sugar and cinnamon, and bake for 40 minutes at 190 degrees.",
+  "blocks": [
+    { "id": "b-title", "order": 0, "type": "title", "text": "Zwetschgenkuchen" },
+    {
+      "id": "b-meta",
+      "order": 1,
+      "type": "metadata",
+      "text": "Makes one 26 cm tart; about 12 slices"
+    },
+    {
+      "id": "b-ing-group-dough",
+      "order": 2,
+      "type": "ingredient_group",
+      "heading": "For the dough",
+      "text": "For the dough"
+    },
+    { "id": "b-ing-dough-1", "order": 3, "type": "ingredient", "text": "250 g flour" },
+    { "id": "b-ing-dough-2", "order": 4, "type": "ingredient", "text": "125 g butter, cold" },
+    { "id": "b-ing-dough-3", "order": 5, "type": "ingredient", "text": "1 egg" },
+    {
+      "id": "b-ing-group-topping",
+      "order": 6,
+      "type": "ingredient_group",
+      "heading": "For the topping",
+      "text": "For the topping"
+    },
+    { "id": "b-ing-topping-1", "order": 7, "type": "ingredient", "text": "1 kg plums, halved" },
+    { "id": "b-ing-topping-2", "order": 8, "type": "ingredient", "text": "2 tbsp sugar" },
+    { "id": "b-ing-topping-3", "order": 9, "type": "ingredient", "text": "1 tsp cinnamon" },
+    {
+      "id": "b-instr-group-dough",
+      "order": 10,
+      "type": "instruction_group",
+      "heading": "Dough",
+      "text": "Dough"
+    },
+    {
+      "id": "b-instr-dough-1",
+      "order": 11,
+      "type": "instruction",
+      "text": "Rub the butter into the flour, add the egg, and chill for 30 minutes."
+    },
+    { "id": "b-instr-dough-2", "order": 12, "type": "instruction", "text": "Press into the tin." },
+    {
+      "id": "b-instr-group-topping",
+      "order": 13,
+      "type": "instruction_group",
+      "heading": "Topping",
+      "text": "Topping"
+    },
+    {
+      "id": "b-instr-topping-1",
+      "order": 14,
+      "type": "instruction",
+      "text": "Arrange the plums on the dough, scatter the sugar and cinnamon, and bake for 40 minutes at 190 degrees."
+    }
+  ],
+  "captureProvenance": {
+    "sourceAdapter": "image-source-adapter",
+    "adapterVersion": "0.0.0-fixture",
+    "runId": "capture-run-fixture-structured-0001"
+  }
+}

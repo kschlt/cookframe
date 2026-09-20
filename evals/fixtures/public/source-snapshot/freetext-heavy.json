@@ -1,0 +1,27 @@
+{
+  "id": "snap-fixture-freetext-0001",
+  "version": 1,
+  "sourceType": "image",
+  "sourceSite": "Cookframe Fixtures",
+  "capturedText": "Grandmother's weeknight lentils\n\nThis is the kind of supper that cooks itself while you tidy the kitchen. Put a cup of brown lentils in a pot with a chopped onion, a carrot, and a bay leaf, cover with plenty of water, and let it simmer until the lentils are soft, about half an hour. Season generously with salt and a good splash of vinegar right at the end, and finish with olive oil. It keeps for days and is better on the second.",
+  "blocks": [
+    { "id": "b-title", "order": 0, "type": "title", "text": "Grandmother's weeknight lentils" },
+    {
+      "id": "b-body",
+      "order": 1,
+      "type": "instruction",
+      "text": "This is the kind of supper that cooks itself while you tidy the kitchen. Put a cup of brown lentils in a pot with a chopped onion, a carrot, and a bay leaf, cover with plenty of water, and let it simmer until the lentils are soft, about half an hour. Season generously with salt and a good splash of vinegar right at the end, and finish with olive oil."
+    },
+    {
+      "id": "b-note",
+      "order": 2,
+      "type": "note",
+      "text": "It keeps for days and is better on the second."
+    }
+  ],
+  "captureProvenance": {
+    "sourceAdapter": "image-source-adapter",
+    "adapterVersion": "0.0.0-fixture",
+    "runId": "capture-run-fixture-freetext-0001"
+  }
+}
