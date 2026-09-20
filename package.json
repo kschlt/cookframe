@@ -24,6 +24,7 @@
     "quality": "npm run typecheck && biome ci . && vitest run"
   },
   "dependencies": {
+    "ipaddr.js": "^2.5.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
