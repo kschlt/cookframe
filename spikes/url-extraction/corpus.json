@@ -1,0 +1,24 @@
+{
+  "note": "CFV1-S2 corpus. Real recipe sources across 5 languages, from the S6 fixture-catalog research (/mnt/project-files/research/eval-fixtures-catalog.md). Selected to span the edge cases the Canonical Recipe contract must survive, NOT for JSON-LD friendliness. This is a REPRESENTATIVE corpus pending Kornelius's confirmation of his genuinely-used sources; WAF-blocked sites (chefkoch.de, foodnetwork.com, seriouseats, bbcgoodfood, allrecipes, thekitchn, theguardian) are under-represented because they refuse automated fetch — a stated limitation, not a silent one.",
+  "ordering": "index matches src_NN.html produced by the fetch step",
+  "sources": [
+    { "site": "kingarthurbaking.com", "lang": "EN", "url": "https://www.kingarthurbaking.com/recipes/extra-tangy-sourdough-bread-recipe", "entered": "S6 catalog: time ranges, overnight, cups+grams" },
+    { "site": "kingarthurbaking.com", "lang": "EN", "url": "https://www.kingarthurbaking.com/recipes/no-knead-sourdough-bread-recipe", "entered": "S6 catalog: range times, optional ingredient" },
+    { "site": "kingarthurbaking.com", "lang": "EN", "url": "https://www.kingarthurbaking.com/recipes/classic-birthday-cake-recipe", "entered": "S6 catalog: multi-component named sections" },
+    { "site": "emmikochteinfach.de", "lang": "DE", "url": "https://emmikochteinfach.de/lasagne-rezept/", "entered": "S6 catalog: ranges, qualitative, 4 sections, nutrition" },
+    { "site": "lecker.de", "lang": "DE", "url": "https://www.lecker.de/lasagne-rezept-bolognese-63203.html", "entered": "S6 catalog: 1 Prise, grouped sections, ambiguous nutrition basis" },
+    { "site": "emmikochteinfach.de", "lang": "DE", "url": "https://emmikochteinfach.de/zitronenkuchen-rezept-saftig-einfach/", "entered": "S6 catalog: range times, Päckchen unit, nutrition" },
+    { "site": "kuechengoetter.de", "lang": "DE", "url": "https://www.kuechengoetter.de/rezepte/klassische-bolognese-lasagne-80256", "entered": "S6 catalog: sections, ambiguous kcal magnitude" },
+    { "site": "gaumenfreundin.de", "lang": "DE", "url": "https://www.gaumenfreundin.de/falafel-selber-machen/", "entered": "S6 catalog: Bund unit, ca. nutrition" },
+    { "site": "foodnetwork.com", "lang": "EN", "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/make-ahead-deep-dish-apple-pie-3364370", "entered": "S6 catalog: ranges, sections, imperial-only" },
+    { "site": "foodnetwork.com", "lang": "EN", "url": "https://www.foodnetwork.com/recipes/nigella-lawson/chick-peas-with-rocket-and-sherry-recipe-1950189", "entered": "S6 catalog: odd side-vs-main yield framing" },
+    { "site": "foodnetwork.com", "lang": "EN", "url": "https://www.foodnetwork.com/fnk/recipes/sweet-potato-knishes-7527437", "entered": "S6 catalog: 3 named sections, pinch/scoop" },
+    { "site": "sugargeekshow.com", "lang": "EN", "url": "https://www.sugargeekshow.com/master-sweet-dough-recipe/", "entered": "S6 catalog: yield as dough weight, unusual nutrition basis" },
+    { "site": "food.com", "lang": "EN", "url": "https://www.food.com/recipe/matteos-lasagne-242781", "entered": "S6 catalog: NO image, metric+imperial, no nutrition" },
+    { "site": "food.com", "lang": "EN", "url": "https://www.food.com/recipe/meatloaf-goulash-441410", "entered": "S6 catalog: NO image, can/packet units, no nutrition" },
+    { "site": "giallozafferano.it", "lang": "IT", "url": "https://blog.giallozafferano.it/dulcisinforno/lasagne-al-forno/", "entered": "S6 catalog: q.b./pizzico, 3 sections, per-100g nutrition" },
+    { "site": "giallozafferano.com", "lang": "EN(IT)", "url": "https://www.giallozafferano.com/recipes/Lasagne-alla-Bolognese.html", "entered": "S6 catalog: mixed units, to taste, grouped sections" },
+    { "site": "ricardocuisine.com", "lang": "FR", "url": "https://www.ricardocuisine.com/recettes/9304-lasagne-a-la-viande-la-meilleure", "entered": "S6 catalog: grouped sections, mixed metric/imperial, no nutrition" },
+    { "site": "directoalpaladar.com", "lang": "ES", "url": "https://directoalpaladar.com/recetas-de-pasta/lasana-de-carne-a-la-bolonesa-receta", "entered": "S6 catalog: opcional, unquantified salt/pepper, no nutrition" }
+  ]
+}
