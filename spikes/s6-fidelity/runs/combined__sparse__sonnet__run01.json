@@ -1,0 +1,158 @@
+{
+  "snapshot": {
+    "id": "sparse-snapshot-run01",
+    "version": 1,
+    "sourceType": "text",
+    "capturedText": "Schnelle Kräuterbutter\n\nZutaten:\n- 1 Packung Butter, weich\n- Knoblauch nach Geschmack\n- 2–3 EL frische Kräuter, gehackt\n- Salz\n- eine Prise Pfeffer\n\nButter mit dem gehackten Knoblauch und den Kräutern verrühren. Mit Salz und Pfeffer abschmecken. Kaltstellen, bis sie fest ist.",
+    "blocks": [
+      { "id": "b1", "order": 0, "type": "title", "text": "Schnelle Kräuterbutter" },
+      { "id": "b2", "order": 1, "type": "ingredient_group", "heading": "Zutaten", "text": "Zutaten:" },
+      { "id": "b3", "order": 2, "type": "ingredient", "text": "1 Packung Butter, weich" },
+      { "id": "b4", "order": 3, "type": "ingredient", "text": "Knoblauch nach Geschmack" },
+      { "id": "b5", "order": 4, "type": "ingredient", "text": "2–3 EL frische Kräuter, gehackt" },
+      { "id": "b6", "order": 5, "type": "ingredient", "text": "Salz" },
+      { "id": "b7", "order": 6, "type": "ingredient", "text": "eine Prise Pfeffer" },
+      { "id": "b8", "order": 7, "type": "instruction", "text": "Butter mit dem gehackten Knoblauch und den Kräutern verrühren." },
+      { "id": "b9", "order": 8, "type": "instruction", "text": "Mit Salz und Pfeffer abschmecken." },
+      { "id": "b10", "order": 9, "type": "instruction", "text": "Kaltstellen, bis sie fest ist." }
+    ],
+    "captureProvenance": {
+      "sourceAdapter": "text",
+      "adapterVersion": "v1",
+      "model": "claude-sonnet-5",
+      "capturePromptVersions": ["combined/v1"],
+      "runId": "combined__sparse__sonnet__run01"
+    }
+  },
+  "canonical": {
+    "id": "sparse-recipe-run01",
+    "schemaVersion": "1.0.0",
+    "title": "Schnelle Kräuterbutter",
+    "yields": [],
+    "ingredientGroups": [
+      {
+        "id": "ing-group-1",
+        "title": "Zutaten",
+        "sourceRefs": [{ "blockId": "b2" }],
+        "ingredients": [
+          {
+            "id": "ingr-butter",
+            "sourceText": "1 Packung Butter, weich",
+            "quantityExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+            "unit": "Packung",
+            "name": "Butter",
+            "qualifiers": ["weich"],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "b3" }]
+          },
+          {
+            "id": "ingr-garlic",
+            "sourceText": "Knoblauch nach Geschmack",
+            "quantityExpression": { "sourceText": "nach Geschmack", "kind": "qualitative", "qualifierText": "nach Geschmack" },
+            "name": "Knoblauch",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "b4" }]
+          },
+          {
+            "id": "ingr-herbs",
+            "sourceText": "2–3 EL frische Kräuter, gehackt",
+            "quantityExpression": { "sourceText": "2–3 EL", "kind": "range", "minValue": 2, "maxValue": 3 },
+            "unit": "EL",
+            "name": "Kräuter",
+            "qualifiers": ["frische", "gehackt"],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "b5" }]
+          },
+          {
+            "id": "ingr-salt",
+            "sourceText": "Salz",
+            "name": "Salz",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "b6" }]
+          },
+          {
+            "id": "ingr-pepper",
+            "sourceText": "eine Prise Pfeffer",
+            "quantityExpression": { "sourceText": "eine Prise", "kind": "qualitative", "qualifierText": "Prise" },
+            "name": "Pfeffer",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "b7" }]
+          }
+        ]
+      }
+    ],
+    "instructionSections": [
+      {
+        "id": "instr-section-1",
+        "sourceRefs": [{ "blockId": "b8" }, { "blockId": "b9" }, { "blockId": "b10" }],
+        "steps": [
+          {
+            "id": "step-1",
+            "sourceText": "Butter mit dem gehackten Knoblauch und den Kräutern verrühren.",
+            "normalizedActionText": "Butter mit dem gehackten Knoblauch und den Kräutern verrühren.",
+            "sourceRefs": [{ "blockId": "b8" }],
+            "ingredientUses": [
+              { "ingredientId": "ingr-butter", "usage": "use_now", "sourceRefs": [{ "blockId": "b8" }] },
+              { "ingredientId": "ingr-garlic", "usage": "use_now", "sourceRefs": [{ "blockId": "b8" }] },
+              { "ingredientId": "ingr-herbs", "usage": "use_now", "sourceRefs": [{ "blockId": "b8" }] }
+            ],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": [],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [],
+            "prerequisiteCues": [],
+            "waitCues": []
+          },
+          {
+            "id": "step-2",
+            "sourceText": "Mit Salz und Pfeffer abschmecken.",
+            "normalizedActionText": "Mit Salz und Pfeffer abschmecken.",
+            "sourceRefs": [{ "blockId": "b9" }],
+            "ingredientUses": [
+              { "ingredientId": "ingr-salt", "usage": "use_now", "sourceRefs": [{ "blockId": "b9" }] },
+              { "ingredientId": "ingr-pepper", "usage": "use_now", "sourceRefs": [{ "blockId": "b9" }] }
+            ],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": [],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [],
+            "prerequisiteCues": [],
+            "waitCues": []
+          },
+          {
+            "id": "step-3",
+            "sourceText": "Kaltstellen, bis sie fest ist.",
+            "normalizedActionText": "Kaltstellen, bis sie fest ist.",
+            "sourceRefs": [{ "blockId": "b10" }],
+            "ingredientUses": [],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": [],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [
+              { "sourceText": "bis sie fest ist", "sourceRefs": [{ "blockId": "b10" }] }
+            ],
+            "prerequisiteCues": [],
+            "waitCues": []
+          }
+        ]
+      }
+    ],
+    "provenance": {
+      "sourceSnapshotId": "sparse-snapshot-run01",
+      "sourceSnapshotVersion": 1,
+      "normalizationModel": "claude-sonnet-5",
+      "normalizationPromptVersions": ["combined/v1"],
+      "targetOntologyVersion": "1.0.0",
+      "runId": "combined__sparse__sonnet__run01"
+    }
+  }
+}

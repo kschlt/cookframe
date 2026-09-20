@@ -1,0 +1,420 @@
+{
+  "snapshot": {
+    "id": "snap-freetext-heavy-run02",
+    "version": 1,
+    "sourceType": "text",
+    "capturedText": "Omas Apfelpfannkuchen\n\nErgibt etwa 4 Pfannkuchen (reicht für 2 Personen als Hauptgericht oder 4 als Nachtisch).\n\nAlso ich mach das immer so: in eine Schüssel kommen 250 g Mehl, dann 3 Eier dazu und ungefähr 500 ml Milch, das Ganze mit einer Prise Salz verrühren bis der Teig glatt ist, ruhig etwas dickflüssig. Zwei bis drei Äpfel (je nach Größe) schäle ich, entkerne sie und schneide sie in dünne Scheiben. In einer Pfanne etwas Butter zerlassen, eine Kelle Teig rein, ein paar Apfelscheiben drauf und bei mittlerer Hitze ca. 3–4 Minuten braten, dann wenden. Zum Schluss großzügig mit Zimt und Zucker bestreuen, wer mag noch einen Klecks Apfelmus dazu. Schmeckt am besten frisch aus der Pfanne.\n\nNährwert pro Pfannkuchen ungefähr 320 kcal, aber das ist nur geschätzt.",
+    "blocks": [
+      {
+        "id": "blk-title",
+        "order": 0,
+        "type": "title",
+        "text": "Omas Apfelpfannkuchen"
+      },
+      {
+        "id": "blk-yield",
+        "order": 1,
+        "type": "metadata",
+        "text": "Ergibt etwa 4 Pfannkuchen (reicht für 2 Personen als Hauptgericht oder 4 als Nachtisch)."
+      },
+      {
+        "id": "blk-batter-dry",
+        "order": 2,
+        "type": "ingredient",
+        "text": "in eine Schüssel kommen 250 g Mehl, dann 3 Eier dazu und ungefähr 500 ml Milch,"
+      },
+      {
+        "id": "blk-batter-mix",
+        "order": 3,
+        "type": "instruction",
+        "text": "das Ganze mit einer Prise Salz verrühren bis der Teig glatt ist, ruhig etwas dickflüssig."
+      },
+      {
+        "id": "blk-apples",
+        "order": 4,
+        "type": "instruction",
+        "text": "Zwei bis drei Äpfel (je nach Größe) schäle ich, entkerne sie und schneide sie in dünne Scheiben."
+      },
+      {
+        "id": "blk-butter",
+        "order": 5,
+        "type": "instruction",
+        "text": "In einer Pfanne etwas Butter zerlassen,"
+      },
+      {
+        "id": "blk-fry",
+        "order": 6,
+        "type": "instruction",
+        "text": "eine Kelle Teig rein, ein paar Apfelscheiben drauf und bei mittlerer Hitze ca. 3–4 Minuten braten, dann wenden."
+      },
+      {
+        "id": "blk-garnish",
+        "order": 7,
+        "type": "instruction",
+        "text": "Zum Schluss großzügig mit Zimt und Zucker bestreuen, wer mag noch einen Klecks Apfelmus dazu."
+      },
+      {
+        "id": "blk-serve-note",
+        "order": 8,
+        "type": "note",
+        "text": "Schmeckt am besten frisch aus der Pfanne."
+      },
+      {
+        "id": "blk-nutrition-note",
+        "order": 9,
+        "type": "note",
+        "text": "Nährwert pro Pfannkuchen ungefähr 320 kcal, aber das ist nur geschätzt."
+      }
+    ],
+    "captureProvenance": {
+      "sourceAdapter": "text",
+      "adapterVersion": "v1",
+      "model": "claude-sonnet-5",
+      "capturePromptVersions": ["combined/v1"],
+      "runId": "combined-freetext-heavy-sonnet-run02"
+    }
+  },
+  "canonical": {
+    "id": "recipe-oma-apfelpfannkuchen",
+    "schemaVersion": "1.0.0",
+    "title": "Omas Apfelpfannkuchen",
+    "yields": [
+      {
+        "id": "yield-1",
+        "sourceText": "Ergibt etwa 4 Pfannkuchen (reicht für 2 Personen als Hauptgericht oder 4 als Nachtisch).",
+        "valueExpression": {
+          "sourceText": "etwa 4",
+          "kind": "approximate",
+          "value": 4,
+          "qualifierText": "etwa"
+        },
+        "unit": "Pfannkuchen",
+        "contextText": "reicht für 2 Personen als Hauptgericht oder 4 als Nachtisch",
+        "scalingEligibility": "unknown",
+        "sourceRefs": [{ "blockId": "blk-yield" }]
+      }
+    ],
+    "equipment": [
+      {
+        "id": "equip-schuessel",
+        "sourceText": "eine Schüssel",
+        "name": "Schüssel",
+        "qualifiers": [],
+        "sourceRefs": [{ "blockId": "blk-batter-dry" }]
+      },
+      {
+        "id": "equip-pfanne",
+        "sourceText": "einer Pfanne",
+        "name": "Pfanne",
+        "qualifiers": [],
+        "sourceRefs": [{ "blockId": "blk-butter" }]
+      }
+    ],
+    "ingredientGroups": [
+      {
+        "id": "group-1",
+        "sourceRefs": [
+          { "blockId": "blk-batter-dry" },
+          { "blockId": "blk-batter-mix" },
+          { "blockId": "blk-apples" },
+          { "blockId": "blk-butter" },
+          { "blockId": "blk-garnish" }
+        ],
+        "ingredients": [
+          {
+            "id": "ing-mehl",
+            "sourceText": "250 g Mehl",
+            "quantityExpression": { "sourceText": "250 g", "kind": "exact", "value": 250 },
+            "unit": "g",
+            "name": "Mehl",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "blk-batter-dry" }]
+          },
+          {
+            "id": "ing-eier",
+            "sourceText": "3 Eier",
+            "quantityExpression": { "sourceText": "3", "kind": "exact", "value": 3 },
+            "name": "Eier",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "blk-batter-dry" }]
+          },
+          {
+            "id": "ing-milch",
+            "sourceText": "ungefähr 500 ml Milch",
+            "quantityExpression": {
+              "sourceText": "ungefähr 500 ml",
+              "kind": "approximate",
+              "value": 500,
+              "qualifierText": "ungefähr"
+            },
+            "unit": "ml",
+            "name": "Milch",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "blk-batter-dry" }]
+          },
+          {
+            "id": "ing-salz",
+            "sourceText": "einer Prise Salz",
+            "quantityExpression": {
+              "sourceText": "eine Prise",
+              "kind": "qualitative",
+              "qualifierText": "Prise"
+            },
+            "name": "Salz",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "blk-batter-mix" }]
+          },
+          {
+            "id": "ing-aepfel",
+            "sourceText": "Zwei bis drei Äpfel (je nach Größe)",
+            "quantityExpression": {
+              "sourceText": "Zwei bis drei",
+              "kind": "range",
+              "minValue": 2,
+              "maxValue": 3
+            },
+            "name": "Äpfel",
+            "qualifiers": ["je nach Größe"],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "blk-apples" }]
+          },
+          {
+            "id": "ing-butter",
+            "sourceText": "etwas Butter",
+            "quantityExpression": {
+              "sourceText": "etwas",
+              "kind": "qualitative",
+              "qualifierText": "etwas"
+            },
+            "name": "Butter",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "blk-butter" }]
+          },
+          {
+            "id": "ing-zimt",
+            "sourceText": "Zimt",
+            "quantityExpression": {
+              "sourceText": "großzügig",
+              "kind": "qualitative",
+              "qualifierText": "großzügig"
+            },
+            "name": "Zimt",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "blk-garnish" }]
+          },
+          {
+            "id": "ing-zucker",
+            "sourceText": "Zucker",
+            "quantityExpression": {
+              "sourceText": "großzügig",
+              "kind": "qualitative",
+              "qualifierText": "großzügig"
+            },
+            "name": "Zucker",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "blk-garnish" }]
+          },
+          {
+            "id": "ing-apfelmus",
+            "sourceText": "einen Klecks Apfelmus",
+            "quantityExpression": {
+              "sourceText": "einen Klecks",
+              "kind": "qualitative",
+              "qualifierText": "Klecks"
+            },
+            "name": "Apfelmus",
+            "qualifiers": ["wer mag"],
+            "optional": true,
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "blk-garnish" }]
+          }
+        ]
+      }
+    ],
+    "preparedComponents": [
+      {
+        "id": "comp-teig",
+        "label": "Teig",
+        "createdByStepId": "step-1",
+        "sourceRefs": [{ "blockId": "blk-batter-mix" }]
+      }
+    ],
+    "instructionSections": [
+      {
+        "id": "section-1",
+        "sourceRefs": [
+          { "blockId": "blk-batter-dry" },
+          { "blockId": "blk-batter-mix" },
+          { "blockId": "blk-apples" },
+          { "blockId": "blk-butter" },
+          { "blockId": "blk-fry" },
+          { "blockId": "blk-garnish" }
+        ],
+        "steps": [
+          {
+            "id": "step-1",
+            "sourceText": "in eine Schüssel kommen 250 g Mehl, dann 3 Eier dazu und ungefähr 500 ml Milch, das Ganze mit einer Prise Salz verrühren bis der Teig glatt ist, ruhig etwas dickflüssig.",
+            "normalizedActionText": "Mehl, Eier und Milch in eine Schüssel geben, mit einer Prise Salz verrühren, bis der Teig glatt und leicht dickflüssig ist.",
+            "sourceRefs": [{ "blockId": "blk-batter-dry" }, { "blockId": "blk-batter-mix" }],
+            "ingredientUses": [
+              { "ingredientId": "ing-mehl", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-batter-dry" }] },
+              { "ingredientId": "ing-eier", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-batter-dry" }] },
+              { "ingredientId": "ing-milch", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-batter-dry" }] },
+              { "ingredientId": "ing-salz", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-batter-mix" }] }
+            ],
+            "componentUses": [],
+            "equipmentUses": [
+              { "equipmentId": "equip-schuessel", "sourceRefs": [{ "blockId": "blk-batter-dry" }] }
+            ],
+            "producesComponents": ["comp-teig"],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [
+              { "sourceText": "bis der Teig glatt ist", "sourceRefs": [{ "blockId": "blk-batter-mix" }] }
+            ],
+            "prerequisiteCues": [],
+            "waitCues": []
+          },
+          {
+            "id": "step-2",
+            "sourceText": "Zwei bis drei Äpfel (je nach Größe) schäle ich, entkerne sie und schneide sie in dünne Scheiben.",
+            "normalizedActionText": "Äpfel schälen, entkernen und in dünne Scheiben schneiden.",
+            "sourceRefs": [{ "blockId": "blk-apples" }],
+            "ingredientUses": [
+              { "ingredientId": "ing-aepfel", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-apples" }] }
+            ],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": [],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [],
+            "prerequisiteCues": [],
+            "waitCues": []
+          },
+          {
+            "id": "step-3",
+            "sourceText": "In einer Pfanne etwas Butter zerlassen, eine Kelle Teig rein, ein paar Apfelscheiben drauf und bei mittlerer Hitze ca. 3–4 Minuten braten, dann wenden.",
+            "normalizedActionText": "Butter in einer Pfanne zerlassen, eine Kelle Teig hineingeben, ein paar Apfelscheiben darauflegen und bei mittlerer Hitze ca. 3–4 Minuten braten, dann wenden.",
+            "sourceRefs": [{ "blockId": "blk-butter" }, { "blockId": "blk-fry" }],
+            "ingredientUses": [
+              { "ingredientId": "ing-butter", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-butter" }] },
+              {
+                "ingredientId": "ing-aepfel",
+                "usage": "use_partial_unspecified",
+                "sourceText": "ein paar Apfelscheiben",
+                "sourceRefs": [{ "blockId": "blk-fry" }]
+              }
+            ],
+            "componentUses": [
+              {
+                "componentId": "comp-teig",
+                "usage": "use_partial_unspecified",
+                "sourceText": "eine Kelle Teig",
+                "sourceRefs": [{ "blockId": "blk-fry" }]
+              }
+            ],
+            "equipmentUses": [
+              { "equipmentId": "equip-pfanne", "sourceRefs": [{ "blockId": "blk-butter" }] }
+            ],
+            "producesComponents": [],
+            "durations": [
+              {
+                "durationExpression": {
+                  "sourceText": "ca. 3–4 Minuten",
+                  "kind": "range",
+                  "minValue": 3,
+                  "maxValue": 4,
+                  "unit": "min",
+                  "qualifierText": "ca."
+                },
+                "sourceLabel": "braten",
+                "sourceRefs": [{ "blockId": "blk-fry" }]
+              }
+            ],
+            "temperatures": [
+              {
+                "sourceText": "bei mittlerer Hitze",
+                "valueExpression": {
+                  "sourceText": "mittlerer Hitze",
+                  "kind": "qualitative",
+                  "qualifierText": "mittlere Hitze"
+                },
+                "contextText": "braten",
+                "sourceRefs": [{ "blockId": "blk-fry" }]
+              }
+            ],
+            "donenessCues": [],
+            "prerequisiteCues": [],
+            "waitCues": []
+          },
+          {
+            "id": "step-4",
+            "sourceText": "Zum Schluss großzügig mit Zimt und Zucker bestreuen, wer mag noch einen Klecks Apfelmus dazu.",
+            "normalizedActionText": "Zum Schluss großzügig mit Zimt und Zucker bestreuen; wer möchte, gibt noch einen Klecks Apfelmus dazu.",
+            "sourceRefs": [{ "blockId": "blk-garnish" }],
+            "ingredientUses": [
+              { "ingredientId": "ing-zimt", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-garnish" }] },
+              { "ingredientId": "ing-zucker", "usage": "use_now", "sourceRefs": [{ "blockId": "blk-garnish" }] },
+              {
+                "ingredientId": "ing-apfelmus",
+                "usage": "use_now",
+                "sourceText": "wer mag noch einen Klecks Apfelmus dazu",
+                "sourceRefs": [{ "blockId": "blk-garnish" }]
+              }
+            ],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": [],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [],
+            "prerequisiteCues": [],
+            "waitCues": []
+          }
+        ]
+      }
+    ],
+    "nutritionStatements": [
+      {
+        "id": "nutrition-1",
+        "sourceText": "Nährwert pro Pfannkuchen ungefähr 320 kcal, aber das ist nur geschätzt.",
+        "basis": {
+          "kind": "per_serving",
+          "unit": "Pfannkuchen",
+          "sourceText": "pro Pfannkuchen"
+        },
+        "facts": [
+          {
+            "nutrient": "energy",
+            "sourceLabel": "Nährwert",
+            "valueExpression": {
+              "sourceText": "ungefähr 320",
+              "kind": "approximate",
+              "value": 320,
+              "qualifierText": "ungefähr, nur geschätzt"
+            },
+            "unit": "kcal",
+            "sourceRefs": [{ "blockId": "blk-nutrition-note" }]
+          }
+        ],
+        "sourceRefs": [{ "blockId": "blk-nutrition-note" }]
+      }
+    ],
+    "provenance": {
+      "sourceSnapshotId": "snap-freetext-heavy-run02",
+      "sourceSnapshotVersion": 1,
+      "normalizationModel": "claude-sonnet-5",
+      "normalizationPromptVersions": ["combined/v1"],
+      "targetOntologyVersion": "1.0.0",
+      "runId": "combined-freetext-heavy-sonnet-run02"
+    }
+  }
+}

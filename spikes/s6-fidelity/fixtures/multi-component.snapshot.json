@@ -1,0 +1,31 @@
+{
+  "id": "snap-multi-component",
+  "version": 1,
+  "sourceType": "text",
+  "sourceSite": "Cookframe S6 Fixtures",
+  "capturedText": "Gefüllte Teigtaschen\nPortionen: 4\nFür den Teig: 300 g Mehl, 1 Ei, 150 ml Wasser lauwarm, 1 Prise Salz\nFür die Füllung: 250 g Spinat, 200 g Ricotta, 1 Knoblauchzehe, Muskatnuss frisch gerieben\nZubereitung: Teig kneten und ruhen lassen; Füllung aus Spinat, Ricotta, Knoblauch, Muskat; Teig ausrollen, füllen, zusammenklappen; in Salzwasser garen.",
+  "blocks": [
+    { "id": "b-title", "order": 0, "type": "title", "text": "Gefüllte Teigtaschen" },
+    { "id": "b-yield", "order": 1, "type": "metadata", "text": "Portionen: 4" },
+    { "id": "b-ing-dough-head", "order": 2, "type": "ingredient_group", "heading": "Für den Teig", "text": "Für den Teig:" },
+    { "id": "b-ing-dough-1", "order": 3, "type": "ingredient", "text": "300 g Mehl" },
+    { "id": "b-ing-dough-2", "order": 4, "type": "ingredient", "text": "1 Ei" },
+    { "id": "b-ing-dough-3", "order": 5, "type": "ingredient", "text": "150 ml Wasser, lauwarm" },
+    { "id": "b-ing-dough-4", "order": 6, "type": "ingredient", "text": "1 Prise Salz" },
+    { "id": "b-ing-fill-head", "order": 7, "type": "ingredient_group", "heading": "Für die Füllung", "text": "Für die Füllung:" },
+    { "id": "b-ing-fill-1", "order": 8, "type": "ingredient", "text": "250 g Spinat" },
+    { "id": "b-ing-fill-2", "order": 9, "type": "ingredient", "text": "200 g Ricotta" },
+    { "id": "b-ing-fill-3", "order": 10, "type": "ingredient", "text": "1 Knoblauchzehe" },
+    { "id": "b-ing-fill-4", "order": 11, "type": "ingredient", "text": "Muskatnuss, frisch gerieben" },
+    { "id": "b-instr-head", "order": 12, "type": "instruction_group", "heading": "Zubereitung", "text": "Zubereitung:" },
+    { "id": "b-instr-1", "order": 13, "type": "instruction", "text": "Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen." },
+    { "id": "b-instr-2", "order": 14, "type": "instruction", "text": "Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen." },
+    { "id": "b-instr-3", "order": 15, "type": "instruction", "text": "Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken." },
+    { "id": "b-instr-4", "order": 16, "type": "instruction", "text": "Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen." }
+  ],
+  "captureProvenance": {
+    "sourceAdapter": "text-source-adapter",
+    "adapterVersion": "0.0.0-fixture",
+    "runId": "capture-run-multi-component"
+  }
+}

@@ -1,0 +1,425 @@
+{
+  "id": "recipe-omas-apfelpfannkuchen",
+  "schemaVersion": "1.0.0",
+  "title": "Omas Apfelpfannkuchen",
+  "yields": [
+    {
+      "id": "yield-pfannkuchen",
+      "sourceText": "Ergibt etwa 4 Pfannkuchen",
+      "valueExpression": {
+        "sourceText": "etwa 4 Pfannkuchen",
+        "kind": "approximate",
+        "value": 4,
+        "qualifierText": "etwa"
+      },
+      "unit": "Pfannkuchen",
+      "scalingEligibility": "unknown",
+      "sourceRefs": [{ "blockId": "b-yield" }]
+    },
+    {
+      "id": "yield-hauptgericht",
+      "sourceText": "reicht für 2 Personen als Hauptgericht",
+      "valueExpression": {
+        "sourceText": "2 Personen",
+        "kind": "exact",
+        "value": 2
+      },
+      "unit": "Personen",
+      "contextText": "als Hauptgericht",
+      "scalingEligibility": "unknown",
+      "sourceRefs": [{ "blockId": "b-yield" }]
+    },
+    {
+      "id": "yield-nachtisch",
+      "sourceText": "4 als Nachtisch",
+      "valueExpression": {
+        "sourceText": "4",
+        "kind": "exact",
+        "value": 4
+      },
+      "unit": "Personen",
+      "contextText": "als Nachtisch",
+      "scalingEligibility": "unknown",
+      "sourceRefs": [{ "blockId": "b-yield" }]
+    }
+  ],
+  "equipment": [
+    {
+      "id": "equip-schuessel",
+      "sourceText": "eine Schüssel",
+      "name": "Schüssel",
+      "qualifiers": [],
+      "sourceRefs": [{ "blockId": "b-body" }]
+    },
+    {
+      "id": "equip-pfanne",
+      "sourceText": "einer Pfanne",
+      "name": "Pfanne",
+      "qualifiers": [],
+      "sourceRefs": [{ "blockId": "b-body" }]
+    }
+  ],
+  "ingredientGroups": [
+    {
+      "id": "grp-1",
+      "sourceRefs": [{ "blockId": "b-body" }],
+      "ingredients": [
+        {
+          "id": "ing-mehl",
+          "sourceText": "250 g Mehl",
+          "quantityExpression": {
+            "sourceText": "250 g",
+            "kind": "exact",
+            "value": 250
+          },
+          "unit": "g",
+          "name": "Mehl",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-eier",
+          "sourceText": "3 Eier",
+          "quantityExpression": {
+            "sourceText": "3",
+            "kind": "exact",
+            "value": 3
+          },
+          "name": "Eier",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-milch",
+          "sourceText": "ungefähr 500 ml Milch",
+          "quantityExpression": {
+            "sourceText": "ungefähr 500 ml",
+            "kind": "approximate",
+            "value": 500,
+            "qualifierText": "ungefähr"
+          },
+          "unit": "ml",
+          "name": "Milch",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-salz",
+          "sourceText": "einer Prise Salz",
+          "quantityExpression": {
+            "sourceText": "einer Prise",
+            "kind": "qualitative",
+            "qualifierText": "eine Prise"
+          },
+          "name": "Salz",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-apfel",
+          "sourceText": "Zwei bis drei Äpfel (je nach Größe)",
+          "quantityExpression": {
+            "sourceText": "Zwei bis drei",
+            "kind": "range",
+            "minValue": 2,
+            "maxValue": 3
+          },
+          "name": "Äpfel",
+          "qualifiers": ["je nach Größe"],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-butter",
+          "sourceText": "etwas Butter",
+          "quantityExpression": {
+            "sourceText": "etwas",
+            "kind": "qualitative",
+            "qualifierText": "etwas"
+          },
+          "name": "Butter",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-zimt",
+          "sourceText": "Zimt",
+          "quantityExpression": {
+            "sourceText": "großzügig",
+            "kind": "qualitative",
+            "qualifierText": "großzügig"
+          },
+          "name": "Zimt",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-zucker",
+          "sourceText": "Zucker",
+          "quantityExpression": {
+            "sourceText": "großzügig",
+            "kind": "qualitative",
+            "qualifierText": "großzügig"
+          },
+          "name": "Zucker",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        },
+        {
+          "id": "ing-apfelmus",
+          "sourceText": "einen Klecks Apfelmus",
+          "quantityExpression": {
+            "sourceText": "einen Klecks",
+            "kind": "qualitative",
+            "qualifierText": "einen Klecks"
+          },
+          "name": "Apfelmus",
+          "qualifiers": ["wer mag"],
+          "optional": true,
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-body" }]
+        }
+      ]
+    }
+  ],
+  "preparedComponents": [
+    {
+      "id": "comp-teig",
+      "label": "Teig",
+      "createdByStepId": "step-1",
+      "sourceRefs": [{ "blockId": "b-body" }]
+    }
+  ],
+  "instructionSections": [
+    {
+      "id": "sec-1",
+      "sourceRefs": [{ "blockId": "b-body" }],
+      "steps": [
+        {
+          "id": "step-1",
+          "sourceText": "in eine Schüssel kommen 250 g Mehl, dann 3 Eier dazu und ungefähr 500 ml Milch, das Ganze mit einer Prise Salz verrühren bis der Teig glatt ist, ruhig etwas dickflüssig.",
+          "normalizedActionText": "In eine Schüssel kommen 250 g Mehl, dann 3 Eier und ungefähr 500 ml Milch dazu. Das Ganze mit einer Prise Salz verrühren, bis der Teig glatt ist – ruhig etwas dickflüssig.",
+          "sourceRefs": [{ "blockId": "b-body" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-mehl",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            },
+            {
+              "ingredientId": "ing-eier",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            },
+            {
+              "ingredientId": "ing-milch",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            },
+            {
+              "ingredientId": "ing-salz",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [
+            {
+              "equipmentId": "equip-schuessel",
+              "sourceText": "eine Schüssel",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "producesComponents": ["comp-teig"],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [
+            {
+              "sourceText": "bis der Teig glatt ist",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-2",
+          "sourceText": "Zwei bis drei Äpfel (je nach Größe) schäle ich, entkerne sie und schneide sie in dünne Scheiben.",
+          "normalizedActionText": "Zwei bis drei Äpfel (je nach Größe) schälen, entkernen und in dünne Scheiben schneiden.",
+          "sourceRefs": [{ "blockId": "b-body" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-apfel",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-3",
+          "sourceText": "In einer Pfanne etwas Butter zerlassen, eine Kelle Teig rein, ein paar Apfelscheiben drauf und bei mittlerer Hitze ca. 3–4 Minuten braten, dann wenden.",
+          "normalizedActionText": "In einer Pfanne etwas Butter zerlassen, eine Kelle Teig hinein geben, ein paar Apfelscheiben darauf verteilen und bei mittlerer Hitze ca. 3–4 Minuten braten, dann wenden.",
+          "sourceRefs": [{ "blockId": "b-body" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-butter",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            },
+            {
+              "ingredientId": "ing-apfel",
+              "usage": "use_partial_unspecified",
+              "sourceText": "ein paar Apfelscheiben",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "componentUses": [
+            {
+              "componentId": "comp-teig",
+              "usage": "use_partial_unspecified",
+              "quantityExpression": {
+                "sourceText": "eine Kelle",
+                "kind": "qualitative",
+                "qualifierText": "eine Kelle"
+              },
+              "sourceText": "eine Kelle Teig",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "equipmentUses": [
+            {
+              "equipmentId": "equip-pfanne",
+              "sourceText": "einer Pfanne",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "producesComponents": [],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "ca. 3–4 Minuten",
+                "kind": "range",
+                "minValue": 3,
+                "maxValue": 4,
+                "unit": "Minuten",
+                "qualifierText": "ca."
+              },
+              "sourceLabel": "Bratzeit",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "temperatures": [
+            {
+              "sourceText": "bei mittlerer Hitze",
+              "valueExpression": {
+                "sourceText": "mittlerer Hitze",
+                "kind": "qualitative",
+                "qualifierText": "mittel"
+              },
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-4",
+          "sourceText": "Zum Schluss großzügig mit Zimt und Zucker bestreuen, wer mag noch einen Klecks Apfelmus dazu.",
+          "normalizedActionText": "Zum Schluss großzügig mit Zimt und Zucker bestreuen. Wer mag, gibt noch einen Klecks Apfelmus dazu.",
+          "sourceRefs": [{ "blockId": "b-body" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-zimt",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            },
+            {
+              "ingredientId": "ing-zucker",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            },
+            {
+              "ingredientId": "ing-apfelmus",
+              "usage": "use_all",
+              "sourceText": "wer mag noch einen Klecks Apfelmus dazu",
+              "sourceRefs": [{ "blockId": "b-body" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-5",
+          "sourceText": "Schmeckt am besten frisch aus der Pfanne.",
+          "normalizedActionText": "Schmeckt am besten frisch aus der Pfanne serviert.",
+          "sourceRefs": [{ "blockId": "b-body" }],
+          "ingredientUses": [],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        }
+      ]
+    }
+  ],
+  "nutritionStatements": [
+    {
+      "id": "nutr-1",
+      "sourceText": "Nährwert pro Pfannkuchen ungefähr 320 kcal, aber das ist nur geschätzt.",
+      "basis": {
+        "kind": "per_yield",
+        "yieldRef": "yield-pfannkuchen",
+        "sourceText": "pro Pfannkuchen"
+      },
+      "facts": [
+        {
+          "nutrient": "energy",
+          "sourceLabel": "kcal",
+          "valueExpression": {
+            "sourceText": "ungefähr 320 kcal",
+            "kind": "approximate",
+            "value": 320,
+            "qualifierText": "ungefähr, nur geschätzt"
+          },
+          "unit": "kcal",
+          "sourceRefs": [{ "blockId": "b-nutrition" }]
+        }
+      ],
+      "sourceRefs": [{ "blockId": "b-nutrition" }]
+    }
+  ],
+  "provenance": {
+    "sourceSnapshotId": "snap-freetext-heavy",
+    "sourceSnapshotVersion": 1,
+    "normalizationModel": "claude-sonnet-5",
+    "normalizationPromptVersions": ["v1"],
+    "targetOntologyVersion": "1.0.0",
+    "runId": "normalization__freetext-heavy__sonnet__run01"
+  }
+}

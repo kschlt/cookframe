@@ -32,7 +32,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-21 | semantic ingredient alias vocabulary | out of V1 scope |
 | OQ-22 | Focus Mode | out of V1 scope |
 | OQ-23 | sophisticated intermediate-food-state graph | out of V1 scope |
-| OQ-24 | capture and normalization: one physical model call or two | open |
+| OQ-24 | capture and normalization: one physical model call or two | open — CFV1-S6 spike evidence: both shapes reach 100% schema validity and 100% within-run sourceRef resolution, so fidelity does not force the choice; decision pending the OpenAI cost/latency pass (`spikes/s6-fidelity/FINDINGS.md`) |
 
 ## Release readiness
 
