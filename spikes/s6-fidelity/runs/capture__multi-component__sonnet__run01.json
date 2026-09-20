@@ -1,0 +1,117 @@
+{
+  "id": "multi-component",
+  "version": 1,
+  "sourceType": "text",
+  "capturedText": "Gefüllte Teigtaschen\n\nPortionen: 4\n\nFür den Teig:\n- 300 g Mehl\n- 1 Ei\n- 150 ml Wasser, lauwarm\n- 1 Prise Salz\n\nFür die Füllung:\n- 250 g Spinat\n- 200 g Ricotta\n- 1 Knoblauchzehe\n- Muskatnuss, frisch gerieben\n\nZubereitung:\n1. Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen.\n2. Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen.\n3. Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken.\n4. Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen.\n",
+  "blocks": [
+    {
+      "id": "b-title",
+      "order": 0,
+      "type": "title",
+      "text": "Gefüllte Teigtaschen"
+    },
+    {
+      "id": "b-meta-1",
+      "order": 1,
+      "type": "metadata",
+      "text": "Portionen: 4"
+    },
+    {
+      "id": "b-ing-group-1",
+      "order": 2,
+      "type": "ingredient_group",
+      "text": "Für den Teig:"
+    },
+    {
+      "id": "b-ing-1",
+      "order": 3,
+      "type": "ingredient",
+      "text": "300 g Mehl"
+    },
+    {
+      "id": "b-ing-2",
+      "order": 4,
+      "type": "ingredient",
+      "text": "1 Ei"
+    },
+    {
+      "id": "b-ing-3",
+      "order": 5,
+      "type": "ingredient",
+      "text": "150 ml Wasser, lauwarm"
+    },
+    {
+      "id": "b-ing-4",
+      "order": 6,
+      "type": "ingredient",
+      "text": "1 Prise Salz"
+    },
+    {
+      "id": "b-ing-group-2",
+      "order": 7,
+      "type": "ingredient_group",
+      "text": "Für die Füllung:"
+    },
+    {
+      "id": "b-ing-5",
+      "order": 8,
+      "type": "ingredient",
+      "text": "250 g Spinat"
+    },
+    {
+      "id": "b-ing-6",
+      "order": 9,
+      "type": "ingredient",
+      "text": "200 g Ricotta"
+    },
+    {
+      "id": "b-ing-7",
+      "order": 10,
+      "type": "ingredient",
+      "text": "1 Knoblauchzehe"
+    },
+    {
+      "id": "b-ing-8",
+      "order": 11,
+      "type": "ingredient",
+      "text": "Muskatnuss, frisch gerieben"
+    },
+    {
+      "id": "b-instr-group-1",
+      "order": 12,
+      "type": "instruction_group",
+      "text": "Zubereitung:"
+    },
+    {
+      "id": "b-instr-1",
+      "order": 13,
+      "type": "instruction",
+      "text": "1. Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen."
+    },
+    {
+      "id": "b-instr-2",
+      "order": 14,
+      "type": "instruction",
+      "text": "2. Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen."
+    },
+    {
+      "id": "b-instr-3",
+      "order": 15,
+      "type": "instruction",
+      "text": "3. Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken."
+    },
+    {
+      "id": "b-instr-4",
+      "order": 16,
+      "type": "instruction",
+      "text": "4. Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen."
+    }
+  ],
+  "captureProvenance": {
+    "sourceAdapter": "text",
+    "adapterVersion": "1.0.0",
+    "model": "claude-sonnet-5",
+    "capturePromptVersions": ["capture/v1"],
+    "runId": "capture__multi-component__sonnet__run01"
+  }
+}

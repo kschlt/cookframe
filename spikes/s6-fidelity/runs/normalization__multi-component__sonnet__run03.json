@@ -1,0 +1,330 @@
+{
+  "id": "recipe-gefuellte-teigtaschen",
+  "schemaVersion": "1.0.0",
+  "title": "Gefüllte Teigtaschen",
+  "sourceName": "Cookframe S6 Fixtures",
+  "yields": [
+    {
+      "id": "yield-servings",
+      "sourceText": "Portionen: 4",
+      "valueExpression": {
+        "sourceText": "4",
+        "kind": "exact",
+        "value": 4
+      },
+      "unit": "Portionen",
+      "scalingEligibility": "unknown",
+      "sourceRefs": [{ "blockId": "b-yield" }]
+    }
+  ],
+  "ingredientGroups": [
+    {
+      "id": "grp-teig",
+      "title": "Für den Teig",
+      "sourceRefs": [{ "blockId": "b-ing-dough-head" }],
+      "ingredients": [
+        {
+          "id": "ing-mehl",
+          "sourceText": "300 g Mehl",
+          "quantityExpression": {
+            "sourceText": "300",
+            "kind": "exact",
+            "value": 300
+          },
+          "unit": "g",
+          "name": "Mehl",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-dough-1" }]
+        },
+        {
+          "id": "ing-ei",
+          "sourceText": "1 Ei",
+          "quantityExpression": {
+            "sourceText": "1",
+            "kind": "exact",
+            "value": 1
+          },
+          "name": "Ei",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-dough-2" }]
+        },
+        {
+          "id": "ing-wasser",
+          "sourceText": "150 ml Wasser, lauwarm",
+          "quantityExpression": {
+            "sourceText": "150",
+            "kind": "exact",
+            "value": 150
+          },
+          "unit": "ml",
+          "name": "Wasser",
+          "qualifiers": ["lauwarm"],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-dough-3" }]
+        },
+        {
+          "id": "ing-salz",
+          "sourceText": "1 Prise Salz",
+          "quantityExpression": {
+            "sourceText": "1 Prise",
+            "kind": "qualitative"
+          },
+          "name": "Salz",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-dough-4" }]
+        }
+      ]
+    },
+    {
+      "id": "grp-fuellung",
+      "title": "Für die Füllung",
+      "sourceRefs": [{ "blockId": "b-ing-fill-head" }],
+      "ingredients": [
+        {
+          "id": "ing-spinat",
+          "sourceText": "250 g Spinat",
+          "quantityExpression": {
+            "sourceText": "250",
+            "kind": "exact",
+            "value": 250
+          },
+          "unit": "g",
+          "name": "Spinat",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-fill-1" }]
+        },
+        {
+          "id": "ing-ricotta",
+          "sourceText": "200 g Ricotta",
+          "quantityExpression": {
+            "sourceText": "200",
+            "kind": "exact",
+            "value": 200
+          },
+          "unit": "g",
+          "name": "Ricotta",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-fill-2" }]
+        },
+        {
+          "id": "ing-knoblauch",
+          "sourceText": "1 Knoblauchzehe",
+          "quantityExpression": {
+            "sourceText": "1",
+            "kind": "exact",
+            "value": 1
+          },
+          "unit": "Zehe",
+          "name": "Knoblauch",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-fill-3" }]
+        },
+        {
+          "id": "ing-muskat",
+          "sourceText": "Muskatnuss, frisch gerieben",
+          "name": "Muskatnuss",
+          "qualifiers": ["frisch gerieben"],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-fill-4" }]
+        }
+      ]
+    }
+  ],
+  "preparedComponents": [
+    {
+      "id": "comp-teig",
+      "label": "Teig",
+      "createdByStepId": "step-teig-kneten",
+      "sourceRefs": [{ "blockId": "b-instr-1" }]
+    },
+    {
+      "id": "comp-fuellung",
+      "label": "Füllung",
+      "createdByStepId": "step-fuellung-mischen",
+      "sourceRefs": [{ "blockId": "b-instr-2" }]
+    }
+  ],
+  "instructionSections": [
+    {
+      "id": "sec-zubereitung",
+      "title": "Zubereitung",
+      "sourceRefs": [{ "blockId": "b-instr-head" }],
+      "steps": [
+        {
+          "id": "step-teig-kneten",
+          "sourceText": "Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen.",
+          "normalizedActionText": "Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen.",
+          "sourceRefs": [{ "blockId": "b-instr-1" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-mehl",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            },
+            {
+              "ingredientId": "ing-ei",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            },
+            {
+              "ingredientId": "ing-wasser",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            },
+            {
+              "ingredientId": "ing-salz",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": ["comp-teig"],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "30 Minuten",
+                "kind": "exact",
+                "value": 30,
+                "unit": "Minuten"
+              },
+              "sourceLabel": "ruhen lassen",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-fuellung-mischen",
+          "sourceText": "Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen.",
+          "normalizedActionText": "Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen.",
+          "sourceRefs": [{ "blockId": "b-instr-2" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-spinat",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-2" }]
+            },
+            {
+              "ingredientId": "ing-ricotta",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-2" }]
+            },
+            {
+              "ingredientId": "ing-knoblauch",
+              "usage": "use_all",
+              "sourceText": "gepresstem Knoblauch",
+              "sourceRefs": [{ "blockId": "b-instr-2" }]
+            },
+            {
+              "ingredientId": "ing-muskat",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-instr-2" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": ["comp-fuellung"],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-formen",
+          "sourceText": "Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken.",
+          "normalizedActionText": "Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken.",
+          "sourceRefs": [{ "blockId": "b-instr-3" }],
+          "ingredientUses": [],
+          "componentUses": [
+            {
+              "componentId": "comp-teig",
+              "usage": "use_all",
+              "sourceText": "Den Teig dünn ausrollen und ausstechen.",
+              "sourceRefs": [{ "blockId": "b-instr-3" }]
+            },
+            {
+              "componentId": "comp-fuellung",
+              "usage": "use_partial_unspecified",
+              "quantityExpression": {
+                "sourceText": "je einen Teelöffel",
+                "kind": "exact",
+                "value": 1
+              },
+              "unit": "Teelöffel",
+              "sourceText": "Je einen Teelöffel Füllung daraufgeben",
+              "sourceRefs": [{ "blockId": "b-instr-3" }]
+            }
+          ],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-garen",
+          "sourceText": "Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen.",
+          "normalizedActionText": "Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen.",
+          "sourceRefs": [{ "blockId": "b-instr-4" }],
+          "ingredientUses": [],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "5–6 Minuten",
+                "kind": "range",
+                "minValue": 5,
+                "maxValue": 6,
+                "unit": "Minuten"
+              },
+              "sourceLabel": "garen",
+              "sourceRefs": [{ "blockId": "b-instr-4" }]
+            }
+          ],
+          "temperatures": [
+            {
+              "sourceText": "kochendem Salzwasser",
+              "valueExpression": {
+                "sourceText": "kochendem",
+                "kind": "qualitative"
+              },
+              "contextText": "Salzwasser",
+              "sourceRefs": [{ "blockId": "b-instr-4" }]
+            }
+          ],
+          "donenessCues": [
+            {
+              "sourceText": "bis sie oben schwimmen",
+              "sourceRefs": [{ "blockId": "b-instr-4" }]
+            }
+          ],
+          "prerequisiteCues": [],
+          "waitCues": []
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "sourceSnapshotId": "snap-multi-component",
+    "sourceSnapshotVersion": 1,
+    "normalizationModel": "claude-sonnet-5",
+    "normalizationPromptVersions": ["normalization/v1"],
+    "targetOntologyVersion": "1.0.0",
+    "runId": "normalization__multi-component__sonnet__run03"
+  }
+}

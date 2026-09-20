@@ -1,0 +1,160 @@
+{
+  "id": "recipe-sparse",
+  "schemaVersion": "1.0.0",
+  "title": "Schnelle Kräuterbutter",
+  "sourceName": "Cookframe S6 Fixtures",
+  "yields": [],
+  "ingredientGroups": [
+    {
+      "id": "grp-1",
+      "title": "Zutaten",
+      "sourceRefs": [{ "blockId": "b-ing-head" }],
+      "ingredients": [
+        {
+          "id": "ing-1",
+          "sourceText": "1 Packung Butter, weich",
+          "quantityExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+          "unit": "Packung",
+          "name": "Butter",
+          "qualifiers": ["weich"],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-1" }]
+        },
+        {
+          "id": "ing-2",
+          "sourceText": "Knoblauch nach Geschmack",
+          "quantityExpression": { "sourceText": "nach Geschmack", "kind": "qualitative", "qualifierText": "nach Geschmack" },
+          "name": "Knoblauch",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-2" }]
+        },
+        {
+          "id": "ing-3",
+          "sourceText": "2–3 EL frische Kräuter, gehackt",
+          "quantityExpression": { "sourceText": "2–3", "kind": "range", "minValue": 2, "maxValue": 3 },
+          "unit": "EL",
+          "name": "Kräuter",
+          "qualifiers": ["frische", "gehackt"],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-3" }]
+        },
+        {
+          "id": "ing-4",
+          "sourceText": "Salz",
+          "name": "Salz",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-4" }]
+        },
+        {
+          "id": "ing-5",
+          "sourceText": "eine Prise Pfeffer",
+          "quantityExpression": { "sourceText": "eine Prise", "kind": "qualitative", "qualifierText": "eine Prise" },
+          "name": "Pfeffer",
+          "qualifiers": [],
+          "scalingEligibility": "unknown",
+          "sourceRefs": [{ "blockId": "b-ing-5" }]
+        }
+      ]
+    }
+  ],
+  "instructionSections": [
+    {
+      "id": "sec-1",
+      "sourceRefs": [{ "blockId": "b-instr-1" }],
+      "steps": [
+        {
+          "id": "step-1",
+          "sourceText": "Butter mit dem gehackten Knoblauch und den Kräutern verrühren.",
+          "normalizedActionText": "Butter mit dem gehackten Knoblauch und den Kräutern verrühren.",
+          "sourceRefs": [{ "blockId": "b-instr-1" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-1",
+              "usage": "use_now",
+              "sourceText": "Butter",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            },
+            {
+              "ingredientId": "ing-2",
+              "usage": "use_now",
+              "sourceText": "dem gehackten Knoblauch",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            },
+            {
+              "ingredientId": "ing-3",
+              "usage": "use_now",
+              "sourceText": "den Kräutern",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-2",
+          "sourceText": "Mit Salz und Pfeffer abschmecken.",
+          "normalizedActionText": "Mit Salz und Pfeffer abschmecken.",
+          "sourceRefs": [{ "blockId": "b-instr-1" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "ing-4",
+              "usage": "use_now",
+              "sourceText": "Salz",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            },
+            {
+              "ingredientId": "ing-5",
+              "usage": "use_now",
+              "sourceText": "Pfeffer",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "step-3",
+          "sourceText": "Kaltstellen, bis sie fest ist.",
+          "normalizedActionText": "Kaltstellen, bis sie fest ist.",
+          "sourceRefs": [{ "blockId": "b-instr-1" }],
+          "ingredientUses": [],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [
+            {
+              "sourceText": "bis sie fest ist",
+              "sourceRefs": [{ "blockId": "b-instr-1" }]
+            }
+          ],
+          "prerequisiteCues": [],
+          "waitCues": []
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "sourceSnapshotId": "snap-sparse",
+    "sourceSnapshotVersion": 1,
+    "normalizationModel": "claude-sonnet-5",
+    "normalizationPromptVersions": ["normalization/v1"],
+    "targetOntologyVersion": "1.0.0",
+    "runId": "normalization__sparse__sonnet__run03"
+  }
+}

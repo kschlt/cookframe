@@ -1,0 +1,232 @@
+/**
+ * CFV1-S6 fidelity scorer (spike, OQ-24).
+ *
+ * Not product code — lives under spikes/ (excluded from build, lint, and the
+ * committed eval harness). Run with tsx:
+ *
+ *   npx tsx spikes/s6-fidelity/score.ts
+ *
+ * It reads model outputs produced by the prototyping loop (Claude subagents
+ * acting as "the model") from spikes/s6-fidelity/runs/ and reports three
+ * things per shape, so OQ-24 can be answered with rates rather than opinion:
+ *
+ *   1. structural validity  — does the output parse against the real schema/?
+ *   2. sourceRef resolution — do all canonical sourceRef.blockId values name a
+ *                             block that actually exists in the snapshot?
+ *   3. block-id stability   — across repeated runs on the SAME input, is the
+ *                             set of snapshot block ids identical?
+ *
+ * Run-file naming convention (all under runs/):
+ *   <shape>__<fixture>__<model>__run<NN>.json
+ *     shape   = capture | normalization | combined
+ *     fixture = the fixture key (matches a file in fixtures/ for the input)
+ *     model   = short model label, e.g. opus48, sonnet, haiku
+ *
+ * Shapes:
+ *   capture       → a SourceSnapshot        (measures stability only)
+ *   normalization → a CanonicalRecipe       (measures validity + resolution
+ *                     against the reference snapshot fixtures/<fixture>.snapshot.json)
+ *   combined      → { snapshot, canonical } (measures validity of both,
+ *                     stability of snapshot, resolution against OWN snapshot)
+ */
+import { readFileSync, readdirSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+import { CanonicalRecipe, SourceSnapshot } from "../../schema/index.js"
+
+const here = dirname(fileURLToPath(import.meta.url))
+const runsDir = join(here, "runs")
+const fixturesDir = join(here, "fixtures")
+
+type Shape = "capture" | "normalization" | "combined"
+
+interface RunFile {
+  readonly path: string
+  readonly shape: Shape
+  readonly fixture: string
+  readonly model: string
+  readonly run: string
+}
+
+function parseName(name: string): RunFile | null {
+  const m = name.match(/^(capture|normalization|combined)__([^_]+(?:_[^_]+)*?)__([^_]+)__run(\d+)\.json$/)
+  if (!m) return null
+  return {
+    path: join(runsDir, name),
+    shape: m[1] as Shape,
+    fixture: m[2],
+    model: m[3],
+    run: m[4],
+  }
+}
+
+/** Recursively collect every `blockId` string anywhere in a canonical object. */
+function collectBlockIds(node: unknown, out: string[]): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectBlockIds(item, out)
+    return
+  }
+  if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) {
+      if (k === "blockId" && typeof v === "string") out.push(v)
+      else collectBlockIds(v, out)
+    }
+  }
+}
+
+function snapshotBlockIds(snap: unknown): Set<string> {
+  const ids = new Set<string>()
+  if (snap && typeof snap === "object" && Array.isArray((snap as { blocks?: unknown }).blocks)) {
+    for (const b of (snap as { blocks: unknown[] }).blocks) {
+      if (b && typeof b === "object" && typeof (b as { id?: unknown }).id === "string") {
+        ids.add((b as { id: string }).id)
+      }
+    }
+  }
+  return ids
+}
+
+function loadJson(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf8"))
+}
+
+function referenceSnapshot(fixture: string): unknown | null {
+  try {
+    return loadJson(join(fixturesDir, `${fixture}.snapshot.json`))
+  } catch {
+    return null
+  }
+}
+
+interface Scored {
+  readonly run: RunFile
+  readonly valid: boolean
+  readonly validityMsg: string
+  /** null when resolution does not apply (capture shape). */
+  readonly refsTotal: number | null
+  readonly refsResolved: number | null
+  readonly unresolved: readonly string[]
+  /** snapshot block-id signature (sorted, joined) for stability grouping. */
+  readonly blockIdSig: string | null
+}
+
+function scoreRun(rf: RunFile): Scored {
+  const data = loadJson(rf.path)
+  let valid = true
+  const msgs: string[] = []
+  let snapForRefs: unknown | null = null
+  let canonical: unknown | null = null
+  let blockIdSig: string | null = null
+
+  if (rf.shape === "capture") {
+    const r = SourceSnapshot.safeParse(data)
+    if (!r.success) {
+      valid = false
+      msgs.push(`snapshot: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`)
+    }
+    blockIdSig = [...snapshotBlockIds(data)].sort().join(",")
+  } else if (rf.shape === "normalization") {
+    const r = CanonicalRecipe.safeParse(data)
+    if (!r.success) {
+      valid = false
+      msgs.push(`canonical: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`)
+    }
+    canonical = data
+    snapForRefs = referenceSnapshot(rf.fixture)
+  } else {
+    const obj = (data ?? {}) as { snapshot?: unknown; canonical?: unknown }
+    const rs = SourceSnapshot.safeParse(obj.snapshot)
+    if (!rs.success) {
+      valid = false
+      msgs.push(`snapshot: ${rs.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`)
+    }
+    const rc = CanonicalRecipe.safeParse(obj.canonical)
+    if (!rc.success) {
+      valid = false
+      msgs.push(`canonical: ${rc.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`)
+    }
+    canonical = obj.canonical
+    snapForRefs = obj.snapshot
+    blockIdSig = [...snapshotBlockIds(obj.snapshot)].sort().join(",")
+  }
+
+  let refsTotal: number | null = null
+  let refsResolved: number | null = null
+  const unresolved: string[] = []
+  if (canonical !== null) {
+    const known = snapForRefs !== null ? snapshotBlockIds(snapForRefs) : new Set<string>()
+    const ids: string[] = []
+    collectBlockIds(canonical, ids)
+    refsTotal = ids.length
+    refsResolved = 0
+    for (const id of ids) {
+      if (known.has(id)) refsResolved++
+      else unresolved.push(id)
+    }
+  }
+
+  return {
+    run: rf,
+    valid,
+    validityMsg: msgs.join(" | "),
+    refsTotal,
+    refsResolved,
+    unresolved: [...new Set(unresolved)],
+    blockIdSig,
+  }
+}
+
+function pct(n: number, d: number): string {
+  return d === 0 ? "n/a" : `${((100 * n) / d).toFixed(0)}%`
+}
+
+function main(): void {
+  const files = readdirSync(runsDir)
+    .map(parseName)
+    .filter((x): x is RunFile => x !== null)
+  if (files.length === 0) {
+    console.log("no run files under spikes/s6-fidelity/runs/ (naming: <shape>__<fixture>__<model>__runNN.json)")
+    return
+  }
+  const scored = files.map(scoreRun)
+
+  // Per (shape, fixture, model) aggregate.
+  const groups = new Map<string, Scored[]>()
+  for (const s of scored) {
+    const key = `${s.run.shape} · ${s.run.fixture} · ${s.run.model}`
+    const arr = groups.get(key) ?? []
+    arr.push(s)
+    groups.set(key, arr)
+  }
+
+  console.log(`# CFV1-S6 fidelity — ${scored.length} run(s), ${groups.size} cell(s)\n`)
+  for (const [key, arr] of [...groups.entries()].sort()) {
+    const validN = arr.filter((s) => s.valid).length
+    const withRefs = arr.filter((s) => s.refsTotal !== null)
+    const refTotal = withRefs.reduce((a, s) => a + (s.refsTotal ?? 0), 0)
+    const refRes = withRefs.reduce((a, s) => a + (s.refsResolved ?? 0), 0)
+    const runsFullyResolved = withRefs.filter((s) => (s.refsTotal ?? 0) > 0 && s.refsResolved === s.refsTotal).length
+    const sigs = new Set(arr.map((s) => s.blockIdSig).filter((x): x is string => x !== null && x.length > 0))
+    const stable = sigs.size <= 1
+
+    console.log(`## ${key}  (n=${arr.length})`)
+    console.log(`   valid:        ${validN}/${arr.length}`)
+    if (withRefs.length > 0) {
+      console.log(`   sourceRefs:   ${refRes}/${refTotal} resolved (${pct(refRes, refTotal)})`)
+      console.log(`   runs w/ 100%: ${runsFullyResolved}/${withRefs.length}`)
+    }
+    if (sigs.size > 0) {
+      console.log(`   block ids:    ${stable ? "STABLE" : `UNSTABLE (${sigs.size} distinct signatures)`}`)
+    }
+    for (const s of arr) {
+      const bits: string[] = [`run${s.run.run}`]
+      bits.push(s.valid ? "valid" : `INVALID(${s.validityMsg})`)
+      if (s.refsTotal !== null) bits.push(`refs ${s.refsResolved}/${s.refsTotal}`)
+      if (s.unresolved.length > 0) bits.push(`unresolved: ${s.unresolved.join(",")}`)
+      console.log(`     - ${bits.join(" · ")}`)
+    }
+    console.log("")
+  }
+}
+
+main()

@@ -1,0 +1,266 @@
+{
+  "snapshot": {
+    "id": "snap-multi-component-run02",
+    "version": 1,
+    "sourceType": "text",
+    "capturedText": "Gefüllte Teigtaschen\n\nPortionen: 4\n\nFür den Teig:\n- 300 g Mehl\n- 1 Ei\n- 150 ml Wasser, lauwarm\n- 1 Prise Salz\n\nFür die Füllung:\n- 250 g Spinat\n- 200 g Ricotta\n- 1 Knoblauchzehe\n- Muskatnuss, frisch gerieben\n\nZubereitung:\n1. Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen.\n2. Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen.\n3. Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken.\n4. Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen.\n",
+    "blocks": [
+      { "id": "b1", "order": 0, "type": "title", "text": "Gefüllte Teigtaschen" },
+      { "id": "b2", "order": 1, "type": "metadata", "text": "Portionen: 4" },
+      { "id": "b3", "order": 2, "type": "ingredient_group", "heading": "Für den Teig:", "text": "Für den Teig:" },
+      { "id": "b4", "order": 3, "type": "ingredient", "text": "300 g Mehl" },
+      { "id": "b5", "order": 4, "type": "ingredient", "text": "1 Ei" },
+      { "id": "b6", "order": 5, "type": "ingredient", "text": "150 ml Wasser, lauwarm" },
+      { "id": "b7", "order": 6, "type": "ingredient", "text": "1 Prise Salz" },
+      { "id": "b8", "order": 7, "type": "ingredient_group", "heading": "Für die Füllung:", "text": "Für die Füllung:" },
+      { "id": "b9", "order": 8, "type": "ingredient", "text": "250 g Spinat" },
+      { "id": "b10", "order": 9, "type": "ingredient", "text": "200 g Ricotta" },
+      { "id": "b11", "order": 10, "type": "ingredient", "text": "1 Knoblauchzehe" },
+      { "id": "b12", "order": 11, "type": "ingredient", "text": "Muskatnuss, frisch gerieben" },
+      { "id": "b13", "order": 12, "type": "instruction_group", "heading": "Zubereitung:", "text": "Zubereitung:" },
+      { "id": "b14", "order": 13, "type": "instruction", "text": "Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen." },
+      { "id": "b15", "order": 14, "type": "instruction", "text": "Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen." },
+      { "id": "b16", "order": 15, "type": "instruction", "text": "Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken." },
+      { "id": "b17", "order": 16, "type": "instruction", "text": "Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen." }
+    ],
+    "captureProvenance": {
+      "sourceAdapter": "text",
+      "adapterVersion": "v1",
+      "model": "claude-sonnet-5",
+      "runId": "combined-multi-component-sonnet-run02"
+    }
+  },
+  "canonical": {
+    "id": "recipe-multi-component-run02",
+    "schemaVersion": "1.0.0",
+    "title": "Gefüllte Teigtaschen",
+    "yields": [
+      {
+        "id": "yield-1",
+        "sourceText": "Portionen: 4",
+        "valueExpression": { "sourceText": "4", "kind": "exact", "value": 4 },
+        "unit": "Portionen",
+        "scalingEligibility": "unknown",
+        "sourceRefs": [{ "blockId": "b2" }]
+      }
+    ],
+    "ingredientGroups": [
+      {
+        "id": "group-teig",
+        "title": "Für den Teig",
+        "sourceRefs": [{ "blockId": "b3" }],
+        "ingredients": [
+          {
+            "id": "ing-mehl",
+            "sourceText": "300 g Mehl",
+            "quantityExpression": { "sourceText": "300", "kind": "exact", "value": 300 },
+            "unit": "g",
+            "name": "Mehl",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "b4" }]
+          },
+          {
+            "id": "ing-ei",
+            "sourceText": "1 Ei",
+            "quantityExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+            "name": "Ei",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "b5" }]
+          },
+          {
+            "id": "ing-wasser",
+            "sourceText": "150 ml Wasser, lauwarm",
+            "quantityExpression": { "sourceText": "150", "kind": "exact", "value": 150 },
+            "unit": "ml",
+            "name": "Wasser",
+            "qualifiers": ["lauwarm"],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "b6" }]
+          },
+          {
+            "id": "ing-salz",
+            "sourceText": "1 Prise Salz",
+            "quantityExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+            "unit": "Prise",
+            "name": "Salz",
+            "qualifiers": [],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "b7" }]
+          }
+        ]
+      },
+      {
+        "id": "group-fuellung",
+        "title": "Für die Füllung",
+        "sourceRefs": [{ "blockId": "b8" }],
+        "ingredients": [
+          {
+            "id": "ing-spinat",
+            "sourceText": "250 g Spinat",
+            "quantityExpression": { "sourceText": "250", "kind": "exact", "value": 250 },
+            "unit": "g",
+            "name": "Spinat",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "b9" }]
+          },
+          {
+            "id": "ing-ricotta",
+            "sourceText": "200 g Ricotta",
+            "quantityExpression": { "sourceText": "200", "kind": "exact", "value": 200 },
+            "unit": "g",
+            "name": "Ricotta",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "b10" }]
+          },
+          {
+            "id": "ing-knoblauch",
+            "sourceText": "1 Knoblauchzehe",
+            "quantityExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+            "name": "Knoblauchzehe",
+            "qualifiers": [],
+            "scalingEligibility": "proportional",
+            "sourceRefs": [{ "blockId": "b11" }]
+          },
+          {
+            "id": "ing-muskat",
+            "sourceText": "Muskatnuss, frisch gerieben",
+            "name": "Muskatnuss",
+            "qualifiers": ["frisch gerieben"],
+            "scalingEligibility": "unknown",
+            "sourceRefs": [{ "blockId": "b12" }]
+          }
+        ]
+      }
+    ],
+    "preparedComponents": [
+      {
+        "id": "comp-teig",
+        "label": "Teig",
+        "createdByStepId": "step-1",
+        "sourceRefs": [{ "blockId": "b14" }]
+      },
+      {
+        "id": "comp-fuellung",
+        "label": "Füllung",
+        "createdByStepId": "step-2",
+        "sourceRefs": [{ "blockId": "b15" }]
+      }
+    ],
+    "instructionSections": [
+      {
+        "id": "section-zubereitung",
+        "title": "Zubereitung",
+        "sourceRefs": [{ "blockId": "b13" }],
+        "steps": [
+          {
+            "id": "step-1",
+            "sourceText": "Für den Teig Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen.",
+            "normalizedActionText": "Mehl, Ei, Wasser und Salz zu einem glatten Teig kneten. 30 Minuten ruhen lassen.",
+            "sourceRefs": [{ "blockId": "b14" }],
+            "ingredientUses": [
+              { "ingredientId": "ing-mehl", "usage": "use_all", "sourceRefs": [{ "blockId": "b14" }] },
+              { "ingredientId": "ing-ei", "usage": "use_all", "sourceRefs": [{ "blockId": "b14" }] },
+              { "ingredientId": "ing-wasser", "usage": "use_all", "sourceRefs": [{ "blockId": "b14" }] },
+              { "ingredientId": "ing-salz", "usage": "use_all", "sourceRefs": [{ "blockId": "b14" }] }
+            ],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": ["comp-teig"],
+            "durations": [
+              {
+                "durationExpression": { "sourceText": "30 Minuten", "kind": "exact", "value": 30, "unit": "Minuten" },
+                "sourceLabel": "ruhen lassen",
+                "sourceRefs": [{ "blockId": "b14" }]
+              }
+            ],
+            "temperatures": [],
+            "donenessCues": [],
+            "prerequisiteCues": [],
+            "waitCues": [
+              { "sourceText": "30 Minuten ruhen lassen", "sourceRefs": [{ "blockId": "b14" }] }
+            ]
+          },
+          {
+            "id": "step-2",
+            "sourceText": "Für die Füllung den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen.",
+            "normalizedActionText": "Den Spinat blanchieren, ausdrücken und hacken. Mit Ricotta, gepresstem Knoblauch und Muskat vermengen.",
+            "sourceRefs": [{ "blockId": "b15" }],
+            "ingredientUses": [
+              { "ingredientId": "ing-spinat", "usage": "use_all", "sourceRefs": [{ "blockId": "b15" }] },
+              { "ingredientId": "ing-ricotta", "usage": "use_all", "sourceRefs": [{ "blockId": "b15" }] },
+              { "ingredientId": "ing-knoblauch", "usage": "use_all", "sourceRefs": [{ "blockId": "b15" }] },
+              { "ingredientId": "ing-muskat", "usage": "use_all", "sourceRefs": [{ "blockId": "b15" }] }
+            ],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": ["comp-fuellung"],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [],
+            "prerequisiteCues": [],
+            "waitCues": []
+          },
+          {
+            "id": "step-3",
+            "sourceText": "Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken.",
+            "normalizedActionText": "Den Teig dünn ausrollen und ausstechen. Je einen Teelöffel Füllung daraufgeben, zusammenklappen und die Ränder festdrücken.",
+            "sourceRefs": [{ "blockId": "b16" }],
+            "ingredientUses": [],
+            "componentUses": [
+              { "componentId": "comp-teig", "usage": "use_all", "sourceRefs": [{ "blockId": "b16" }] },
+              {
+                "componentId": "comp-fuellung",
+                "usage": "use_partial_unspecified",
+                "quantityExpression": { "sourceText": "einen Teelöffel", "kind": "exact", "value": 1 },
+                "unit": "Teelöffel",
+                "sourceText": "Je einen Teelöffel Füllung",
+                "sourceRefs": [{ "blockId": "b16" }]
+              }
+            ],
+            "equipmentUses": [],
+            "producesComponents": [],
+            "durations": [],
+            "temperatures": [],
+            "donenessCues": [],
+            "prerequisiteCues": [{ "sourceText": "Den Teig dünn ausrollen und ausstechen.", "sourceRefs": [{ "blockId": "b16" }] }],
+            "waitCues": []
+          },
+          {
+            "id": "step-4",
+            "sourceText": "Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen.",
+            "normalizedActionText": "Die Teigtaschen in kochendem Salzwasser 5–6 Minuten garen, bis sie oben schwimmen.",
+            "sourceRefs": [{ "blockId": "b17" }],
+            "ingredientUses": [],
+            "componentUses": [],
+            "equipmentUses": [],
+            "producesComponents": [],
+            "durations": [
+              {
+                "durationExpression": { "sourceText": "5–6 Minuten", "kind": "range", "minValue": 5, "maxValue": 6, "unit": "Minuten" },
+                "sourceLabel": "garen",
+                "sourceRefs": [{ "blockId": "b17" }]
+              }
+            ],
+            "temperatures": [],
+            "donenessCues": [
+              { "sourceText": "bis sie oben schwimmen", "sourceRefs": [{ "blockId": "b17" }] }
+            ],
+            "prerequisiteCues": [],
+            "waitCues": []
+          }
+        ]
+      }
+    ],
+    "provenance": {
+      "sourceSnapshotId": "snap-multi-component-run02",
+      "sourceSnapshotVersion": 1,
+      "normalizationModel": "claude-sonnet-5",
+      "targetOntologyVersion": "1.0.0",
+      "runId": "combined-multi-component-sonnet-run02"
+    }
+  }
+}
