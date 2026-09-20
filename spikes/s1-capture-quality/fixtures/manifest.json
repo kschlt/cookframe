@@ -1,0 +1,95 @@
+{
+  "fixtures": [
+    {
+      "id": "01-clean",
+      "class": "clean page",
+      "origin": "self-authored",
+      "image": "01-clean.png",
+      "truth": "01-clean.truth.json"
+    },
+    {
+      "id": "02-angled",
+      "class": "angled photo",
+      "origin": "self-authored",
+      "image": "02-angled.png",
+      "truth": "02-angled.truth.json"
+    },
+    {
+      "id": "03-glare-shadow",
+      "class": "glare and shadow",
+      "origin": "self-authored",
+      "image": "03-glare-shadow.png",
+      "truth": "03-glare-shadow.truth.json"
+    },
+    {
+      "id": "04-multi-column",
+      "class": "multi-column layout",
+      "origin": "self-authored",
+      "image": "04-multi-column.png",
+      "truth": "04-multi-column.truth.json"
+    },
+    {
+      "id": "05-ingredient-groups",
+      "class": "ingredient groups",
+      "origin": "self-authored",
+      "image": "05-ingredient-groups.png",
+      "truth": "05-ingredient-groups.truth.json"
+    },
+    {
+      "id": "06-fractions",
+      "class": "fractions",
+      "origin": "self-authored",
+      "image": "06-fractions.png",
+      "truth": "06-fractions.truth.json"
+    },
+    {
+      "id": "07-ranges",
+      "class": "ranges",
+      "origin": "self-authored",
+      "image": "07-ranges.png",
+      "truth": "07-ranges.truth.json"
+    },
+    {
+      "id": "08-split-reserved",
+      "class": "split and reserved instructions",
+      "origin": "self-authored",
+      "image": "08-split-reserved.png",
+      "truth": "08-split-reserved.truth.json"
+    },
+    {
+      "id": "09-small-metadata",
+      "class": "small metadata text",
+      "origin": "self-authored",
+      "image": "09-small-metadata.png",
+      "truth": "09-small-metadata.truth.json"
+    },
+    {
+      "id": "10-ambiguous-units",
+      "class": "ambiguous units",
+      "origin": "self-authored",
+      "image": "10-ambiguous-units.png",
+      "truth": "10-ambiguous-units.truth.json"
+    },
+    {
+      "id": "11-multiple-yields",
+      "class": "multiple yields",
+      "origin": "self-authored",
+      "image": "11-multiple-yields.png",
+      "truth": "11-multiple-yields.truth.json"
+    },
+    {
+      "id": "12-nutrition",
+      "class": "source-provided nutrition",
+      "origin": "self-authored",
+      "image": "12-nutrition.png",
+      "truth": "12-nutrition.truth.json"
+    },
+    {
+      "id": "13-classifications",
+      "class": "source-provided classifications",
+      "origin": "self-authored",
+      "image": "13-classifications.png",
+      "truth": "13-classifications.truth.json"
+    }
+  ]
+}

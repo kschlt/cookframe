@@ -1,0 +1,20 @@
+{
+  "title": "Oat Banana Muffins",
+  "yields": ["makes 12 muffins", "serves 6"],
+  "times": {"prep": "15 min", "cook": "20 min", "total": "35 min"},
+  "temperatures": ["180 °C"],
+  "ingredients": [
+    {"name": "oats", "quantity": "200", "unit": "g", "group": null},
+    {"name": "bananas", "quantity": "3", "unit": null, "group": null},
+    {"name": "eggs", "quantity": "2", "unit": null, "group": null},
+    {"name": "honey", "quantity": "3", "unit": "tbsp", "group": null}
+  ],
+  "instructions": [
+    "Mash the bananas and beat in the eggs and honey.",
+    "Fold in the oats.",
+    "Divide between muffin cases and bake."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

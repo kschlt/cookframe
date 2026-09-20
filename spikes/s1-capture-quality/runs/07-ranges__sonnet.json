@@ -1,0 +1,19 @@
+{
+  "title": "Slow-Roast Tomatoes",
+  "yields": ["serves 4 to 6"],
+  "times": {"prep": "10 min", "cook": "2 to 3 hours", "total": "2 to 3 hours"},
+  "temperatures": ["120-140 °C"],
+  "ingredients": [
+    {"name": "tomatoes", "quantity": "800", "unit": "g", "group": null},
+    {"name": "olive oil", "quantity": "2 to 3", "unit": "tbsp", "group": null},
+    {"name": "thyme", "quantity": "4 to 5", "unit": "sprigs", "group": null}
+  ],
+  "instructions": [
+    "Halve the tomatoes and arrange cut-side up.",
+    "Drizzle with oil and scatter the thyme.",
+    "Roast low and slow until collapsed but not dry."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

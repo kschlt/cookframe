@@ -1,0 +1,21 @@
+{
+  "title": "Store-Cupboard Chili",
+  "yields": ["serves 4"],
+  "times": {"prep": "10 min", "cook": "25 min", "total": "35 min"},
+  "temperatures": [],
+  "ingredients": [
+    {"name": "kidney beans", "quantity": "1", "unit": "can", "group": null},
+    {"name": "garlic", "quantity": "1", "unit": "clove", "group": null},
+    {"name": "salt", "quantity": "1", "unit": "pinch", "group": null},
+    {"name": "butter", "quantity": "1", "unit": "stick", "group": null},
+    {"name": "chili flakes", "quantity": "1", "unit": "handful", "group": null}
+  ],
+  "instructions": [
+    "Melt the butter and soften the garlic.",
+    "Add the drained beans and chili flakes.",
+    "Season with a pinch of salt and simmer."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

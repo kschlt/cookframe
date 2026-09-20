@@ -1,0 +1,46 @@
+{
+  "title": "Charred Corn Salad",
+  "yields": [
+    "serves 4"
+  ],
+  "times": {
+    "prep": "10 min",
+    "cook": "8 min",
+    "total": "18 min"
+  },
+  "temperatures": [],
+  "ingredients": [
+    {
+      "name": "corn cobs",
+      "quantity": "3",
+      "unit": null,
+      "group": null
+    },
+    {
+      "name": "red onion",
+      "quantity": "1",
+      "unit": null,
+      "group": null
+    },
+    {
+      "name": "lime",
+      "quantity": "1",
+      "unit": null,
+      "group": null
+    },
+    {
+      "name": "coriander",
+      "quantity": "15",
+      "unit": "g",
+      "group": null
+    }
+  ],
+  "instructions": [
+    "Char the corn cobs and slice off the kernels.",
+    "Finely dice the red onion.",
+    "Toss with lime juice and coriander."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

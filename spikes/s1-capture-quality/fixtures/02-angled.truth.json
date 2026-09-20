@@ -1,0 +1,46 @@
+{
+  "title": "Smoky Tomato Lentils",
+  "yields": [
+    "serves 3"
+  ],
+  "times": {
+    "prep": "5 min",
+    "cook": "20 min",
+    "total": "25 min"
+  },
+  "temperatures": [],
+  "ingredients": [
+    {
+      "name": "red lentils",
+      "quantity": "200",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "smoked paprika",
+      "quantity": "1",
+      "unit": "tsp",
+      "group": null
+    },
+    {
+      "name": "chopped tomatoes",
+      "quantity": "400",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "vegetable stock",
+      "quantity": "500",
+      "unit": "ml",
+      "group": null
+    }
+  ],
+  "instructions": [
+    "Toast the smoked paprika in a dry pan.",
+    "Add the lentils, tomatoes and stock.",
+    "Simmer until the lentils are soft."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

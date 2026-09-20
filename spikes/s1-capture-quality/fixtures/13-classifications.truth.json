@@ -1,0 +1,43 @@
+{
+  "title": "Simple Dal",
+  "yields": [
+    "serves 4"
+  ],
+  "times": {
+    "prep": "10 min",
+    "cook": "30 min",
+    "total": "40 min"
+  },
+  "temperatures": [],
+  "ingredients": [
+    {
+      "name": "red lentils",
+      "quantity": "250",
+      "unit": "g",
+      "group": null
+    },
+    {
+      "name": "turmeric",
+      "quantity": "1",
+      "unit": "tsp",
+      "group": null
+    },
+    {
+      "name": "cumin seeds",
+      "quantity": "1",
+      "unit": "tsp",
+      "group": null
+    }
+  ],
+  "instructions": [
+    "Simmer the lentils with turmeric until soft.",
+    "Temper the cumin seeds in oil and stir through."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {
+    "cuisine": "Indian",
+    "diet": "vegan",
+    "difficulty": "easy"
+  }
+}

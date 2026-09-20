@@ -1,0 +1,1555 @@
+{
+  "model": "sonnet",
+  "verdict": "INCONCLUSIVE_CIRCULAR",
+  "failing_fields": [],
+  "missing_runs": [],
+  "captures_present": 13,
+  "identical_to_truth": 13,
+  "circular": true,
+  "field_scores": {
+    "ingredient.quantity": {
+      "rate": 1.0,
+      "hit": 54,
+      "total": 54
+    },
+    "ingredient.unit": {
+      "rate": 1.0,
+      "hit": 54,
+      "total": 54
+    },
+    "split_reserved": {
+      "rate": 1.0,
+      "hit": 1,
+      "total": 1
+    },
+    "temperature": {
+      "rate": 1.0,
+      "hit": 3,
+      "total": 3
+    },
+    "multiple_yields": {
+      "rate": 1.0,
+      "hit": 1,
+      "total": 1
+    },
+    "ingredient.name": {
+      "rate": 1.0,
+      "hit": 54,
+      "total": 54
+    },
+    "instruction.text": {
+      "rate": 1.0,
+      "hit": 40,
+      "total": 40
+    },
+    "instruction.order": {
+      "rate": 1.0,
+      "hit": 13,
+      "total": 13
+    },
+    "title": {
+      "rate": 1.0,
+      "hit": 13,
+      "total": 13
+    },
+    "yield": {
+      "rate": 1.0,
+      "hit": 12,
+      "total": 12
+    },
+    "time": {
+      "rate": 1.0,
+      "hit": 13,
+      "total": 13
+    },
+    "ingredient_group": {
+      "rate": 1.0,
+      "hit": 1,
+      "total": 1
+    },
+    "nutrition": {
+      "rate": 1.0,
+      "hit": 1,
+      "total": 1
+    },
+    "classification": {
+      "rate": 1.0,
+      "hit": 1,
+      "total": 1
+    }
+  },
+  "edge_class_scores": {
+    "fractions": {
+      "rate": 1.0,
+      "hit": 5,
+      "total": 5
+    },
+    "ranges": {
+      "rate": 1.0,
+      "hit": 3,
+      "total": 3
+    },
+    "ambiguous_units": {
+      "rate": 1.0,
+      "hit": 6,
+      "total": 6
+    },
+    "multiple_yields": {
+      "rate": 1.0,
+      "hit": 1,
+      "total": 1
+    }
+  },
+  "per_class_scores": {
+    "clean page": {
+      "rate": 1.0,
+      "hit": 20,
+      "total": 20
+    },
+    "angled photo": {
+      "rate": 1.0,
+      "hit": 17,
+      "total": 17
+    },
+    "glare and shadow": {
+      "rate": 1.0,
+      "hit": 17,
+      "total": 17
+    },
+    "multi-column layout": {
+      "rate": 1.0,
+      "hit": 20,
+      "total": 20
+    },
+    "ingredient groups": {
+      "rate": 1.0,
+      "hit": 21,
+      "total": 21
+    },
+    "fractions": {
+      "rate": 1.0,
+      "hit": 20,
+      "total": 20
+    },
+    "ranges": {
+      "rate": 1.0,
+      "hit": 15,
+      "total": 15
+    },
+    "split and reserved instructions": {
+      "rate": 1.0,
+      "hit": 19,
+      "total": 19
+    },
+    "small metadata text": {
+      "rate": 1.0,
+      "hit": 17,
+      "total": 17
+    },
+    "ambiguous units": {
+      "rate": 1.0,
+      "hit": 20,
+      "total": 20
+    },
+    "multiple yields": {
+      "rate": 1.0,
+      "hit": 18,
+      "total": 18
+    },
+    "source-provided nutrition": {
+      "rate": 1.0,
+      "hit": 15,
+      "total": 15
+    },
+    "source-provided classifications": {
+      "rate": 1.0,
+      "hit": 15,
+      "total": 15
+    }
+  },
+  "per_fixture": [
+    {
+      "id": "01-clean",
+      "class": "clean page",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "02-angled",
+      "class": "angled photo",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "03-glare-shadow",
+      "class": "glare and shadow",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "04-multi-column",
+      "class": "multi-column layout",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "05-ingredient-groups",
+      "class": "ingredient groups",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient_group",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "06-fractions",
+      "class": "fractions",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "07-ranges",
+      "class": "ranges",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "temperature",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "08-split-reserved",
+      "class": "split and reserved instructions",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "temperature",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "split_reserved",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "09-small-metadata",
+      "class": "small metadata text",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "10-ambiguous-units",
+      "class": "ambiguous units",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "11-multiple-yields",
+      "class": "multiple yields",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "multiple_yields",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "temperature",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "12-nutrition",
+      "class": "source-provided nutrition",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "nutrition",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "13-classifications",
+      "class": "source-provided classifications",
+      "checks": [
+        {
+          "field": "title",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "yield",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "time",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.name",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.quantity",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "ingredient.unit",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.text",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "instruction.order",
+          "ok": true,
+          "note": ""
+        },
+        {
+          "field": "classification",
+          "ok": true,
+          "note": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "Ginger Miso Broth",
+  "yields": ["serves 2"],
+  "times": {"prep": "8 min", "cook": "12 min", "total": "20 min"},
+  "temperatures": [],
+  "ingredients": [
+    {"name": "miso paste", "quantity": "2", "unit": "tbsp", "group": null},
+    {"name": "ginger", "quantity": "15", "unit": "g", "group": null},
+    {"name": "spring onions", "quantity": "3", "unit": null, "group": null},
+    {"name": "tofu", "quantity": "200", "unit": "g", "group": null}
+  ],
+  "instructions": [
+    "Simmer the grated ginger in water.",
+    "Whisk in the miso off the heat.",
+    "Add cubed tofu and sliced spring onions."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Falafel with Quick Tahini",
+  "yields": ["makes 16"],
+  "times": {"prep": "20 min", "cook": "12 min", "total": "32 min"},
+  "temperatures": [],
+  "ingredients": [
+    {"name": "dried chickpeas", "quantity": "250", "unit": "g", "group": "For the falafel"},
+    {"name": "cumin", "quantity": "1", "unit": "tsp", "group": "For the falafel"},
+    {"name": "parsley", "quantity": "30", "unit": "g", "group": "For the falafel"},
+    {"name": "tahini", "quantity": "3", "unit": "tbsp", "group": "For the sauce"},
+    {"name": "lemon juice", "quantity": "2", "unit": "tbsp", "group": "For the sauce"}
+  ],
+  "instructions": [
+    "Blend the soaked chickpeas with cumin and parsley.",
+    "Shape into balls and fry until golden.",
+    "Whisk the tahini with lemon juice and water."
+  ],
+  "split_reserved": [],
+  "nutrition": {},
+  "classifications": {}
+}

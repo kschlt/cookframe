@@ -1,0 +1,22 @@
+{
+  "title": "Herby Mushroom Tart",
+  "yields": ["serves 6"],
+  "times": {"prep": "20 min", "cook": "25 min", "total": "45 min"},
+  "temperatures": ["200 °C"],
+  "ingredients": [
+    {"name": "mushrooms", "quantity": "300", "unit": "g", "group": null},
+    {"name": "puff pastry", "quantity": "1", "unit": "sheet", "group": null},
+    {"name": "creme fraiche", "quantity": "150", "unit": "g", "group": null},
+    {"name": "chives", "quantity": "10", "unit": "g", "group": null}
+  ],
+  "instructions": [
+    "Slice the mushrooms.",
+    "Cook 200 g of the mushrooms with the creme fraiche; keep 100 g raw for the top.",
+    "Spread over the pastry, add the reserved mushrooms, and bake."
+  ],
+  "split_reserved": [
+    {"use": "200 g mushrooms", "reserve": "100 g mushrooms"}
+  ],
+  "nutrition": {},
+  "classifications": {}
+}
