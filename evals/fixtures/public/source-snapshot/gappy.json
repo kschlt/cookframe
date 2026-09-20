@@ -1,0 +1,19 @@
+{
+  "id": "snap-fixture-gappy-0001",
+  "version": 1,
+  "sourceType": "image",
+  "sourceSite": "Cookframe Fixtures",
+  "capturedText": "Pancakes\nflour\nmilk\neggs\nMix and fry.",
+  "blocks": [
+    { "id": "b-title", "order": 0, "type": "title", "text": "Pancakes" },
+    { "id": "b-ing-1", "order": 1, "type": "ingredient", "text": "flour" },
+    { "id": "b-ing-2", "order": 2, "type": "ingredient", "text": "milk" },
+    { "id": "b-ing-3", "order": 3, "type": "ingredient", "text": "eggs" },
+    { "id": "b-instr-1", "order": 4, "type": "instruction", "text": "Mix and fry." }
+  ],
+  "captureProvenance": {
+    "sourceAdapter": "image-source-adapter",
+    "adapterVersion": "0.0.0-fixture",
+    "runId": "capture-run-fixture-gappy-0001"
+  }
+}
