@@ -13,40 +13,14 @@
  * NO product code performs a network fetch, so the moment fetching is
  * introduced without a guard, this build turns red.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import { NETWORK_PATTERNS, sourceFiles } from "./network-primitives.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const srcDir = join(repoRoot, "src")
-
-function tsFiles(dir: string): string[] {
-  let entries: string[]
-  try {
-    entries = readdirSync(dir)
-  } catch {
-    return []
-  }
-  const out: string[] = []
-  for (const name of entries) {
-    const full = join(dir, name)
-    if (statSync(full).isDirectory()) out.push(...tsFiles(full))
-    else if (name.endsWith(".ts")) out.push(full)
-  }
-  return out
-}
-
-// A conservative net-of network-calling constructs. Kept deliberately broad:
-// a false positive here just means "add the guard", which is the point.
-const NETWORK_PATTERNS = [
-  /\bfetch\s*\(/,
-  /https?\.request\s*\(/,
-  /\bnew\s+Request\s*\(/,
-  /\baxios\b/,
-  /\bundici\b/,
-  /\bgot\s*\(/,
-]
 
 async function loadGuard(): Promise<{ isFetchableUrl: (url: string) => boolean } | undefined> {
   // Non-literal specifier: the guard module does not exist yet, so this must
@@ -65,7 +39,7 @@ describe("URL-fetch security", () => {
   it("no product code fetches without going through a URL guard", async () => {
     const guard = await loadGuard()
     if (guard !== undefined) return // guard exists; the battery below is the real check
-    for (const file of tsFiles(srcDir)) {
+    for (const file of sourceFiles(srcDir)) {
       const text = readFileSync(file, "utf8")
       for (const pattern of NETWORK_PATTERNS) {
         expect(

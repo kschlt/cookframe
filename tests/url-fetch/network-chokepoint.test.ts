@@ -18,45 +18,20 @@
  * it lives here, inside the allowed directory, and this test keeps every other
  * module off the network.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { dirname, join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import { NETWORK_PATTERNS, sourceFiles } from "./network-primitives.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const srcDir = join(repoRoot, "src")
 
 // The one directory permitted to open a network connection: the safe-fetch
-// guard's own module (ADR-0010's single chokepoint).
+// guard's own module (ADR-0010's single chokepoint). The pattern set and file
+// walk are shared with SL0's scan (./network-primitives.ts) so the two guards
+// cannot drift.
 const GUARD_DIR = join(srcDir, "security")
-
-function tsFiles(dir: string): string[] {
-  let entries: string[]
-  try {
-    entries = readdirSync(dir)
-  } catch {
-    return []
-  }
-  const out: string[] = []
-  for (const name of entries) {
-    const full = join(dir, name)
-    if (statSync(full).isDirectory()) out.push(...tsFiles(full))
-    else if (name.endsWith(".ts")) out.push(full)
-  }
-  return out
-}
-
-// The same deliberately-broad net of network-calling constructs SL0 uses. A
-// false positive here means "route it through the guard, or move it into the
-// guard module" — which is the point.
-const NETWORK_PATTERNS: readonly RegExp[] = [
-  /\bfetch\s*\(/,
-  /https?\.request\s*\(/,
-  /\bnew\s+Request\s*\(/,
-  /\baxios\b/,
-  /\bundici\b/,
-  /\bgot\s*\(/,
-]
 
 function isUnderGuardDir(file: string): boolean {
   const rel = relative(GUARD_DIR, file)
@@ -65,7 +40,7 @@ function isUnderGuardDir(file: string): boolean {
 
 describe("safe-fetch chokepoint", () => {
   it("no module outside the guard opens a network connection", () => {
-    for (const file of tsFiles(srcDir)) {
+    for (const file of sourceFiles(srcDir)) {
       if (isUnderGuardDir(file)) continue
       const text = readFileSync(file, "utf8")
       for (const pattern of NETWORK_PATTERNS) {
