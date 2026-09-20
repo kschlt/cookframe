@@ -40,6 +40,29 @@ export const ReasonCode = {
    * deny catches these by construction (ADR-0010 point 4).
    */
   NON_UNICAST: "NON_UNICAST",
+
+  // --- Connector-phase refusals (ADR-0010 points 6, 7): the bounds the guard
+  // owns and enforces once a connection is permitted. Each fails *closed* —
+  // exceeding a bound aborts the connection rather than truncating and
+  // proceeding (S5 constraint) — and each carries its own code so a criterion
+  // can be asserted per reason across the transport boundary.
+
+  /** The decompressed response exceeded the size bound; the connection was aborted. */
+  SIZE_LIMIT: "SIZE_LIMIT",
+  /** The response content type is absent or outside the allowlist. */
+  CONTENT_TYPE_NOT_ALLOWED: "CONTENT_TYPE_NOT_ALLOWED",
+  /** The whole-chain deadline elapsed, in the header phase or the body phase. */
+  TIME_LIMIT: "TIME_LIMIT",
+  /** The redirect chain was longer than the bound. */
+  REDIRECT_LIMIT: "REDIRECT_LIMIT",
+  /** A 3xx response carried no usable `Location`, so the next hop is undecidable. */
+  REDIRECT_INVALID: "REDIRECT_INVALID",
+  /**
+   * An underlying transport failure that is not one of the guard's own refusals
+   * (connection reset, DNS failure, TLS error). Distinct from a policy refusal:
+   * the guard did not decide against the address, the network did.
+   */
+  TRANSPORT: "TRANSPORT",
 } as const
 
 export type ReasonCode = (typeof ReasonCode)[keyof typeof ReasonCode]
