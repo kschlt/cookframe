@@ -232,9 +232,13 @@ describe("slice3/qualitative-omitted-not-coerced", () => {
 
 describe("slice3/open-ended-duration-omitted", () => {
   it("omits an open-ended duration (a minimum bound) rather than invent an endpoint", () => {
+    // A MAPPED time type (total), so the omission goes through the duration
+    // conversion's exactness check — not the unmapped-type short-circuit. This is
+    // what makes the test discriminating: coercing minValue (8) to PT8H would fail
+    // the reason assertion below.
     const openEnded = canonical({
       times: [
-        timeOf("rest", {
+        timeOf("total", {
           sourceText: "at least 8 hours",
           kind: "minimum",
           minValue: 8,
@@ -243,12 +247,53 @@ describe("slice3/open-ended-duration-omitted", () => {
       ],
     })
     const { recipe, omissions } = mapCanonicalToSchemaOrg(openEnded)
-    // "rest" has no Schema.org time field AND the duration is non-exact — either
-    // way nothing is emitted; the omission is recorded with the source wording.
+    expect(recipe.totalTime).toBeUndefined()
+    expect(omissions).toContainEqual({
+      field: "totalTime",
+      reason: "non_exact_value",
+      sourceText: "at least 8 hours",
+      kind: "minimum",
+    })
+  })
+
+  it("omits a time type that has no Schema.org field, recording it", () => {
+    const rest = canonical({
+      times: [
+        timeOf("rest", { sourceText: "30 minutes", kind: "exact", value: 30, unit: "minutes" }),
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(rest)
+    // Even an exactly-expressed rest time is omitted: there is no Schema.org field
+    // for it, and inventing a mapping (e.g. folding it into totalTime) would be a
+    // fabrication.
     expect(recipe.prepTime).toBeUndefined()
     expect(recipe.cookTime).toBeUndefined()
     expect(recipe.totalTime).toBeUndefined()
-    expect(omissions.some((o) => o.sourceText === "at least 8 hours")).toBe(true)
+    expect(omissions).toContainEqual({
+      field: "times.rest",
+      reason: "unmapped_time_type",
+      sourceText: "30 minutes",
+      kind: "exact",
+    })
+  })
+
+  it("fills a shared Schema.org field once and omits the later same-field time", () => {
+    // cook and bake both target cookTime; the first in source order fills it, the
+    // second is omitted and recorded — never merged or summed into one number.
+    const both = canonical({
+      times: [
+        timeOf("cook", { sourceText: "20 minutes", kind: "exact", value: 20, unit: "minutes" }),
+        timeOf("bake", { sourceText: "40 minutes", kind: "exact", value: 40, unit: "minutes" }),
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(both)
+    expect(recipe.cookTime).toBe("PT20M")
+    expect(omissions).toContainEqual({
+      field: "cookTime",
+      reason: "duplicate_time_type",
+      sourceText: "40 minutes",
+      kind: "exact",
+    })
   })
 
   it('omits a qualitative duration such as "overnight"', () => {

@@ -168,7 +168,12 @@ function toIsoDuration(
   return { iso }
 }
 
-/** The Canonical time types that map to each Schema.org time field, in priority order. */
+/**
+ * Which Schema.org time field each Canonical time type fills. `cook` and `bake`
+ * share `cookTime`; when both are present the first in the recipe's `times` array
+ * order fills it and the later one is omitted (recorded as a duplicate), never
+ * merged. A type absent from this map has no Schema.org field and is omitted.
+ */
 const TIME_FIELD_BY_TYPE: ReadonlyMap<RecipeTime["type"], "prepTime" | "cookTime" | "totalTime"> =
   new Map([
     ["prep", "prepTime"],
