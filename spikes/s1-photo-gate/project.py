@@ -60,8 +60,14 @@ def project(recipe: dict) -> dict:
                 if t:
                     temperatures.append(t)
             # A step that sets a component aside is the split/reserved case.
+            # `producesComponents` entries are component ids (strings) in the
+            # contract, but tolerate an object form rather than crashing on it.
             for produced in step.get("producesComponents") or []:
-                label = produced.get("componentId") or produced.get("sourceText")
+                label = (
+                    produced
+                    if isinstance(produced, str)
+                    else (produced.get("componentId") or produced.get("sourceText"))
+                )
                 if label and text:
                     split_reserved.append(text)
 

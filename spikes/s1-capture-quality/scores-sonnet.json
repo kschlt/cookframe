@@ -6,6 +6,7 @@
   "captures_present": 13,
   "identical_to_truth": 13,
   "circular": true,
+  "unmeasured": {},
   "field_scores": {
     "ingredient.quantity": {
       "rate": 1.0,

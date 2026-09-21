@@ -188,6 +188,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     per_fixture = []
     captures_present = 0
     identical_to_truth = 0
+    unmeasured: dict[str, list[str]] = {}
 
     for entry in manifest["fixtures"]:
         fid, cls = entry["id"], entry["class"]
@@ -285,6 +286,16 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
 
         # split / reserved
         t_split = truth.get("split_reserved") or []
+        # THRESHOLD.md requires the structured use/reserve PAIR. A truth file that
+        # records split/reserved as free strings cannot express that pair, so the
+        # field is recorded as NOT MEASURED for this fixture rather than being
+        # scored — a harness limitation must not be reported as a capture result
+        # in either direction. The verdict names the affected fixtures, and a
+        # critical field left unmeasured cannot meet its bar, so the gate cannot
+        # read PASS while any remain.
+        if t_split and not all(isinstance(x, dict) for x in t_split):
+            unmeasured.setdefault("split_reserved", []).append(fid)
+            t_split = []
         if t_split:
             c_split = cap.get("split_reserved") or []
             ok_s = True
@@ -341,7 +352,11 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         if r is not None and r < bar:
             failing.append(f"edge:{k} {r:.2%} < {bar:.0%}")
 
-    verdict = "PASS" if not failing and not missing_runs else "FAIL"
+    # A critical field left unmeasured cannot have met its bar, so it blocks a
+    # PASS exactly as a failing field does (THRESHOLD.md: PASS only if EVERY bar
+    # is met). It is reported separately from a failure, because "we did not
+    # measure this" and "capture got this wrong" are different facts.
+    verdict = "PASS" if not failing and not missing_runs and not unmeasured else "FAIL"
 
     # Circularity override: if every present capture is byte-identical to its
     # truth, the numeric bars are tautological and a PASS would be meaningless.
@@ -359,6 +374,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         "captures_present": captures_present,
         "identical_to_truth": identical_to_truth,
         "circular": circular,
+        "unmeasured": unmeasured,
         "field_scores": field_rates,
         "edge_class_scores": edge_rates,
         "per_class_scores": class_rates,
@@ -400,6 +416,13 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
             "self-authored content is indistinguishable from a copy of the answer, so the "
             "numeric bars above are tautological and cannot establish OQ-14 (see oq14-verdict.md)."
         )
+    if unmeasured:
+        for field, ids in sorted(unmeasured.items()):
+            print(
+                f"\nNOT MEASURED: '{field}' on {len(ids)} fixture(s) ({', '.join(ids)}) — the truth "
+                "files record it in a form the pre-registered rule cannot compare. This is a harness\n"
+                "limitation, NOT a capture result; a critical field left unmeasured blocks a PASS."
+            )
     print(f"\nVERDICT (OQ-14): {verdict}")
     if failing:
         print("  failing:", "; ".join(failing))
