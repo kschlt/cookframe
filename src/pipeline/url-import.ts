@@ -18,7 +18,8 @@
  * arguments, so production wires the real safe-fetch-backed byte source and tests
  * wire a loopback-allowed one through the same path. Nothing here imports a
  * network primitive — the fetch happens behind {@link UrlByteSource}, whose
- * implementation is the only code in `src/` outside `src/security/` that may.
+ * implementation lives in `src/security/`, the one place the chokepoint scan
+ * permits a network primitive.
  *
  * A guard refusal or a fail-closed bound surfaces as the byte source's
  * `SafeFetchError` (with its `reasonCode`) and propagates before anything is
