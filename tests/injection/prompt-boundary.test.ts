@@ -54,6 +54,12 @@ const UNTRUSTED_EXPRESSIONS: readonly (readonly [string, string])[] = [
   ["JSON.stringify(snapshot", "the captured page, blocks and all, handed to normalization"],
   ["snapshot", "the captured page under any binding"],
   ["failure.reply", "a rejected model reply, quoted back on the repair path"],
+  [
+    "failure.message",
+    "a rejection REASON, which embeds the model's own words: the capture stage " +
+      "builds it from the reply's `type` value verbatim and normalization from a " +
+      "Zod error carrying the reply's unrecognized key names",
+  ],
 ]
 
 /**
@@ -72,7 +78,6 @@ const PIPELINE_AUTHORED: readonly (readonly [string, string])[] = [
     "snapshot.id",
     "the pipeline's identifier for the capture, assigned before the model saw anything",
   ],
-  ["failure.message", "the validator's own sentence about why a reply was rejected"],
 ]
 
 /**
@@ -137,17 +142,32 @@ describe("injection/source-text-crosses-one-boundary", () => {
     // `${...}` in a prompt-assembling module is inspected; the untrusted
     // expressions and the bindings that hold them may not appear in one.
     //
-    // A few expressions reach into an untrusted object for something the
-    // pipeline itself wrote — the capture's assigned id, the validator's own
-    // sentence about why a reply was rejected. Those are listed exactly in
-    // PIPELINE_AUTHORED; the rejected reply that sentence describes travels
-    // sealed, beside it.
+    // One expression reaches into an untrusted object for something the pipeline
+    // itself wrote — the capture's assigned id — and is listed exactly in
+    // PIPELINE_AUTHORED.
+    //
+    // `failure.message` was listed there too, as "the validator's own sentence".
+    // It is not: `readBlocks` builds it from the model's own `type` value and
+    // normalization from a Zod error carrying key names out of the reply, so a
+    // reply could open its own headed section inside the pipeline's instruction
+    // part. It is an UNTRUSTED expression, and the reason now travels sealed
+    // beside the reply it describes. An allowlist entry is a judgement about a
+    // value's provenance, and this one was wrong — which is why there is exactly
+    // one left and it names a value assigned before the model saw anything.
     const offences: string[] = []
     for (const file of sourceFiles(srcDir)) {
       const rel = relativeToSrc(file)
       if (!PROMPT_ASSEMBLERS.has(rel) || rel === "pipeline/untrusted-source-text.ts") continue
       const text = readFileSync(file, "utf8")
+      // An interpolation INSIDE a `sealSourceText(...)` call is the untrusted
+      // value reaching the boundary, which is the one crossing that is allowed
+      // to exist. Exempting it by span rather than by expression is what keeps
+      // the rule from needing a second allowlist: the sealer's argument list is
+      // identified structurally, so a value cannot be permitted by being named.
+      const sealed = sealCallSpans(text)
       for (const match of text.matchAll(/\$\{([^}]*)\}/g)) {
+        const at = match.index ?? 0
+        if (sealed.some(([from, to]) => at > from && at < to)) continue
         const expression = (match[1] ?? "").trim()
         if (PIPELINE_AUTHORED.some(([permitted]) => permitted === expression)) continue
         for (const [needle, why] of UNTRUSTED_EXPRESSIONS) {

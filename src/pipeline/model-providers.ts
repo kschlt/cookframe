@@ -291,9 +291,23 @@ function withRepairRequest(
   failure: ModelReplyError,
   markerSource: MarkerSource | undefined,
 ): ModelExchange {
-  const excerpt = sealSourceText(
-    "your rejected reply",
-    failure.reply.slice(0, REPAIR_EXCERPT_CHARS),
+  // CFV1-INJ. `failure.message` reads like the validator's own sentence and is
+  // not one. `readBlocks` builds it from the model's own `type` value, verbatim
+  // and unescaped, and the normalization stage builds it from a Zod error that
+  // embeds unrecognized key names taken from the reply. Both are the model's
+  // bytes, and a page that steers the model steers them — so a `type` carrying
+  // real newlines could open its own headed section inside the pipeline's
+  // instruction part. It therefore travels sealed, in the same region as the
+  // reply it describes, and `prompt-boundary` lists it as untrusted so a future
+  // interpolation of it fails the build.
+  const sealed = sealSourceText(
+    "your rejected reply, and why it was rejected",
+    [
+      `Rejected because: ${failure.message.slice(0, REPAIR_EXCERPT_CHARS)}`,
+      "",
+      "The reply that was rejected:",
+      failure.reply.slice(0, REPAIR_EXCERPT_CHARS),
+    ].join("\n"),
     markerSource,
   )
   return {
@@ -305,18 +319,17 @@ function withRepairRequest(
         text: [
           "=== YOUR PREVIOUS REPLY WAS REJECTED ===",
           "It was checked against the output contract above and did not conform.",
-          `Reason: ${failure.message}`,
           "",
           "Emit a corrected reply for the SAME input. Do not explain the error and",
           "do not include any key the contract does not define — every object is",
           ".strict(), so an extra key is itself a failure.",
           "",
-          untrustedRegionRule(excerpt.marker),
+          untrustedRegionRule(sealed.marker),
           "",
-          "Your rejected reply, for reference:",
+          "What you sent, and why it was rejected:",
         ].join("\n"),
       },
-      excerpt.part,
+      sealed.part,
     ],
   }
 }

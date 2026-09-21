@@ -65,7 +65,15 @@ function sequence(...replies: string[]): ModelTransport & { readonly seen: Model
  * emits — so it is sealed into its own part rather than interpolated into the
  * instruction. These proofs are about WHAT is quoted, so they unwrap the fence
  * and keep asserting the exact reply.
+ *
+ * The sealed region carries the rejection REASON first and then the reply,
+ * because the reason is model-derived too: `readBlocks` builds it from the
+ * reply's own `type` value. So the unwrapping takes what follows the reply's
+ * heading, and returns "" if that heading is absent rather than silently
+ * handing back the reason as though it were the reply.
  */
+const REPLY_HEADING = "The reply that was rejected:"
+
 function repairExcerpt(exchange: ModelExchange | undefined): string {
   const part = exchange?.parts.at(-1)
   const text = part?.kind === "text" ? part.text : ""
@@ -73,7 +81,20 @@ function repairExcerpt(exchange: ModelExchange | undefined): string {
   if (!lines[0]?.startsWith("<<<UNTRUSTED-SOURCE") || !lines.at(-1)?.startsWith("<<<END ")) {
     return ""
   }
-  return lines.slice(1, -1).join("\n")
+  const region = lines.slice(1, -1)
+  const at = region.indexOf(REPLY_HEADING)
+  return at === -1 ? "" : region.slice(at + 1).join("\n")
+}
+
+/** The rejection reason, unwrapped from the same fence. */
+function repairReason(exchange: ModelExchange | undefined): string {
+  const part = exchange?.parts.at(-1)
+  const text = part?.kind === "text" ? part.text : ""
+  const lines = text.split("\n")
+  if (!lines[0]?.startsWith("<<<UNTRUSTED-SOURCE")) return ""
+  const region = lines.slice(1, -1)
+  const at = region.indexOf(REPLY_HEADING)
+  return (at === -1 ? region : region.slice(0, at)).join("\n")
 }
 
 const stage = (transport: ModelTransport) => ({
@@ -400,13 +421,19 @@ describe("slice1/contract-failure-is-retried", () => {
     expect(second?.system).toBe(first?.system)
     // The input is carried again, so the model is not asked to remember it.
     expect(second?.parts[0]).toEqual(first?.parts[0])
-    // The repair instruction, then the rejected reply sealed in its own part.
+    // The repair instruction, then the reason and the rejected reply sealed in
+    // their own part.
     const repair = second?.parts.at(-2)
     expect(repair?.kind).toBe("text")
     const text = repair?.kind === "text" ? repair.text : ""
     expect(text).toContain("YOUR PREVIOUS REPLY WAS REJECTED")
-    // The validator's own message, not a paraphrase of it.
-    expect(text).toContain("yields")
+    // The validator's own message, not a paraphrase of it — and in the SEALED
+    // part, not here. It reads like the pipeline's sentence and is not one: at
+    // capture it is built from the model's `type` value verbatim, and here from
+    // a Zod error carrying key names out of the reply. Asserting its absence
+    // from the instruction is the half of this that would have caught that.
+    expect(repairReason(second)).toContain("yields")
+    expect(text).not.toContain("yields")
   })
 
   it("still fails closed once the attempts are spent, and says what they cost", async () => {

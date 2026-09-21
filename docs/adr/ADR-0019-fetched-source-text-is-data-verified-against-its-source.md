@@ -43,9 +43,19 @@ Instructions live in the exchange's system channel, which no source byte reaches
 passed **verbatim** — nothing is stripped or rewritten, because the record has to keep what the
 source actually said and the verification below depends on exactly that.
 
-The boundary covers the rejected-reply excerpt on the repair path too. It is the model's own
-output rather than the page's, but a page that steers the model steers what it emits, and the
-repair path is the one where the model has already demonstrably left its contract.
+The boundary covers the repair path too — both the rejected reply and **the reason it was
+rejected**. Both are the model's own output rather than the page's, but a page that steers the
+model steers what it emits, and the repair path is the one where the model has already
+demonstrably left its contract.
+
+The reason had to be argued for, because it does not look like model output. It reads as the
+validator's own sentence, and it is not one: the capture stage builds it from the reply's `type`
+value verbatim and unescaped, and normalization builds it from a Zod error that embeds
+unrecognized key names taken from the reply. A reply whose `type` carries real newlines could
+therefore open its own headed section inside the pipeline's instruction part, between "It was
+checked against the output contract above" and "Emit a corrected reply for the SAME input" — page-
+derived text concatenated with instructions, which is the one thing this record forbids. It was
+reproduced before it was closed.
 
 ### 2. Verification
 
@@ -107,6 +117,22 @@ applied to content: **a model's claim about the source is evidence, never author
 - A second path that puts source text in front of a model fails the build rather than being caught
   in review. `tests/injection/prompt-boundary.test.ts` declares the inventory of prompt-assembling
   modules and scans them, in the style `ADR-0010`'s chokepoint settled on.
+- **The scan's allowlist is the weak part of it, and one entry was wrong.** The scan permits named
+  expressions that reach into an untrusted object for something the pipeline itself wrote. That is
+  a judgement about a value's provenance, made once and then trusted — and `failure.message` was
+  admitted to it as "the validator's own sentence about why a reply was rejected", which the
+  paragraph above shows it is not. The entry was not a workaround for a known hole; it was written
+  in good faith and was simply false. So the rule is that an allowlist entry has to name a value
+  the model cannot influence at all, not one that merely reads as the pipeline's: exactly one
+  entry survives, `snapshot.id`, which is assigned before the model sees anything. Interpolations
+  inside a `sealSourceText(...)` call are now exempted by their position in the source instead, so
+  a value reaching the boundary needs no permission by name.
+- **The scan alone cannot hold this.** It inspects `${...}` interpolations, so any other way of
+  building a string — `.concat`, an array `join` — is invisible to it. That is not a defect to fix
+  by widening the pattern, because the next construction escapes the next pattern; it is why each
+  assembly path also carries a behavioural proof asserting the sealed part's shape and the absence
+  of the sealed text from every other part. Twice now a structural-only guard has been shown
+  insufficient by a mutation, and both times the behavioural proof is what closed it.
 - **Some legitimate pages will be refused.** Verification is strict on purpose — it fails on the
   first unsupported claim rather than on a rate, because the harm from one invented ingredient is
   not proportional to its share of the recipe. The calibration measured this cost on a corpus
