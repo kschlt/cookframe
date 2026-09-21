@@ -68,7 +68,16 @@ export class ModelReplyError extends Error {
   constructor(
     readonly stage: "capture" | "normalization",
     message: string,
-    readonly reply?: string,
+    /**
+     * The reply that was rejected, **required**.
+     *
+     * Optional here once, and the invariant was held by two helpers that
+     * happened to pass it. Three throw sites added later omitted it and
+     * typechecked, which is how the repair path silently lost the text it
+     * exists to quote. A required parameter is the only version of this rule
+     * that a new throw site cannot forget.
+     */
+    readonly reply: string,
   ) {
     super(`${stage}: ${message}`)
     this.name = "ModelReplyError"
@@ -260,8 +269,10 @@ async function runStage<T>(
       lastFailure = err
     }
   }
-  // Unreachable unless maxAttempts < 1, which the clamp above forbids.
-  throw lastFailure ?? new ModelReplyError(stage, "no attempt was made")
+  // Unreachable unless maxAttempts < 1, which the clamp above forbids. There is
+  // no reply to carry because no call was made, and `""` says that rather than
+  // leaving the field absent — see the constructor.
+  throw lastFailure ?? new ModelReplyError(stage, "no attempt was made", "")
 }
 
 /**
