@@ -9,7 +9,7 @@
  * value). JSON cannot encode ±Infinity or NaN, so the inputs here are constructed
  * programmatically — exactly the in-memory computation path #28 hit.
  */
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
@@ -24,6 +24,13 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 function readFixture(...parts: string[]): unknown {
   return JSON.parse(readFileSync(join(repoRoot, "evals", "fixtures", "public", ...parts), "utf8"))
+}
+
+/** Every committed .json fixture in a public fixture subdirectory, sorted. */
+function listFixtures(subdir: string): readonly string[] {
+  return readdirSync(join(repoRoot, "evals", "fixtures", "public", subdir))
+    .filter((name) => name.endsWith(".json"))
+    .sort()
 }
 
 /** The three values `Number.isFinite` rejects — the whole non-finite set. */
@@ -92,13 +99,15 @@ describe("contract/non-finite-has-an-owner", () => {
 describe("contract/finite-values-unaffected", () => {
   // Every committed public fixture parses unchanged: the decision closes the
   // non-finite hole without tightening any legitimate, source-grounded value.
-  const canonical = ["two-yields-nutrition.json", "ranges-and-qualitative.json"] as const
-  const snapshots = [
-    "basic.json",
-    "freetext-heavy.json",
-    "gappy.json",
-    "structured-multi-component.json",
-  ] as const
+  // The fixture set is read from the directory, not a frozen list, so a public
+  // fixture added later is covered automatically instead of silently skipped.
+  const canonical = listFixtures("canonical")
+  const snapshots = listFixtures("source-snapshot")
+
+  it("the fixture directories are non-empty (the sweep below is not vacuous)", () => {
+    expect(canonical.length).toBeGreaterThan(0)
+    expect(snapshots.length).toBeGreaterThan(0)
+  })
 
   for (const name of canonical) {
     it(`canonical fixture ${name} still parses`, () => {
