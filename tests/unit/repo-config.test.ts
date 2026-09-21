@@ -85,7 +85,11 @@ describe("CI workflow (ci.yml)", () => {
     // A non-zero exit from any of these fails the job (no continue-on-error),
     // which fails the build.
     expect(runsOf("typecheck")).toMatch(/npm run typecheck/)
-    expect(runsOf("lint")).toMatch(/npm run lint/)
+    // The lint job runs `npm run check` (`biome check`), not `npm run lint`:
+    // the narrower command does not run the import-organisation assist, so a
+    // push could be green here and red where `biome ci` runs. Asserting the
+    // superset keeps the two from drifting apart again.
+    expect(runsOf("lint")).toMatch(/npm run check/)
     expect(runsOf("schema-contract")).toMatch(/test:schema-contract/)
     expect(runsOf("normalization-invariant")).toMatch(/test:normalization-invariant/)
     expect(runsOf("url-fetch-security")).toMatch(/test:url-fetch-security/)

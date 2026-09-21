@@ -38,8 +38,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run lint
-      - run: npm run format:check
+      # `npm run check` is `biome check`, a strict superset of `biome lint` +
+      # `biome format`: it also runs assist actions (organize-imports). Running
+      # the narrower pair here left that rule enforced only inside the slow
+      # `container` job, whose job is proving the image builds — so a push could
+      # be green on `lint` and red on `container` for a lint reason. It cost a
+      # CI cycle on this branch.
+      - run: npm run check
 
   unit:
     runs-on: ubuntu-latest

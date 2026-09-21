@@ -255,7 +255,13 @@ function reportCost(scored: readonly Scored[]): void {
         label: "two-call",
         attempts: pairs.length,
         successes: pairs.filter((p) => p.c.valid && p.n.valid).length,
-        tokens: capture.reduce((a, s) => a + tok(s), 0) + norm.reduce((a, s) => a + tok(s), 0),
+        // Summed over the PAIRED runs only, the same set the denominator counts.
+        // Summing every capture and normalization run instead would inflate the
+        // per-attempt figure whenever a run has no partner — silently, in the
+        // one function whose whole point is an honest denominator. With the
+        // committed data the two agree (9 of each), so no published figure
+        // moves; the point is that they cannot diverge.
+        tokens: pairs.reduce((a, p) => a + tok(p.c) + tok(p.n), 0),
         latency: pairs.reduce((a, p) => a + ms(p.c) + ms(p.n), 0),
       })
     }

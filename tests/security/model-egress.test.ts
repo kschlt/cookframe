@@ -137,6 +137,28 @@ describe("model-egress/credential-never-leaves-the-module", () => {
     expect((error as Error).message).not.toContain(CREDENTIAL)
   })
 
+  it("scrubs a credential that straddles the excerpt cut", async () => {
+    // Cutting the excerpt first and scrubbing after leaves the credential's
+    // leading fragment in the message, because the scrub no longer matches it.
+    // The cut is at a fixed offset this test does not import, so it sweeps the
+    // credential across a window of offsets: wherever the cut falls, one of
+    // these lands on top of it.
+    for (let offset = 480; offset <= 540; offset++) {
+      const body = JSON.stringify({
+        error: { message: `${"x".repeat(offset)}${CREDENTIAL} rejected` },
+      })
+      respond({ status: 401, body })
+      const send = createModelEndpoint({ endpoint: ENDPOINT, credential: CREDENTIAL })
+      const message = ((await send({}).catch((e: unknown) => e)) as Error).message
+      expect(message, `offset ${offset}`).not.toContain(CREDENTIAL)
+      for (let n = 8; n <= CREDENTIAL.length; n++) {
+        expect(message, `offset ${offset} leaks first ${n} chars`).not.toContain(
+          CREDENTIAL.slice(0, n),
+        )
+      }
+    }
+  })
+
   it("sends the credential as a header and never in the body", async () => {
     const calls = respond({})
     const send = createModelEndpoint({ endpoint: ENDPOINT, credential: CREDENTIAL })
@@ -170,6 +192,41 @@ describe("model-egress/bounds-fail-closed", () => {
     await expect(send({})).rejects.toThrow(
       expect.objectContaining({ code: EgressReason.TIME_LIMIT }) as unknown as Error,
     )
+  })
+
+  it("types the deadline when it elapses during the BODY, not only the connect", async () => {
+    // Headers arrive at once and the body then stalls. Aborting a fetch errors
+    // its body stream, so without translation the caller gets the runtime's own
+    // AbortError — whose numeric `code` collides with this module's discriminant.
+    // The earlier deadline proof only exercises the connect phase and passes
+    // over this, so it is not a substitute for this one.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string | URL, init: RequestInit) => {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"par'))
+            init.signal?.addEventListener("abort", () => {
+              controller.error(new DOMException("The operation was aborted.", "AbortError"))
+            })
+          },
+        })
+        return new Response(body, {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      }),
+    )
+    const send = createModelEndpoint({
+      endpoint: ENDPOINT,
+      credential: CREDENTIAL,
+      timeoutMs: 40,
+    })
+    const error = await send({}).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ModelEgressError)
+    expect((error as ModelEgressError).code).toBe(EgressReason.TIME_LIMIT)
+    // A caller dispatching on `code` must never read a number.
+    expect(typeof (error as ModelEgressError).code).toBe("string")
   })
 
   it("refuses a body that is not the JSON the endpoint contract promises", async () => {

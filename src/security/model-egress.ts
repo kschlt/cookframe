@@ -112,8 +112,12 @@ export type ModelEndpoint = (body: unknown) => Promise<EgressResult>
 
 const DEFAULT_TIMEOUT_MS = 120_000
 const DEFAULT_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
-/** How much of a refusal body to quote back, after scrubbing. */
-const ERROR_EXCERPT_BYTES = 512
+/**
+ * How much of a refusal body to quote back. Counted in UTF-16 code units,
+ * because `String.prototype.slice` is, and a limit that claims bytes while
+ * counting something else is the kind of small lie that becomes a bug.
+ */
+const ERROR_EXCERPT_CHARS = 512
 
 /**
  * Remove every occurrence of the credential from text this module is about to
@@ -192,13 +196,36 @@ export function createModelEndpoint(options: ModelEndpointOptions): ModelEndpoin
           res.status,
         )
       }
-      const text = await readBounded(res, maxResponseBytes, timeoutMs, started)
+      // The body phase needs its own translation. Aborting a fetch errors its
+      // body stream, so a deadline that elapses after the headers have arrived
+      // surfaces as the runtime's own `AbortError` — which carries a numeric
+      // `code` of its own and would reach a caller dispatching on `code` as a
+      // number where an `EgressReason` is promised. Everything this module
+      // throws is typed, on every path.
+      let text: string
+      try {
+        text = await readBounded(res, maxResponseBytes, controller.signal)
+      } catch (err) {
+        if (err instanceof ModelEgressError) throw err
+        if (controller.signal.aborted) {
+          throw new ModelEgressError(
+            EgressReason.TIME_LIMIT,
+            `model endpoint body did not complete within ${timeoutMs}ms`,
+          )
+        }
+        throw new ModelEgressError(
+          EgressReason.TRANSPORT,
+          scrub(err instanceof Error ? err.message : String(err), credential),
+        )
+      }
       if (!res.ok) {
+        // Scrub first, then cut: cutting first can split the credential and
+        // leave a leading fragment that the scrub no longer matches.
         throw new ModelEgressError(
           EgressReason.PROVIDER_REFUSED,
-          `model endpoint answered ${res.status}: ${scrub(
-            text.slice(0, ERROR_EXCERPT_BYTES),
-            credential,
+          `model endpoint answered ${res.status}: ${scrub(text, credential).slice(
+            0,
+            ERROR_EXCERPT_CHARS,
           )}`,
           res.status,
         )
@@ -221,14 +248,18 @@ export function createModelEndpoint(options: ModelEndpointOptions): ModelEndpoin
 
 /**
  * Read the body while counting bytes, aborting as soon as the bound is passed
- * rather than buffering the whole answer and measuring afterwards. The deadline
- * spans this phase too, so a slow drip cannot outlive it.
+ * rather than buffering the whole answer and measuring afterwards.
+ *
+ * The deadline is not re-checked here. It belongs to the one `AbortController`
+ * the call is made with: aborting a fetch errors its body stream, so a stalled
+ * body is interrupted by that signal rather than by a check between reads,
+ * which a stalled read never reaches. A second deadline here would look
+ * load-bearing and never fire.
  */
 async function readBounded(
   res: Response,
   maxResponseBytes: number,
-  timeoutMs: number,
-  startedAt: number,
+  signal: AbortSignal,
 ): Promise<string> {
   const body = res.body
   if (body === null) return ""
@@ -239,27 +270,26 @@ async function readBounded(
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      if (value !== undefined) {
-        total += value.byteLength
-        if (total > maxResponseBytes) {
-          await reader.cancel()
-          throw new ModelEgressError(
-            EgressReason.SIZE_LIMIT,
-            `model endpoint response exceeded ${maxResponseBytes} bytes`,
-          )
-        }
-        chunks.push(value)
-      }
-      if (Date.now() - startedAt > timeoutMs) {
+      if (value === undefined) continue
+      total += value.byteLength
+      if (total > maxResponseBytes) {
         await reader.cancel()
         throw new ModelEgressError(
-          EgressReason.TIME_LIMIT,
-          `model endpoint body did not complete within ${timeoutMs}ms`,
+          EgressReason.SIZE_LIMIT,
+          `model endpoint response exceeded ${maxResponseBytes} bytes`,
         )
       }
+      chunks.push(value)
     }
   } finally {
-    reader.releaseLock()
+    // A reader whose stream errored is already released; releasing twice throws.
+    if (!signal.aborted) {
+      try {
+        reader.releaseLock()
+      } catch {
+        // The stream errored out from under us; nothing to release.
+      }
+    }
   }
   const joined = new Uint8Array(total)
   let offset = 0
