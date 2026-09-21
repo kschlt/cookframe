@@ -1,0 +1,219 @@
+/**
+ * CFV1-SL1 — the real, model-backed capture and normalization capabilities.
+ *
+ * Each `describe`/`it` string is the acceptance-criterion proof id it satisfies.
+ * The suite drives the *real* provider implementations through a scripted
+ * {@link ModelTransport}, so these are proofs about the production code paths
+ * with no model and no network: the transport seam is what makes that possible,
+ * and exercising it here is the same discipline as S5's loopback seam.
+ *
+ * What is proven: identity and provenance are the pipeline's and survive a model
+ * that reports otherwise; a reply that breaks the contract fails closed instead
+ * of producing a half-valid object; and the vision path presents an image as an
+ * image part rather than decoding bytes as text.
+ */
+import { describe, expect, it } from "vitest"
+import { SCHEMA_VERSION, type SourceSnapshot } from "../../schema/index.js"
+import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
+import { captureSnapshot } from "../../src/pipeline/capture.js"
+import {
+  createModelCaptureProvider,
+  createModelNormalizationProvider,
+  ModelReplyError,
+} from "../../src/pipeline/model-providers.js"
+import type {
+  CaptureContext,
+  ModelExchange,
+  ModelTransport,
+  NormalizationContext,
+} from "../../src/pipeline/providers.js"
+
+const policy = createContentDerivedBlockIdPolicy()
+
+/** A transport that replies with fixed text and records what it was asked. */
+function scripted(reply: string): ModelTransport & { readonly seen: ModelExchange[] } {
+  const seen: ModelExchange[] = []
+  return {
+    seen,
+    async send(exchange) {
+      seen.push(exchange)
+      return { text: reply }
+    },
+  }
+}
+
+const stage = (transport: ModelTransport) => ({
+  transport,
+  promptText: "PROMPT",
+  contractText: "CONTRACT",
+})
+
+const captureCtx: CaptureContext = {
+  snapshotId: "snap-1",
+  snapshotVersion: 0,
+  sourceAdapter: "photo",
+  adapterVersion: "1.0.0",
+  runId: "run-capture",
+  captureModel: "test-model",
+  sourceMediaType: "image/jpeg",
+}
+
+const normCtx: NormalizationContext = {
+  runId: "run-normalize",
+  targetOntologyVersion: "1.0.0",
+  normalizationModel: "test-model",
+}
+
+/** A capture reply whose block ids are deliberately not the policy's. */
+const captureReply = JSON.stringify({
+  id: "model-chosen-id",
+  version: 99,
+  sourceType: "image",
+  capturedText: "Pfannkuchen\n\n200 g Mehl\n\nAlles verrühren.",
+  blocks: [
+    { id: "b-title", order: 0, type: "title", text: "Pfannkuchen" },
+    { id: "b-ing-1", order: 7, type: "ingredient", text: "200 g Mehl" },
+    { id: "b-instr-1", order: 1, type: "instruction", text: "Alles verrühren." },
+  ],
+  captureProvenance: { sourceAdapter: "lies", adapterVersion: "9.9.9", runId: "lies" },
+})
+
+describe("slice1/capture-ids-are-the-policys-not-the-models", () => {
+  it("drops the model's block ids and its claimed order", async () => {
+    const transport = scripted(captureReply)
+    const snapshot = await captureSnapshot(
+      createModelCaptureProvider(stage(transport)),
+      policy,
+      new Uint8Array([0xff, 0xd8, 0xff]),
+      captureCtx,
+    )
+    const ids = snapshot.blocks.map((b) => b.id)
+    expect(ids).not.toContain("b-title")
+    expect(ids).not.toContain("b-ing-1")
+    // `order` is array position, so the model's bogus 7 cannot survive.
+    expect(snapshot.blocks.map((b) => b.order)).toEqual([0, 1, 2])
+    // Identity and provenance come from the context, not the reply.
+    expect(snapshot.id).toBe("snap-1")
+    expect(snapshot.version).toBe(0)
+    expect(snapshot.captureProvenance.sourceAdapter).toBe("photo")
+    expect(snapshot.captureProvenance.runId).toBe("run-capture")
+  })
+
+  it("assigns the same ids to the same segmentation on an independent run", async () => {
+    const run = async () =>
+      captureSnapshot(
+        createModelCaptureProvider(stage(scripted(captureReply))),
+        policy,
+        new Uint8Array([0xff, 0xd8, 0xff]),
+        captureCtx,
+      )
+    const [a, b] = await Promise.all([run(), run()])
+    expect(a.blocks.map((x) => x.id)).toEqual(b.blocks.map((x) => x.id))
+  })
+})
+
+describe("slice1/capture-uses-the-vision-path-for-an-image", () => {
+  it("sends image bytes as an image part, not as decoded text", async () => {
+    const transport = scripted(captureReply)
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0x00])
+    await captureSnapshot(createModelCaptureProvider(stage(transport)), policy, bytes, captureCtx)
+    const parts = transport.seen[0]?.parts ?? []
+    const image = parts.find((p) => p.kind === "image")
+    expect(image).toBeDefined()
+    expect(image?.kind === "image" && image.mediaType).toBe("image/jpeg")
+    expect(image?.kind === "image" && image.bytes).toEqual(bytes)
+    expect(transport.seen[0]?.jsonOnly).toBe(true)
+  })
+
+  it("decodes a non-image media type as text instead", async () => {
+    const transport = scripted(captureReply)
+    await captureSnapshot(
+      createModelCaptureProvider(stage(transport)),
+      policy,
+      new TextEncoder().encode("Pfannkuchen"),
+      { ...captureCtx, sourceMediaType: "text/plain" },
+    )
+    const parts = transport.seen[0]?.parts ?? []
+    expect(parts.some((p) => p.kind === "image")).toBe(false)
+    expect(parts.some((p) => p.kind === "text" && p.text.includes("Pfannkuchen"))).toBe(true)
+  })
+})
+
+describe("slice1/model-reply-fails-closed", () => {
+  it("rejects a reply that is not JSON", async () => {
+    await expect(
+      createModelCaptureProvider(stage(scripted("I'm afraid I can't do that."))).capture(
+        new Uint8Array([1]),
+        captureCtx,
+      ),
+    ).rejects.toThrow(ModelReplyError)
+  })
+
+  it("rejects a captured block whose type is not in the contract's enum", async () => {
+    const reply = JSON.stringify({
+      capturedText: "x",
+      blocks: [{ order: 0, type: "ingredient_list", text: "200 g Mehl" }],
+    })
+    await expect(
+      createModelCaptureProvider(stage(scripted(reply))).capture(new Uint8Array([1]), captureCtx),
+    ).rejects.toThrow(/unknown type/)
+  })
+
+  it("rejects a canonical recipe that does not conform, rather than returning it", async () => {
+    // `yields` is required by the contract and absent here.
+    const reply = JSON.stringify({
+      schemaVersion: SCHEMA_VERSION,
+      title: "Pfannkuchen",
+      ingredientGroups: [],
+      instructionSections: [],
+    })
+    const snapshot: SourceSnapshot = {
+      id: "snap-1",
+      version: 0,
+      sourceType: "image",
+      capturedText: "x",
+      blocks: [{ id: "b1", order: 0, type: "title", text: "Pfannkuchen" }],
+      captureProvenance: { sourceAdapter: "photo", adapterVersion: "1.0.0", runId: "r" },
+    }
+    await expect(
+      createModelNormalizationProvider(stage(scripted(reply))).normalize(snapshot, normCtx),
+    ).rejects.toThrow(ModelReplyError)
+  })
+})
+
+describe("slice1/run-provenance-recorded", () => {
+  it("stamps recipe identity and provenance from the context, overriding the model", async () => {
+    const snapshot: SourceSnapshot = {
+      id: "snap-7",
+      version: 3,
+      sourceType: "image",
+      capturedText: "x",
+      blocks: [{ id: "b1", order: 0, type: "title", text: "Pfannkuchen" }],
+      captureProvenance: { sourceAdapter: "photo", adapterVersion: "1.0.0", runId: "r" },
+    }
+    const reply = JSON.stringify({
+      id: "a-model-chosen-recipe-id",
+      schemaVersion: SCHEMA_VERSION,
+      title: "Pfannkuchen",
+      yields: [],
+      ingredientGroups: [],
+      instructionSections: [],
+      provenance: {
+        sourceSnapshotId: "a-different-snapshot",
+        sourceSnapshotVersion: 0,
+        targetOntologyVersion: "0.0.1",
+        runId: "a-model-chosen-run",
+      },
+    })
+    const recipe = await createModelNormalizationProvider(stage(scripted(reply))).normalize(
+      snapshot,
+      normCtx,
+    )
+    expect(recipe.id).toBe("recipe-of-snap-7")
+    expect(recipe.provenance.sourceSnapshotId).toBe("snap-7")
+    expect(recipe.provenance.sourceSnapshotVersion).toBe(3)
+    expect(recipe.provenance.runId).toBe("run-normalize")
+    expect(recipe.provenance.targetOntologyVersion).toBe("1.0.0")
+    expect(recipe.provenance.normalizationModel).toBe("test-model")
+  })
+})
