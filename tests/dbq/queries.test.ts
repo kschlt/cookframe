@@ -161,6 +161,31 @@ describe.skipIf(needsDb)("CFV1-DBQ query evaluation", () => {
     })
   }
 
+  it("dbq/stores-implement-the-sixth-operation — the latest version, or undefined", async () => {
+    // ADR-0018 widened `RecipeRepository` to six operations while this module
+    // was on an unmerged branch, so main stopped typechecking the moment both
+    // landed: each PR was green against its own base. Implemented rather than
+    // stubbed, and proved here, because an operation the interface documents as
+    // returning `undefined` for not-found is exactly the kind that gets a throw
+    // bolted on to satisfy the compiler.
+    for (const shape of SHAPES) {
+      await useShape(db(), shape)
+      const repo = STORES[shape](db())
+      const latest = await repo.loadLatestCanonical("r-1")
+      expect(latest?.version, `${shape}: r-1 has two runs, the latest is 2`).toBe(2)
+      expect(latest?.recipe.title, shape).toBe("Gratin, second run")
+      expect(
+        await repo.loadLatestCanonical("r-2"),
+        `${shape}: a single-version recipe`,
+      ).toMatchObject({ recipeId: "r-2", version: 1 })
+      // Not-found is a RETURN VALUE, not a throw (ADR-0018).
+      await expect(
+        repo.loadLatestCanonical("no-such-recipe"),
+        `${shape}: a missing recipe resolves to undefined`,
+      ).resolves.toBeUndefined()
+    }
+  })
+
   it("dbq/results-reported-per-query-and-shape — every shape answers each query identically", async () => {
     const byShape = async <T>(fn: (s: Shape) => Promise<T>): Promise<Record<string, T>> => {
       const out: Record<string, T> = {}
