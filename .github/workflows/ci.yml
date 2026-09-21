@@ -56,6 +56,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:unit
+      # The S1 scorer's discrimination proof. It is Python and lives under
+      # `spikes/`, so no other job in this workflow would ever run it — and
+      # `spikes/s1-photo-gate/VERDICT.md` names `--selftest` as one of the four
+      # committed things that decide what the gate's rates mean. A proof the
+      # gate never runs is a proof nobody is checking.
+      - run: python3 spikes/s1-capture-quality/score.py --selftest
 
   schema-contract:
     runs-on: ubuntu-latest

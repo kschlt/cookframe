@@ -99,6 +99,19 @@ describe("CI workflow (ci.yml)", () => {
     expect(noContinueOnError).toBe(true)
   })
 
+  it("capture-quality/selftest-runs-in-ci — the scorer's discrimination proof is actually run", () => {
+    // VERDICT.md offers `score.py --selftest` as one of the four committed
+    // things that decide what the S1 rates mean. It is Python, under `spikes/`,
+    // so no npm script reaches it: without a step here it is a proof the gate
+    // never runs, and "selftest passes" would be a claim nothing checks.
+    const runs = Object.values(workflow.jobs)
+      .flatMap((j) => j.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    expect(runs, "no CI job runs the S1 scorer's self-test").toMatch(/score\.py --selftest/)
+  })
+
   it("slice0/secret-scan-fails-build — a secret scan runs and blocks on a finding", () => {
     const scanJob = workflow.jobs["secret-scan"]
     expect(scanJob).toBeTruthy()
