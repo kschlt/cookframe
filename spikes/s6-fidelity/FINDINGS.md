@@ -239,7 +239,25 @@ Three things follow.
    above the full tier only rises. ADR-0014's choice of the full tier stands; the retry is what makes
    the *full* tier's occasional failure survivable, not what makes the cheap tier viable.
 
+4. **Only the NORMALIZATION retry is measured. The capture retry is not.** The probe is text in,
+   text out, by design — it is what made it cost cents. So every rate above is a normalization rate,
+   and nothing here establishes that a retried *capture* repairs anything. That gap was worse than a
+   gap until 2026-09-21: every rejection raised while reading a capture reply constructed its error
+   without the reply attached, so the repair prompt's "Your rejected reply, for reference:" section
+   arrived empty on that path — 0 characters against 84 on the normalization path, which made
+   `REPAIR_EXCERPT_CHARS` dead code for capture. The model was told it was wrong and not shown what
+   it had written. Fixed, with three proofs in `tests/slice1/model-providers.test.ts`; measuring
+   whether the capture retry then works needs a vision run and is not done.
+
 Reproduce (needs `OPENAI_API_KEY`, costs a few cents):
 `OPENAI_MODEL=gpt-5.4-mini npx tsx spikes/s6-fidelity/retry-probe.ts --runs 12`. Rates will differ
 run to run — this is a 12-sample probe of an ~11% failure rate, not a measurement with a confidence
 interval on it.
+
+**A second, incidental observation, full tier.** The ten stored photograph snapshots were
+re-normalized on gpt-5.4 through `reprocess`, to give CFV1-DBQ a second run to compare against.
+Eleven calls for ten conversions: nine conformed first time, one was repaired by its retry, and all ten were delivered.
+A separate single-snapshot run earlier the same evening spent both attempts on the same snapshot and
+failed — the same snapshot that then conformed on the first attempt in the ten-snapshot run. Two
+small samples, so no rate is claimed from them; what they show is that the failure is not a property
+of a particular page, and that one retry is not a guarantee on the full tier either.

@@ -49,7 +49,11 @@ attempt; they still fail closed once it is spent. Whether a real model actually 
 when shown the message was an open assumption, so it was probed on the cheapest input that
 reproduces the failure (`spikes/s6-fidelity/FINDINGS.md`, *Does the retry work?*): over 12
 conversions on the cheap tier, **two of three failures were repaired and one failed again**, moving
-delivery from 9/12 to 11/12. So the retry is real but not a cure, and a caller that needs every page
+delivery from 9/12 to 11/12. That probe is normalization only, so nothing measured here establishes
+that a retried *capture* repairs anything — and until 2026-09-21 it could not have, because every
+rejection on the capture path dropped the reply it was rejecting and the repair prompt quoted an
+empty excerpt back to the model. Fixed with proofs; unmeasured. So the retry is real but not a cure,
+and a caller that needs every page
 must still handle a failure. **This page was not itself re-run** — identifying which photograph it
 was could not be done reliably from what the run recorded (see below), and a re-run costs real money
 against a small budget.
@@ -85,7 +89,6 @@ than the run earned.
 | field | bar | measured | n |
 |---|---|---|---|
 | yield | 95% | **100%** ✓ | 9 |
-| time (prep / cook / total) | 95% | **100%** ✓ | 2 |
 | temperature | 98% | 86% | 7 |
 | ingredient.name | 95% | 77% | 95 |
 | ingredient.unit | 98% | 74% | 95 |
@@ -94,6 +97,7 @@ than the run earned.
 | instruction.text | 95% | 47% | 53 |
 | instruction.order | 95% | 10% | 10 |
 | split / reserved bindings | 98% | 0% | 3 |
+| time | 95% | 0% | 2 |
 | ingredient_group | 90% | 0% | 1 |
 | classification | 90% | 0% | 3 |
 | multiple_yields | 98% | 0% | 1 |
@@ -194,17 +198,58 @@ outcome. The same caveat applies to the paraphrase and step-count figures above.
 
 A fourth, smaller, affects any comparison harness: **a time keeps its value but moves its label.**
 The source's label is captured into `sourceLabel` and the duration into the value, so a truth record
-holding "«label»: «duration»" as one string will not match a correct capture.
+that holds the label inside `times` will not match a correct capture. That is what `time` at 0%
+above measures, and it is a harness defect rather than a capture result — see the sequence recorded
+under *Deviation from the pre-registered normalization*, which is also where the rule change made in
+response to it, and its reversal, are set out.
 
 ## Deviation from the pre-registered normalization
 
 `THRESHOLD.md` fixes an English unit-synonym table. The real sources are German, so every German
 unit would have scored as a miss for a reason unrelated to capture accuracy. German units were added
-to the scorer's synonym table **before any real score was computed**. No bar, comparison rule or
-verdict rule was touched; `score.py --selftest` still passes and the synthetic `scores-sonnet.json`
-is byte-identical apart from one new empty `unmeasured` key. `score.py`'s time check was separately
-narrowed to prep / cook / total, because a truth file may now also carry a time's source label and a
-label is not a time. The deviation is recorded rather than made silently.
+to the scorer's synonym table **before any real score was computed**, and no bar, comparison rule or
+verdict rule was touched by that change. `score.py --selftest` still passes and the synthetic
+`scores-sonnet.json` is byte-identical apart from one new empty `unmeasured` key.
+
+### A comparison rule was narrowed after a score, and has been reverted
+
+This one is not a deviation that was recorded in advance, and it is worth stating plainly because it
+is the failure mode pre-registration exists to prevent. The sequence, from the commit clock and the
+file timestamps:
+
+| when | what |
+|---|---|
+| 19:51 | the real-photograph run is scored and the result committed |
+| 19:55-19:57 | the truth files are re-transcribed; a `*_label` key is added beside each time |
+| 20:00 | `score.py`'s time check is narrowed to `("prep", "cook", "total")` |
+
+The time check is a conjunction over every time key the truth records, so **dropping keys from it
+can only add matches, never remove one.** It took `time` from **0% (0/2) to 100% (2/2)** and made it
+the one critical field that met its bar — on a denominator of two, where a single fixture carries
+the whole margin.
+
+There is a real argument on the other side, and leaving it out would be its own kind of
+dishonesty. `THRESHOLD.md` row 11 names the field "`time` (prep/cook/total)", so the narrowed rule
+is the one the written threshold describes, and the wider rule in the code was arguably the
+implementation that had drifted from it. A label is genuinely not a time, and the `*_label` keys are
+a defect in the truth format.
+
+It does not rescue the change, for one reason: **the labels and the narrowing arrived together,
+after the score.** Neither number is a clean measurement of the pre-registration. 0% is the rule as
+it stood when the run was scored, applied to truth files that had since grown keys it was never
+written for; 100% is a rule edited after the fact, on n=2. So `time` is **not readable as a passed
+bar in either direction**, and the verdict does not lean on it.
+
+The narrowing has been **reverted** and the table above reports the pre-registered rule's 0%. Not
+because that number is more true, but because it is the one that does not require a change made
+after seeing a score. The field that meets its bar is `yield`, at 9/9 rather than 2/2 — a much
+better-supported pass than the one this episode produced. The truth-format defect is listed under
+*What a valid re-run needs*, where it can be fixed before a run is scored instead of after, and a
+run scored that way will measure `time` honestly for the first time.
+
+The comparison itself is now a named function, `times_match`, with four `--selftest` checks behind
+it. It had none before: `--selftest` had twelve checks and not one of them touched the rule this
+spike changed, so "selftest passes" proved everything except the thing that moved.
 
 ## The honest limit
 
@@ -224,7 +269,10 @@ is left unmeasured any more. What is left is not free:
    order is the right bar for a source an independent human transcribes. Without that, a re-run can
    only produce a better-explained FAIL.
 2. **Adjudicate the remaining disagreements** — the one place human time is actually needed.
-3. **Re-capture the one page that failed its contract check.** It now has a retry behind it, but the
+3. **Fix the truth format so `times` holds only times.** The `*_label` keys belong in a field of
+   their own, or nowhere; inside `times` they make a correct capture score as a miss, which is what
+   `time` at 0% above is measuring. Fix it before the run that is scored.
+4. **Re-capture the one page that failed its contract check.** It now has a retry behind it, but the
    page could not be identified from what the run recorded (see *A smaller finding* above), so this
    waits on a re-run of the whole set rather than of one photograph.
 

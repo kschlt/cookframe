@@ -22,7 +22,7 @@ directory holds only what is specific to *this run*.
 | `project.py` | Adapter only: `CanonicalRecipe` → the flat record the scorer compares. Moves values, decides nothing. |
 | `manifest.py` | Derives the fixture manifest and class labels from each truth file's own notes, by an explicit keyword table. |
 | `adjudicate.py` | The human ask: the disagreements between the two independent readings, side by side. |
-| `VERDICT.md` | **The result.** Bars, measured rates, reasoning and the two product findings — no page content, since none may be committed. |
+| `VERDICT.md` | **The result.** Bars, measured rates, reasoning and the three product findings — no page content, since none may be committed. |
 
 ## Where the data lives
 
@@ -52,8 +52,16 @@ disagreements ([`VERDICT.md`](VERDICT.md), *The honest limit*).
 
 ## Deviation from the pre-registered normalization
 
-`THRESHOLD.md` fixes an English unit-synonym table. The real sources are German, so every German
-unit would have scored as a miss for a reason that is not capture accuracy. German units were added
-to the table **before any real score was computed**, and no bar, comparison rule or verdict rule was
-touched; `score.py --selftest` still passes and the synthetic `scores-sonnet.json` is unchanged.
-The deviation is recorded here and in [`VERDICT.md`](VERDICT.md) rather than being made silently.
+Two, and they are not the same kind of thing.
+
+**Recorded in advance.** `THRESHOLD.md` fixes an English unit-synonym table. The real sources are
+German, so every German unit would have scored as a miss for a reason that is not capture accuracy.
+German units were added to the table **before any real score was computed**, and that change touched
+no bar, comparison rule or verdict rule; `score.py --selftest` still passes and the synthetic
+`scores-sonnet.json` is unchanged.
+
+**Not recorded in advance, and reverted.** The scorer's time comparison was narrowed after the run
+had already been scored, which took `time` from 0% to 100% and made it the one field meeting its
+bar. It has been reverted and the whole sequence is set out in
+[`VERDICT.md`](VERDICT.md), *A comparison rule was narrowed after a score*. Both deviations are
+recorded rather than made silently, but only the first one was recorded in time to count as one.

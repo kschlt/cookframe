@@ -138,9 +138,20 @@ function parseJsonReply(stage: "capture" | "normalization", text: string): unkno
   }
 }
 
-function asRecord(stage: "capture" | "normalization", value: unknown): Record<string, unknown> {
+/**
+ * Every rejection carries the reply it rejected. `ModelReplyError.reply` is what
+ * `withRepairRequest` quotes back to the model, so a throw that omits it sends a
+ * repair prompt with an empty "your rejected reply" section — the model is told
+ * it was wrong and not shown what it wrote. That is why `reply` is a required
+ * parameter here rather than an optional courtesy.
+ */
+function asRecord(
+  stage: "capture" | "normalization",
+  value: unknown,
+  reply: string,
+): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new ModelReplyError(stage, "reply is not a JSON object")
+    throw new ModelReplyError(stage, "reply is not a JSON object", reply)
   }
   return value as Record<string, unknown>
 }
@@ -256,15 +267,15 @@ function withRepairRequest(exchange: ModelExchange, failure: ModelReplyError): M
  * `order` field, so a model that numbers inconsistently cannot produce a
  * snapshot whose blocks disagree with their own ordering.
  */
-function readBlocks(value: unknown): RawBlock[] {
+function readBlocks(value: unknown, reply: string): RawBlock[] {
   if (!Array.isArray(value)) {
-    throw new ModelReplyError("capture", "reply has no `blocks` array")
+    throw new ModelReplyError("capture", "reply has no `blocks` array", reply)
   }
   return value.map((raw, index) => {
-    const block = asRecord("capture", raw)
+    const block = asRecord("capture", raw, reply)
     const text = block.text
     if (typeof text !== "string") {
-      throw new ModelReplyError("capture", `block ${index} has no string \`text\``)
+      throw new ModelReplyError("capture", `block ${index} has no string \`text\``, reply)
     }
     // The block type is validated against the contract's own enum — this calls
     // the schema, it does not restate it.
@@ -273,6 +284,7 @@ function readBlocks(value: unknown): RawBlock[] {
       throw new ModelReplyError(
         "capture",
         `block ${index} has an unknown type: ${String(block.type)}`,
+        reply,
       )
     }
     const heading = block.heading
@@ -314,8 +326,8 @@ export function createModelCaptureProvider(config: ModelStageConfig): CapturePro
         parts,
       )
       return runStage(config, "capture", exchange, (replyText) => {
-        const parsed = asRecord("capture", parseJsonReply("capture", replyText))
-        const blocks = readBlocks(parsed.blocks)
+        const parsed = asRecord("capture", parseJsonReply("capture", replyText), replyText)
+        const blocks = readBlocks(parsed.blocks, replyText)
         const capturedText = parsed.capturedText
         if (typeof capturedText !== "string") {
           throw new ModelReplyError("capture", "reply has no string `capturedText`", replyText)
@@ -381,7 +393,11 @@ export function createModelNormalizationProvider(config: ModelStageConfig): Norm
         ],
       )
       return runStage(config, "normalization", exchange, (replyText) => {
-        const parsed = asRecord("normalization", parseJsonReply("normalization", replyText))
+        const parsed = asRecord(
+          "normalization",
+          parseJsonReply("normalization", replyText),
+          replyText,
+        )
         const candidate = {
           ...parsed,
           // Identity and provenance are the pipeline's, never the model's.

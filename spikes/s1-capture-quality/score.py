@@ -174,6 +174,18 @@ class Tally:
         return (self.hit / self.total) if self.total else None
 
 
+def times_match(truth_times: dict, cap_times: dict) -> bool:
+    """A capture's times are correct only if EVERY present truth time matches.
+
+    A conjunction over every key the truth records: a key the capture does not
+    carry fails, and so does one it carries differently. Named rather than
+    inlined so that `--selftest` can prove it discriminates — a rule that lives
+    only inside `score()` is a rule nothing checks, and this one was quietly
+    narrowed once already (see the note at its call site).
+    """
+    return all(norm_str(cap_times.get(k)) == norm_str(v) for k, v in truth_times.items())
+
+
 def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = None):
     FIX = fixtures_dir or (HERE / "fixtures")
     RUNS = runs_dir or (HERE / "runs")
@@ -228,15 +240,28 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
             check("yield", sorted(c_yields) == sorted(t_yields))
 
         # times: correct only if every present truth time matches.
-        # Restricted to the three kinds THRESHOLD.md names (prep/cook/total): a
-        # truth file may also carry the source's LABEL for a time (e.g.
-        # prep_label "VORBEREITUNG"), and a label is not a time. This narrows the
-        # comparison to the recorded field, it does not loosen it.
-        TIME_KINDS = ("prep", "cook", "total")
-        tt = {k: v for k, v in (truth.get("times") or {}).items() if v and k in TIME_KINDS}
+        #
+        # This rule is as pre-registered, and a narrowing of it was REVERTED
+        # rather than kept. On 2026-09-21 the real-photograph run was scored
+        # (19:51), the truth files were then re-transcribed (19:55-19:57) with a
+        # `*_label` key added beside each time, and the rule was then restricted
+        # to ("prep", "cook", "total") at 20:00 — after the score. Dropping keys
+        # from an `all(...)` conjunction can only ADD matches, never remove one,
+        # and it took `time` from 0% (0/2) to 100% (2/2), making it the single
+        # field that met its bar.
+        #
+        # THRESHOLD.md row 11 does name the field "time (prep/cook/total)", so
+        # the narrowed rule is the one the written threshold describes and this
+        # wider one is arguably the implementation that had drifted from it. That
+        # argument does not survive the clock: the label keys and the narrowing
+        # arrived together, AFTER the score, so neither number is a clean
+        # measurement. The rule kept here is the one that needs no change made
+        # after seeing a result. The verdict records both numbers and leans on
+        # neither, and lists the truth-format defect as something to fix BEFORE
+        # the next run rather than after it.
+        tt = {k: v for k, v in (truth.get("times") or {}).items() if v}
         if tt:
-            ct = cap.get("times") or {}
-            check("time", all(norm_str(ct.get(k)) == norm_str(v) for k, v in tt.items()))
+            check("time", times_match(tt, cap.get("times") or {}))
 
         # temperatures (incl ranges)
         t_temps = [norm_qty(x) for x in (truth.get("temperatures") or [])]
@@ -460,6 +485,18 @@ def selftest() -> int:
         (
             "circular guard: differing not flagged",
             canon_json({"title": "A"}) != canon_json({"title": "B"}),
+        ),
+        # the times comparator — the rule this spike narrowed post hoc and then
+        # reverted. Untested, "selftest passes" proved everything except it.
+        ("times match accepted", times_match({"prep": "20 min"}, {"prep": "20 Min."})),
+        ("times mismatch caught", not times_match({"prep": "20 min"}, {"prep": "25 min"})),
+        (
+            "times: a key the capture lacks is caught",
+            not times_match({"prep": "20 min", "prep_label": "VORBEREITUNG"}, {"prep": "20 min"}),
+        ),
+        (
+            "times: every truth key counts, not just the first",
+            not times_match({"prep": "20 min", "cook": "40 min"}, {"prep": "20 min", "cook": "45 min"}),
         ),
     ]
     ok = True

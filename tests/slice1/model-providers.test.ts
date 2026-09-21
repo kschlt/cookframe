@@ -308,6 +308,64 @@ describe("slice1/contract-failure-is-retried", () => {
     expect(snapshotOut.blocks).toHaveLength(3)
   })
 
+  it("quotes the rejected reply back on the capture path, not only on normalization", async () => {
+    // The repair prompt ends with "Your rejected reply, for reference:". Before
+    // this was fixed, every rejection raised inside `readBlocks` / `asRecord`
+    // constructed its error without the reply, so that section arrived EMPTY on
+    // the capture path: the model was told it was wrong and not shown what it
+    // had written. Measured 0 characters there against 84 on the normalization
+    // path, which made `REPAIR_EXCERPT_CHARS` dead code for capture.
+    const rejected = JSON.stringify({
+      capturedText: "x",
+      blocks: [{ order: 0, type: "not_a_block_type", text: "200 g Mehl" }],
+    })
+    const transport = sequence(rejected, captureReply)
+    await captureSnapshot(
+      createModelCaptureProvider(stage(transport)),
+      policy,
+      new Uint8Array([0xff, 0xd8, 0xff]),
+      captureCtx,
+    )
+    expect(transport.seen).toHaveLength(2)
+    const repair = transport.seen[1]?.parts.at(-1)
+    const text = repair?.kind === "text" ? repair.text : ""
+    expect(text).toContain("YOUR PREVIOUS REPLY WAS REJECTED")
+    // The whole rejected reply, not just the complaint about it.
+    expect(text).toContain(rejected)
+    expect(text.split("Your rejected reply, for reference:\n")[1]).toBe(rejected)
+  })
+
+  it("quotes it back when the reply has no blocks array at all", async () => {
+    // The other capture-path throw that used to drop the reply: `blocks` absent
+    // means `readBlocks` rejects before any block is looked at.
+    const rejected = JSON.stringify({ capturedText: "x" })
+    const transport = sequence(rejected, captureReply)
+    await captureSnapshot(
+      createModelCaptureProvider(stage(transport)),
+      policy,
+      new Uint8Array([0xff, 0xd8, 0xff]),
+      captureCtx,
+    )
+    const repair = transport.seen[1]?.parts.at(-1)
+    const text = repair?.kind === "text" ? repair.text : ""
+    expect(text.split("Your rejected reply, for reference:\n")[1]).toBe(rejected)
+  })
+
+  it("quotes it back when the reply is a JSON array instead of an object", async () => {
+    // `asRecord`'s own throw, the one shared by both stages.
+    const rejected = JSON.stringify([{ capturedText: "x" }])
+    const transport = sequence(rejected, captureReply)
+    await captureSnapshot(
+      createModelCaptureProvider(stage(transport)),
+      policy,
+      new Uint8Array([0xff, 0xd8, 0xff]),
+      captureCtx,
+    )
+    const repair = transport.seen[1]?.parts.at(-1)
+    const text = repair?.kind === "text" ? repair.text : ""
+    expect(text.split("Your rejected reply, for reference:\n")[1]).toBe(rejected)
+  })
+
   it("spends no second call when the first reply conforms", async () => {
     const transport = sequence(goodCanonical)
     await createModelNormalizationProvider(stage(transport)).normalize(snapshot, normCtx)
