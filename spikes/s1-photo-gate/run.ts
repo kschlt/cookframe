@@ -33,7 +33,7 @@ import {
   createModelCaptureProvider,
   createModelNormalizationProvider,
 } from "../../src/pipeline/model-providers.js"
-import { createOpenAITransport } from "./openai-transport.js"
+import { createOpenAITransport } from "../../src/pipeline/openai-transport.js"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, "..", "..")

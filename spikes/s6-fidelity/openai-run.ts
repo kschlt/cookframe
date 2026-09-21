@@ -16,7 +16,8 @@
  *     next run; deliberately absent now to avoid unnecessary key exposure).
  *   - OPENAI_MODEL selects the model id (e.g. "gpt-4o-2024-11-20"); set it to
  *     whatever the OpenAI project "Cookframe" should be measured on.
- *   - No SDK dependency: uses global fetch against the REST API, so nothing is
+ *   - No SDK dependency: the REST API through the product's guarded egress
+ *     module (`src/security/model-egress.ts`, ADR-0013), so nothing is
  *     added to package.json for a spike.
  *
  * USAGE (next session, key present):
@@ -31,6 +32,7 @@
 import { readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { createModelEndpoint } from "../../src/security/model-egress.js"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, "..", "..")
@@ -121,32 +123,37 @@ function buildJobs(): Job[] {
 interface ChatResponse {
   choices?: { message?: { content?: string } }[]
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
-  error?: { message?: string }
 }
 
+/**
+ * Egress goes through the product's guarded module (ADR-0013), not through a
+ * `fetch` of this spike's own: a second copy of the egress path is exactly what
+ * that record exists to prevent, and a spike is where one would otherwise
+ * survive. The OpenAI *payload* stays here rather than reusing
+ * `createOpenAITransport`, because this runner needs `total_tokens` and an
+ * explicit temperature that the product transport has no reason to carry, and
+ * because the committed `.meta.json` sidecars `score.ts` reads are in this
+ * shape.
+ */
+const post = createModelEndpoint({
+  endpoint: "https://api.openai.com/v1/chat/completions",
+  credential: API_KEY as string,
+})
+
 async function callOpenAI(system: string, user: string): Promise<{ content: string; usage: ChatResponse["usage"]; ms: number }> {
-  const started = Date.now()
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${API_KEY}` },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 1,
-    }),
+  const { json, latencyMs } = await post({
+    model: MODEL,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 1,
   })
-  const ms = Date.now() - started
-  const json = (await res.json()) as ChatResponse
-  if (!res.ok || json.error) {
-    throw new Error(`OpenAI ${res.status}: ${json.error?.message ?? "unknown error"}`)
-  }
-  const content = json.choices?.[0]?.message?.content
-  if (!content) throw new Error("OpenAI returned no message content")
-  return { content, usage: json.usage, ms }
+  const parsed = json as ChatResponse
+  const content = parsed.choices?.[0]?.message?.content
+  if (!content) throw new Error("model endpoint returned no message content")
+  return { content, usage: parsed.usage, ms: latencyMs }
 }
 
 function systemPrompt(job: Job): string {

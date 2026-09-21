@@ -8,15 +8,16 @@ an author and 100% proved nothing. What it said it needed was *"a fixture set wh
 independent of the capture"*. This directory is that run.
 
 Nothing here re-implements the product or the scorer. The runner composes `src/` — `ingest`, the
-provisional store, the content-derived block-id policy and the real model-backed providers — and the
-scoring is done by `spikes/s1-capture-quality/score.py` against the bars recorded in its
-`THRESHOLD.md`.
+provisional store, the content-derived block-id policy, the real model-backed providers and the
+OpenAI transport (`src/pipeline/openai-transport.ts`, whose egress goes through
+`src/security/model-egress.ts` per ADR-0013) — and the scoring is done by
+`spikes/s1-capture-quality/score.py` against the bars recorded in its `THRESHOLD.md`. This
+directory holds only what is specific to *this run*.
 
 ## The pieces
 
 | File | Role |
 |---|---|
-| `openai-transport.ts` | A `ModelTransport` that reaches OpenAI. **Lives here, not in `src/`, on purpose** — see the file header: where model egress belongs relative to ADR-0010's chokepoint is an open architecture decision, and housing it here avoids pre-empting it. |
 | `run.ts` | Drives the maintainer's photographs through the real pipeline and writes snapshots + canonicals. |
 | `project.py` | Adapter only: `CanonicalRecipe` → the flat record the scorer compares. Moves values, decides nothing. |
 | `manifest.py` | Derives the fixture manifest and class labels from each truth file's own notes, by an explicit keyword table. |
