@@ -22,7 +22,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-11 | exact shortcut packaging/distribution mechanism | closed by PDR-0003 |
 | OQ-12 | exact mobile component/layout system | open |
 | OQ-13 | eager vs. background vs. lazy Cooking Plan generation | closed by PDR-0004 |
-| OQ-14 | exact capture-eval thresholds | open |
+| OQ-14 | exact capture-eval thresholds | open — Gate A run on real photographs returned **FAIL** and scan deletion stays disabled (`spikes/s1-photo-gate/VERDICT.md`); the run also showed exact-name matching to be under-specified for real sources, so the thresholds themselves need a maintainer decision |
 | OQ-15 | exact scaling-classification algorithm | out of V1 scope |
 | OQ-16 | exact safe URL-fetch implementation | closed by ADR-0010 |
 | OQ-17 | exact capability-token format/lifetime/revocation mechanism | open |
@@ -32,7 +32,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-21 | semantic ingredient alias vocabulary | out of V1 scope |
 | OQ-22 | Focus Mode | out of V1 scope |
 | OQ-23 | sophisticated intermediate-food-state graph | out of V1 scope |
-| OQ-24 | capture and normalization: one physical model call or two | open — CFV1-S6 spike evidence: both shapes reach 100% schema validity and 100% within-run sourceRef resolution, so fidelity does not force the choice; decision pending the OpenAI cost/latency pass (`spikes/s6-fidelity/FINDINGS.md`) |
+| OQ-24 | capture and normalization: one physical model call or two | open — evidence complete, decision outstanding. CFV1-S6 measured both shapes on three models (87 runs): identical schema validity at a given model tier and 100% within-run sourceRef resolution in both, so fidelity does not force the choice; the cost pass since closed the open half — one-call costs ~45% fewer tokens per conversion on both tiers, with no decisive latency difference. Pending only a maintainer decision and the record that carries it (`spikes/s6-fidelity/FINDINGS.md`) |
 
 ## Release readiness
 

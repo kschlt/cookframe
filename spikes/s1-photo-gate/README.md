@@ -1,5 +1,7 @@
 # CFV1-S1 — the real-photograph run (OQ-14, Gate A)
 
+**Result: [`VERDICT.md`](VERDICT.md) — FAIL. Deleting the original scan stays disabled.**
+
 The S1 spike built a pre-registered threshold, a self-tested per-field scorer and a verdict format,
 then returned **INCONCLUSIVE**: its fixtures were self-authored, so ground truth and capture shared
 an author and 100% proved nothing. What it said it needed was *"a fixture set whose ground truth is
@@ -19,6 +21,7 @@ scoring is done by `spikes/s1-capture-quality/score.py` against the bars recorde
 | `project.py` | Adapter only: `CanonicalRecipe` → the flat record the scorer compares. Moves values, decides nothing. |
 | `manifest.py` | Derives the fixture manifest and class labels from each truth file's own notes, by an explicit keyword table. |
 | `adjudicate.py` | The human ask: the disagreements between the two independent readings, side by side. |
+| `VERDICT.md` | **The result.** Bars, measured rates, reasoning and the two product findings — no page content, since none may be committed. |
 
 ## Where the data lives
 
@@ -44,7 +47,7 @@ Both readers are models. A failure mode they **share** — both misreading the s
 same way — appears here as agreement and is invisible to this design. Agreement between independent
 readers is real evidence and far stronger than the self-authored set, but it is not proof, so the
 verdict records this and asks for a spot-check of agreed fields alongside the adjudicated
-disagreements.
+disagreements ([`VERDICT.md`](VERDICT.md), *The honest limit*).
 
 ## Deviation from the pre-registered normalization
 
@@ -52,4 +55,4 @@ disagreements.
 unit would have scored as a miss for a reason that is not capture accuracy. German units were added
 to the table **before any real score was computed**, and no bar, comparison rule or verdict rule was
 touched; `score.py --selftest` still passes and the synthetic `scores-sonnet.json` is unchanged.
-The deviation is recorded here and in the verdict rather than being made silently.
+The deviation is recorded here and in [`VERDICT.md`](VERDICT.md) rather than being made silently.

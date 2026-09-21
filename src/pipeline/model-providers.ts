@@ -191,14 +191,20 @@ export function createModelCaptureProvider(config: ModelStageConfig): CapturePro
       // `sourceType` is the caller's, not the model's: a model handed a
       // photograph of a page may reasonably call it either "image" or "text",
       // and only the caller knows what it actually passed in.
-      return {
-        sourceType,
-        capturedText,
-        blocks,
-        ...(parsed.structuredSourcePayload !== undefined
-          ? { structuredSourcePayload: parsed.structuredSourcePayload }
-          : {}),
-      }
+      //
+      // `structuredSourcePayload` is deliberately NOT carried over from the
+      // reply, even when the model offers one. It means "the source itself
+      // published machine-readable structure" (Recipe JSON-LD and the like), and
+      // only a deterministic adapter that actually parsed such a payload can
+      // attest to that; a model reading a page can at best re-encode what it
+      // read, which is a different claim wearing the same field's name. The
+      // difference is load-bearing rather than cosmetic: `resolveSourceRefs`
+      // resolves a `payloadPointer` ref by checking that the snapshot carries a
+      // payload at all, so a model-invented payload would make every
+      // payload-pointer ref resolve by construction and turn a fail-closed check
+      // into a tautology. Same rule as block ids and provenance — structure the
+      // pipeline vouches for is never taken from the model.
+      return { sourceType, capturedText, blocks }
     },
   }
 }

@@ -110,6 +110,25 @@ describe("slice1/capture-ids-are-the-policys-not-the-models", () => {
     const [a, b] = await Promise.all([run(), run()])
     expect(a.blocks.map((x) => x.id)).toEqual(b.blocks.map((x) => x.id))
   })
+
+  it("does not take a structured source payload from the model", async () => {
+    // `structuredSourcePayload` asserts that the SOURCE published machine-readable
+    // structure, which only a deterministic adapter that parsed one can attest.
+    // `resolveSourceRefs` resolves a `payloadPointer` ref by checking the snapshot
+    // carries a payload at all, so a model-supplied one would make every such ref
+    // resolve by construction.
+    const withPayload = JSON.stringify({
+      ...JSON.parse(captureReply),
+      structuredSourcePayload: { "@type": "Recipe", name: "invented by the model" },
+    })
+    const snapshot = await captureSnapshot(
+      createModelCaptureProvider(stage(scripted(withPayload))),
+      policy,
+      new Uint8Array([0xff, 0xd8, 0xff]),
+      captureCtx,
+    )
+    expect(snapshot.structuredSourcePayload).toBeUndefined()
+  })
 })
 
 describe("slice1/capture-uses-the-vision-path-for-an-image", () => {

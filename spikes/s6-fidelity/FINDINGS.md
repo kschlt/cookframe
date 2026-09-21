@@ -1,8 +1,13 @@
 # CFV1-S6 — findings (OQ-24)
 
 Measured 2026-09-20 on the Claude prototyping models (Sonnet at n=3 per cell; Haiku at n=1 as a
-model-sensitivity smoke test). 33 independent runs. Reproduce with
-`npx tsx spikes/s6-fidelity/score.ts` over the committed `runs/`.
+model-sensitivity smoke test). 33 independent runs.
+
+**Reproducing this table.** `npx tsx spikes/s6-fidelity/score.ts` scores every run committed under
+`runs/`, which since 2026-09-21 also holds the 54 OpenAI runs of the confirming run below — so it
+now prints **87 runs in 33 cells**, not the 33 of this section. The cells below are the ones whose
+model label is `sonnet` or `haiku`; the scorer prints one `## shape · fixture · model` heading per
+cell, so read those off directly rather than expecting the totals to match.
 
 ## Results
 
@@ -76,8 +81,15 @@ model, if block ids are ever to survive a re-capture.
 
 Measured on `kschlt/cookframe` with `OPENAI_API_KEY` present, via `openai-run.ts --runs 3`:
 **54 further runs**, 27 per model, same prompts / fixtures / scorer as above.
-Models: **gpt-5.4** (full tier) and **gpt-5.4-mini** (cheap tier). Reproduce with
-`npx tsx spikes/s6-fidelity/score.ts` over the committed `runs/` (87 runs, 33 cells total).
+Models: **gpt-5.4** (full tier) and **gpt-5.4-mini** (cheap tier).
+
+**Reproducing this section.** `npx tsx spikes/s6-fidelity/score.ts` prints all 87 runs in 33 cells;
+the `openai-gpt54` and `openai-gpt54mini` cells are this run's, and the per-model totals below are
+those cells summed. The cost figures are the scorer's own
+`# Cost and latency per successful conversion` section, which it computes from the `.meta.json`
+usage sidecars committed beside each OpenAI run. No key and no network are needed to re-score:
+every run and its usage record is in the repository. Re-*producing* new runs is what needs
+`OPENAI_API_KEY`, via `npx tsx spikes/s6-fidelity/openai-run.ts --runs 3`.
 
 ## Fidelity on OpenAI
 
@@ -97,24 +109,45 @@ the cheap tier breaks the schema in ~11% of calls, the full tier in none.
 
 ## Cost and latency — the half the Claude pass could not produce
 
-Per conversion, mean over 9 runs per shape (two-call = capture + normalization summed):
+The criterion is cost **per conversion**, and a conversion that fails `.parse` is not one. You pay
+for a call whether or not its output conforms, so a mean over attempts flatters the tier that fails
+more often. Both figures are below; the right-hand one is what a caller pays to obtain one usable
+recipe, because a failed conversion has to be retried. A two-call conversion counts as successful
+only if **both** stages conform.
 
-| model | | latency | input tok | output tok | total tok |
-|---|---|---|---|---|---|
-| gpt-5.4 | two-call | 16.2 s | 9 134 | 2 336 | 11 470 |
-| gpt-5.4 | **one-call** | 18.1 s | 4 253 | 2 225 | **6 478** |
-| gpt-5.4-mini | two-call | 12.1 s | 9 134 | 2 472 | 11 606 |
-| gpt-5.4-mini | **one-call** | 9.7 s | 4 253 | 2 077 | **6 330** |
+| model | | latency/attempt | input tok | output tok | tok/attempt | conformed | **tok/success** | **latency/success** |
+|---|---|---|---|---|---|---|---|---|
+| gpt-5.4 | two-call | 16.2 s | 9 134 | 2 336 | 11 470 | 9/9 | 11 470 | 16.2 s |
+| gpt-5.4 | **one-call** | 18.1 s | 4 253 | 2 225 | 6 478 | 9/9 | **6 478** | 18.1 s |
+| gpt-5.4-mini | two-call | 12.1 s | 9 134 | 2 472 | 11 606 | 7/9 | 14 922 | 15.5 s |
+| gpt-5.4-mini | one-call | 9.7 s | 4 253 | 2 077 | 6 331 | 8/9 | 7 122 | 10.9 s |
 
-**One-call costs ~45% fewer tokens per conversion**, on both tiers. The saving is structural, not
-incidental: two-call sends the schema bundle twice and additionally sends the whole snapshot back
-in as normalization input, so its input is 2.1x the one-call input. Output volume is near-identical
-(~2.1-2.3k either way), which is the tell that the *work* is the same and only the framing differs.
+Two readings, and they point in different directions:
 
-Latency splits by tier: one-call is 20% faster on mini, 11% slower on gpt-5.4. Neither is decisive.
+1. **Within a tier, one-call costs ~45% fewer tokens per conversion.** The saving is structural, not
+   incidental: two-call sends the schema bundle twice and additionally sends the whole snapshot back
+   in as normalization input, so its input is 2.1x the one-call input. Output volume is
+   near-identical (~2.1-2.5k either way), which is the tell that the *work* is the same and only the
+   framing differs. This holds on both tiers and on both measures.
+
+2. **Across tiers, the cheap tier's advantage disappears once failures are paid for.** Per attempt,
+   mini one-call is the cheapest cell in the table at 6 331 tokens, nominally below gpt-5.4's 6 478.
+   Per successful conversion it is **7 122 — above the full tier**, because one call in nine has to
+   be paid for twice. The ranking inverts. Mini's two-call shape is worse still: 7/9 conformed, so
+   14 922 tokens per usable recipe against gpt-5.4's 11 470.
+
+Latency behaves the same way. Per attempt mini looks 20% faster in one-call; per success the gap
+narrows to 10.9 s against 18.1 s, and mini's two-call shape loses its lead entirely (15.5 s against
+gpt-5.4's 16.2 s). Neither difference is decisive for the one-vs-two choice.
+
 Roughly 71-80% of input tokens came back `cached` (automatic prompt caching on the stable schema
 prefix), so the real billed input is well below the raw figure — which further favours the shape
-with fewer, larger calls.
+with fewer, larger calls, and does not change the per-success ranking, since a failed call's input
+is cached too.
+
+These figures come from the `# Cost and latency per successful conversion` section printed by
+`npx tsx spikes/s6-fidelity/score.ts`, which reads the `.meta.json` usage sidecar committed beside
+each run.
 
 ## Block-id stability: the earlier reading was too kind to the models
 
@@ -149,10 +182,13 @@ residual argument against it is that its correctness depends on persisting the e
 was normalized — which the repository spine does do (PR #12/#16), so it is a live option, not a
 broken one.
 
-Separately and independently of the one-vs-two choice: **the full tier is required for
-contract conformance.** gpt-5.4-mini's 89% validity would mean roughly one in nine conversions
-failing `.parse` in production. A mini tier is only viable behind a retry, and a retry erases the
-cost advantage that is the only reason to pick it.
+Separately and independently of the one-vs-two choice: **the full tier is required, and it is also
+the cheaper one per usable recipe.** gpt-5.4-mini's 89% validity would mean roughly one in nine
+conversions failing `.parse` in production. That is not only a correctness problem: priced per
+successful conversion, mini one-call costs **7 122 tokens against the full tier's 6 478**, so the
+cheap tier is not actually cheap once its retries are paid for. The apparent saving in the
+per-attempt column is the failed calls going unbilled in the arithmetic but not in reality. There
+is therefore no remaining argument for the mini tier here.
 
 **Still Kornelius's to confirm**, and the ADR recording the decision is his call. What the spike
 owed — evidence on both axes — is now delivered.
