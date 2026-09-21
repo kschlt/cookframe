@@ -543,21 +543,20 @@ describe("slice3/omission-is-recorded-and-exact", () => {
  * is the tell that it was luck rather than a decision.
  */
 describe("slice3/omission-handles-non-finite-values", () => {
-  it("the contract admits an infinite value, so the mapping really can receive one", () => {
-    // Which is why the two infinities below go through `canonical()`, which
-    // parses. Zod's `z.number()` rejects NaN and accepts the infinities, so a
-    // recipe carrying one is a valid Canonical Recipe today.
-    expect(
-      DurationExpression.safeParse({
-        sourceText: "∞",
-        kind: "exact",
-        value: Number.POSITIVE_INFINITY,
-        unit: "h",
-      }).success,
-    ).toBe(true)
-    expect(
-      DurationExpression.safeParse({ sourceText: "NaN", kind: "exact", value: Number.NaN }).success,
-    ).toBe(false)
+  it("the contract refuses every non-finite value, so a validated Canonical cannot carry one", () => {
+    // CFV1-FIN tightened the contract: `z.number().finite()` now rejects both
+    // infinities and NaN alike (before, bare `z.number()` rejected only NaN, and
+    // this suite's infinity proofs went through the parsing `canonical()` helper).
+    // The mapping can therefore no longer receive a non-finite duration through a
+    // parsed Canonical. The proofs below build the recipe UNPARSED on purpose:
+    // the mapping takes a typed value, not a freshly parsed one, so its
+    // publication-point guard must still stand as defense in depth even though the
+    // contract already refuses the value upstream.
+    for (const value of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN]) {
+      expect(
+        DurationExpression.safeParse({ sourceText: "x", kind: "exact", value, unit: "h" }).success,
+      ).toBe(false)
+    }
   })
 
   for (const [label, value] of [
@@ -565,9 +564,12 @@ describe("slice3/omission-handles-non-finite-values", () => {
     ["negative infinity", Number.NEGATIVE_INFINITY],
   ] as const) {
     it(`omits a duration of ${label}, recording why`, () => {
-      const wild = canonical({
+      // Built unparsed (the contract refuses it, CFV1-FIN): this exercises the
+      // mapping's own finiteness guard directly, as defense in depth.
+      const wild = {
+        ...canonical(),
         times: [timeOf("prep", { sourceText: String(value), kind: "exact", value, unit: "h" })],
-      })
+      } as CanonicalRecipe
       const { recipe, omissions } = mapCanonicalToSchemaOrg(wild)
       expect(recipe.prepTime).toBeUndefined()
       expect(omissions).toContainEqual({
@@ -579,10 +581,10 @@ describe("slice3/omission-handles-non-finite-values", () => {
     })
   }
 
-  it("omits a NaN duration too, although the contract will not carry one today", () => {
+  it("omits a NaN duration too, on the same defense-in-depth path", () => {
     // The mapping takes a typed value, not a freshly parsed one, so it does not
-    // get to assume the contract already refused this. Built unparsed on
-    // purpose: if the contract is ever widened, this proof is already standing.
+    // get to assume the contract already refused this. Built unparsed on purpose,
+    // exactly as the infinities above now are.
     const nanRecipe = {
       ...canonical(),
       times: [timeOf("prep", { sourceText: "NaN", kind: "exact", value: Number.NaN, unit: "h" })],
