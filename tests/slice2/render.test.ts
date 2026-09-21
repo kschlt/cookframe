@@ -12,7 +12,7 @@
  * about every recipe.
  */
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { dirname, join, relative } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
@@ -107,14 +107,35 @@ describe("slice2/usable-with-source-unavailable", () => {
    */
   const ALLOWED = new Set(["../../schema/index.js", "hono/html", "hono/utils/html"])
 
+  /**
+   * A relative specifier is judged by where it RESOLVES, not by how it is
+   * spelled. `./../storage/byte-store.js` starts with `./` and lands in
+   * `src/storage/`; a prefix test lets it through, which is the same class of
+   * hole a review already found in this guard's first version. Resolving closes
+   * the class rather than the instance: no spelling reaches outside
+   * `src/render/` without the resolved path saying so.
+   */
+  const escapesRenderDir = (file: string, specifier: string): boolean =>
+    !resolve(dirname(file), specifier).startsWith(`${renderDir}/`)
+
   for (const file of tsFilesUnder(renderDir)) {
     it(`${relative(repoRoot, file)} imports no path to the source`, () => {
-      const offenders = importsOf(file).filter(
-        (specifier) => !specifier.startsWith("./") && !ALLOWED.has(specifier),
+      const offenders = importsOf(file).filter((specifier) =>
+        specifier.startsWith(".")
+          ? escapesRenderDir(file, specifier) && !ALLOWED.has(specifier)
+          : !ALLOWED.has(specifier),
       )
       expect(offenders).toEqual([])
     })
   }
+
+  it("the ban is judged by where a specifier resolves, not by how it is spelled", () => {
+    const fromRender = join(renderDir, "library.ts")
+    expect(escapesRenderDir(fromRender, "./view-model.js")).toBe(false)
+    // One target, two spellings. Both have to be seen as leaving the directory.
+    expect(escapesRenderDir(fromRender, "../storage/byte-store.js")).toBe(true)
+    expect(escapesRenderDir(fromRender, "./../storage/byte-store.js")).toBe(true)
+  })
 
   it("the render barrel exposes no snapshot, storage or fetch entry point", async () => {
     const barrel = await import("../../src/render/index.js")
@@ -149,6 +170,31 @@ describe("slice2/usable-with-source-unavailable", () => {
       mediaSrc: (identity) => `/media/${identity}`,
     })
     expect(withResolver).toContain('<img src="/media/sha256-')
+  })
+
+  it("a listing shows no total time the source did not state, and sums nothing", () => {
+    // The onion fixture HAS a total, and the gratin has only a bake time, so
+    // neither exercises the sum this criterion forbids. This one carries a prep
+    // and a cook and no total, which is the case where summing is tempting.
+    const prepAndCook = CanonicalRecipe.parse({
+      ...JSON.parse(JSON.stringify(gratin)),
+      times: [
+        {
+          type: "prep",
+          durationExpression: { sourceText: "20 Min.", kind: "exact", value: 20, unit: "min" },
+          sourceRefs: [{ blockId: "b-meta" }],
+        },
+        {
+          type: "cook",
+          durationExpression: { sourceText: "25 Min.", kind: "exact", value: 25, unit: "min" },
+          sourceRefs: [{ blockId: "b-meta" }],
+        },
+      ],
+    })
+    expect(toLibraryCardView(prepAndCook).totalTime).toBeUndefined()
+    const body = libraryBody([toLibraryCardView(prepAndCook)]).toString()
+    expect(body).not.toContain("45")
+    expect(unsourcedNumbers(body, prepAndCook)).toEqual([])
   })
 
   it("no recipe field is left blank or filled in when the source did not state it", () => {
@@ -240,9 +286,28 @@ const stringsIn = (value: unknown): string[] => {
   return []
 }
 
+/**
+ * One number, as a reader sees it: a decimal, a fraction and a mixed fraction
+ * each count as ONE token, not as their digits.
+ *
+ * The first version matched bare `\d+`, which splits a fabricated "1.5" into
+ * "1" and "5" — and both of those occur all over a recipe, so the midpoint this
+ * helper exists to catch walked straight through its own docstring. A review
+ * caught that. The lesson generalises: the unit of comparison has to be the
+ * unit a coercion would actually produce.
+ */
+const NUMBER_TOKEN = /\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?/g
+
 const unsourcedNumbers = (body: string, recipe: CanonicalRecipe): string[] => {
   const wording = stringsIn(recipe).join("\u0000")
-  return [...body.matchAll(/\d+/g)].map((m) => m[0]).filter((digits) => !wording.includes(digits))
+  // Character references carry digits that are markup, not content: an
+  // apostrophe in a description arrives as `&#39;` and would read as a number
+  // nobody wrote. Dropping them is not weakening the check — the escaping
+  // itself has its own proofs under `no-client-runtime-in-output`.
+  const content = body.replace(/&#?[0-9a-z]+;/gi, " ")
+  return [...content.matchAll(NUMBER_TOKEN)]
+    .map((m) => m[0])
+    .filter((token) => !wording.includes(token))
 }
 
 const numericLeaves = (value: unknown, path = "$"): string[] => {
@@ -397,6 +462,32 @@ describe("slice2/no-jsx-or-component-system-imported", () => {
     "styled-components",
   ]
 
+  /**
+   * The list above is a denylist, and a denylist cannot name the framework
+   * nobody has heard of yet. So the real guard is the other way round: a module
+   * under `src/` may import a NODE BUILTIN, a RELATIVE sibling, or a package
+   * this repository actually declares — and nothing else. A new component
+   * system has to be added to `package.json` first, in the diff, with a reason.
+   *
+   * `hono` is a declared dependency, so the allowlist alone would admit
+   * `hono/jsx`. That one subpath is the erosion `ADR-0007` names by name, so it
+   * keeps its own explicit ban; the denylist below is what states the intent
+   * that the allowlist only enforces.
+   */
+  const packageRoot = (specifier: string): string =>
+    specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0]
+
+  const declaredPackages = (): Set<string> => {
+    const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+    }
+    return new Set([
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.devDependencies ?? {}),
+    ])
+  }
+
   for (const file of tsFilesUnder(srcDir)) {
     it(`${relative(repoRoot, file)} imports no JSX runtime or component system`, () => {
       const offenders = importsOf(file).filter((specifier) =>
@@ -404,7 +495,25 @@ describe("slice2/no-jsx-or-component-system-imported", () => {
       )
       expect(offenders).toEqual([])
     })
+
+    it(`${relative(repoRoot, file)} imports only declared packages and siblings`, () => {
+      const declared = declaredPackages()
+      const strangers = importsOf(file).filter(
+        (specifier) =>
+          !specifier.startsWith(".") &&
+          !specifier.startsWith("node:") &&
+          !declared.has(packageRoot(specifier)),
+      )
+      expect(strangers).toEqual([])
+    })
   }
+
+  it("the allowlist would not save us from hono/jsx, which is why the ban is explicit", () => {
+    // Stated as a test rather than as a comment, because it is the reason the
+    // denylist above still earns its place beside the allowlist.
+    expect(declaredPackages().has(packageRoot("hono/jsx"))).toBe(true)
+    expect(FORBIDDEN).toContain("hono/jsx")
+  })
 
   it("the compiler is not configured to accept JSX at all", () => {
     // The import bans above are the rule; this is the mechanism that makes the
