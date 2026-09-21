@@ -293,7 +293,7 @@ function withRepairRequest(
 ): ModelExchange {
   const excerpt = sealSourceText(
     "your rejected reply",
-    (failure.reply ?? "").slice(0, REPAIR_EXCERPT_CHARS),
+    failure.reply.slice(0, REPAIR_EXCERPT_CHARS),
     markerSource,
   )
   return {

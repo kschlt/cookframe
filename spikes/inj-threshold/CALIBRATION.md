@@ -141,27 +141,77 @@ not a probe that resembles it** — and it was only caught by running the shippe
 function over the real corpus rather than trusting that two implementations of
 one paragraph agree.
 
-## One threshold, two stages — added after the measurement
+## Two stages, two rules — and a reasoning error, disclosed
 
 The measurement above scored **normalization** claims: a canonical fact against
-the snapshot block it cites. A later adversarial pass found that this chain has
-no anchor — the snapshot is a model output too, so a model that invents at
-*capture* is verified against its own record of the invention. Closing it added
-a second use of the same comparator: each captured block against the decoded
-input bytes.
+the snapshot block it cites. Two later findings changed what the other stage
+does and what "cited" means, and both were reproduced against the shipped code
+before anything was changed.
 
-**The second stage was not separately calibrated, and its threshold was not
-re-chosen.** Both facts are stated here rather than folded away, because the
-alternative — calibrating a second bar against the failure that prompted it —
-is exactly what this document exists to rule out. Reusing the number is the
-conservative move available without a second corpus: the capture comparison is
-strictly easier than the one measured (a captured block is a span of the input,
-not a paraphrase of it), so a threshold calibrated on the harder comparison is
-not being loosened for the easier one.
+### The capture stage does not use this threshold at all
 
-What this does mean: the capture stage inherits every limit listed below along
-with the number, and it has no measured false-refusal rate of its own. Slice 4's
-fallback unit measures both stages or neither.
+A later adversarial pass found that the chain had no anchor — the snapshot is a
+model output too, so a model that invents at *capture* is verified against its
+own record of the invention. Closing it added a second use of the comparator:
+each captured block against the decoded input.
+
+**That reused the threshold, and reusing it was wrong.** Coverage counts a
+claim's words appearing in order anywhere in the text it is scored against, so
+the score depends on how big that text is — and at capture the text is a whole
+page rather than one cited block. On a 21-line recipe page, seven fabricated
+blocks that appear nowhere on it were all accepted, several at coverage 1.000:
+"225 g Backpulver" where the page says *1 Teelöffel*, "Den Ofen auf 200 Grad
+vorheizen" where it says *180*. The words are all on the page; only their
+arrangement is invented. That is the recombination attack the item's own Hints
+name as the strongest proof, and the shipped anchor did not catch it.
+
+**The error in the reasoning, stated plainly.** This document justified reusing
+the number like this: *"the capture comparison is strictly easier than the one
+measured (a captured block is a span of the input, not a paraphrase of it), so
+a threshold calibrated on the harder comparison is not being loosened for the
+easier one."* That is sound for FALSE REFUSALS and backwards for FALSE
+ACCEPTANCES — and the security property rests on the second. An easier
+comparison means legitimate blocks clear the bar more easily; it equally means
+fabricated ones do. The disclosure that the second stage was not separately
+calibrated was already here and was not enough, because what changed was not
+only the corpus but the SHAPE of the comparison.
+
+**The capture rule is now containment**, on the normalized text, with no
+relaxation. A captured block is a span of the input — capture segments text, it
+does not paraphrase — so containment is a bar that stage can actually carry:
+
+| | blocks | contained verbatim after normalization |
+|---|---|---|
+| real Slice 1 snapshots | 191 | **191 (100%)** |
+
+So the relaxation bought no false-refusal headroom at this stage and was attack
+surface only. Measured with the shipped `normalizeForSupport`, against each
+snapshot's own captured text. Note what this does *not* measure: the corpus is
+photographs, and the rule governs `url` and `text` sources, where no page has
+been captured yet.
+
+### Claims are scored against the best cited block, not their concatenation
+
+The second finding: `verifyClaimSupport` joined the text of every cited block
+and scored the claim against the concatenation, so citing MORE blocks could only
+raise the score. The model writes its own refs, so it was choosing its own
+haystack — the same failure this rule exists to prevent, reached by widening a
+citation instead of inventing a ref. An invented "250 g Zwiebel" scores 0.667
+against the best single block and **1.000** against every block joined.
+
+Scored per block now, best block wins. Re-measured over the same 696 claims,
+**with the shipped TypeScript rather than a probe**:
+
+| rule | claims refused of 696 |
+|---|---|
+| joined citations (as calibrated) | 2 (0.29%) |
+| best cited block (as shipped) | **2 (0.29%)** |
+| newly refused by the change | **0** |
+
+The same two claims, and no legitimate claim lost. The threshold did not move
+and was not re-chosen: both changes TIGHTEN the rule in response to a
+reproduced attack, which is the one direction that needs no timestamp defence.
+Loosening either after seeing a score is what `CFV1-THR` exists to prevent.
 
 ## What this calibration does not establish
 

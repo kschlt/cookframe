@@ -183,11 +183,16 @@ export function supportCoverage(claim: string, cited: string): number {
 export class UnsupportedCaptureError extends Error {
   constructor(
     readonly blockText: string,
+    /**
+     * How close the block came, for diagnosis only. The capture rule is
+     * containment, so this number decides nothing — it is here so a refusal
+     * says whether the block was a near miss or invented outright.
+     */
     readonly coverage: number,
   ) {
     super(
-      `a captured block carries text the source did not (coverage ${coverage.toFixed(2)} < ` +
-        `${SUPPORT_COVERAGE_THRESHOLD}): ${JSON.stringify(blockText.slice(0, 200))}`,
+      `a captured block carries text the source does not contain (nearest coverage ` +
+        `${coverage.toFixed(2)}): ${JSON.stringify(blockText.slice(0, 200))}`,
     )
     this.name = "UnsupportedCaptureError"
   }
@@ -215,12 +220,12 @@ export function verifyCaptureSupport(
   blocks: readonly { readonly text: string }[],
 ): void {
   if (sourceType !== "url" && sourceType !== "text") return
+  const normalizedInput = normalizeForSupport(inputText)
   for (const block of blocks) {
     if (block.text.trim() === "") continue
-    const coverage = supportCoverage(block.text, inputText)
-    if (coverage < SUPPORT_COVERAGE_THRESHOLD) {
-      throw new UnsupportedCaptureError(block.text, coverage)
-    }
+    const normalizedBlock = normalizeForSupport(block.text)
+    if (normalizedBlock === "" || normalizedInput.includes(normalizedBlock)) continue
+    throw new UnsupportedCaptureError(block.text, supportCoverage(block.text, inputText))
   }
 }
 
@@ -295,11 +300,25 @@ export function verifyClaimSupport(snapshot: SourceSnapshot, canonical: Canonica
     // Refs are resolved elsewhere; an id absent here contributes no evidence
     // rather than throwing, so this module reports unsupported claims and
     // `resolveSourceRefs` keeps reporting unresolvable refs.
-    const cited = ids
+    // Scored against each cited block SEPARATELY, best block wins — never
+    // against their concatenation.
+    //
+    // Joining them made the haystack the model's to choose. Coverage counts a
+    // claim's words appearing in order anywhere in the text it is scored
+    // against, so adding a block can only raise it: an invented "225 g
+    // Backpulver" scores 0.33 against the one block that plausibly grounds it
+    // and 1.00 against every block joined, by borrowing "225 g" from one line
+    // and "Backpulver" from another. The model writes its own refs, so it was
+    // choosing its own evidence — the exact failure this module's docstring
+    // names, reached by widening the citation instead of inventing a ref.
+    //
+    // A `sourceText` is one fact's wording from one place in the source, so
+    // the best single block is the right question; a claim no single cited
+    // block supports is unsupported however many are named.
+    const coverage = ids
       .map((id) => blockText.get(id))
-      .filter((t): t is string => t !== undefined)
-      .join(" ")
-    const coverage = supportCoverage(claim.text, cited)
+      .filter((text): text is string => text !== undefined)
+      .reduce((best, text) => Math.max(best, supportCoverage(claim.text, text)), 0)
     if (coverage < SUPPORT_COVERAGE_THRESHOLD) {
       throw new UnsupportedClaimError(claim.text, ids, coverage)
     }

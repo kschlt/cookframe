@@ -51,7 +51,11 @@ repair path is the one where the model has already demonstrably left its contrac
 
 A fact's `sourceText` — the field the ontology defines as the source's own wording (§5.2) — must be
 supported by the block its `sourceRefs` cite, not merely accompanied by a ref that resolves. The
-rule is normalized containment with a bounded token-coverage relaxation; the threshold, the
+rule is normalized containment with a bounded token-coverage relaxation, scored against **each
+cited block separately, best block wins** — never against their concatenation. Scoring the
+concatenation made the haystack the model's to choose: coverage counts a claim's words appearing in
+order anywhere in the text scored against, so adding a citation could only raise it, and a model
+that writes its own refs could manufacture support by citing everything. The threshold, the
 measurement behind it and its limits are registered in `spikes/inj-threshold/CALIBRATION.md`. The
 refusal is its own type, distinct from a contract failure and from a transport failure, and it is
 **not retried**: a page that steered the model will steer it again, and a second billed call buys
@@ -68,9 +72,17 @@ and normalization then verifies the fabrication against its own record of the fa
 it supported. Demonstrated before it was closed, end to end, on a page written to induce invention:
 an ingredient absent from the page reached a valid canonical with every ref resolving.
 
-So on the `url` and `text` paths every captured block is verified against **the decoded input bytes**
-— the only text in the pipeline no model has touched. That is the chain's anchor; everything
-downstream verifies against something already verified against it.
+So on the `url` and `text` paths every captured block must be **contained in the decoded input**,
+normalized — the only text in the pipeline no model has touched. That is the chain's anchor;
+everything downstream verifies against something already verified against it.
+
+**Containment here, not the relaxation used at normalization, and the difference is the whole
+point.** Coverage depends on the size of the text scored against, and at capture that text is a
+whole page rather than one cited block, which makes an in-order word test nearly free: fabricated
+blocks assembled from a page's own vocabulary score 1.000 against it while appearing nowhere on it.
+A captured block is a SPAN of the input — capture segments text, it does not paraphrase — so
+containment is a bar this stage can carry, and every block of every real snapshot measured clears
+it. The relaxation bought no headroom here and was attack surface only.
 
 This makes an architectural requirement of Slice 4's fallback structural rather than advisory: the
 fallback must hand capture the **extracted text** it is asking the model to read, not the raw HTML
@@ -100,9 +112,14 @@ applied to content: **a model's claim about the source is evidence, never author
   rate belongs to Slice 4's fallback unit to measure.
 - A refusal names the claim and the block it failed against, so it is diagnosable rather than
   mysterious. A capture-stage refusal names the block and the input it failed against.
-- The two stages share one comparator and one threshold. That is deliberate — two bars would be two
-  things to calibrate and two to keep honest — but it means the capture stage inherits the
-  calibration's limits along with its number, and the capture corpus is the same photographs.
+- **The two stages share a comparator but NOT a rule.** Capture requires containment; normalization
+  allows the calibrated relaxation against the best cited block. One bar for both was tried first
+  and was wrong, because the relaxation's meaning depends on how large the text scored against is —
+  a rule calibrated for one cited block does not transfer to a whole page. `CALIBRATION.md` records
+  that reasoning error rather than replacing it quietly, because the argument that justified it
+  reads as sound and is backwards for exactly the direction that matters.
+- Neither rule was loosened in response to a score. Both were TIGHTENED in response to a reproduced
+  attack, which is the one direction needing no timestamp defence.
 - The relaxation threshold is a permanent contract. Changing it after seeing a result it moves is
   the failure `CFV1-THR` exists to prevent; it changes by a new record, with a new measurement.
 - Verification rests on multi-token claims. A one-word claim scores as supported against almost any
