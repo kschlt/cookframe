@@ -42,3 +42,4 @@ recipe, or a working exploit against anything outside this repository.
 | File | Class | Origin |
 |---|---|---|
 | `two-yields-nutrition.json` | future-readiness (two contextual yields, ambiguous nutrition basis) | synthetic |
+| `ranges-and-qualitative.json` | non-scalar quantities (range, qualitative, approximate, open-ended duration, no author) | synthetic |
