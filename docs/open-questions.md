@@ -11,8 +11,8 @@ discovery-era wording is kept in [`archive/`](archive/).
 |---|---|---|
 | OQ-01 | exact framework/router | closed by ADR-0007 |
 | OQ-02 | TypeScript vs. another implementation language if real constraints justify a change | closed by ADR-0002 |
-| OQ-03 | database technology | open |
-| OQ-04 | JSON vs. relational physical persistence | open |
+| OQ-03 | database technology | closed by ADR-0015 (PostgreSQL) |
+| OQ-04 | JSON vs. relational physical persistence | closed by ADR-0015 (JSONB documents, extracted projections where measured) |
 | OQ-05 | hosting platform/reference deployment | closed by ADR-0011 (rented single-tenant cloud server) |
 | OQ-06 | object/blob storage implementation | closed by ADR-0009 |
 | OQ-07 | model provider | open — configuration, not a record (ADR-0004) |

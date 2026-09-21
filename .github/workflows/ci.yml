@@ -108,6 +108,36 @@ jobs:
       - run: npm ci
       - run: npm run test:model-egress
 
+  # CFV1-DBQ's three deciding queries are proved against real PostgreSQL, not a
+  # stand-in: ADR-0003's hypothesis names Postgres, and a shape comparison run on
+  # a different engine would measure the engine. The tests skip when no server
+  # answers, so this service is what stops "skipped everywhere" from passing —
+  # `tests/unit/repo-config.test.ts` asserts that this job and this service exist.
+  dbq:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:dbq
+
   slice1:
     runs-on: ubuntu-latest
     steps:

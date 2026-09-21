@@ -4,8 +4,17 @@
  * ADR-0003 defers the database technology and physical shape (OQ-03/OQ-04) and
  * lets Slice 1 persist "JSON documents in the simplest store that works", behind
  * the repository interface, explicitly replaceable. This is that store: an
- * in-memory, append-only implementation — dependency-free and deterministic. It
- * decides nothing about OQ-03/OQ-04; the deciding evaluation is CFV1-DBQ.
+ * in-memory, append-only implementation — dependency-free and deterministic.
+ *
+ * STILL PROVISIONAL, and now provisional against a decision rather than against
+ * an open question. CFV1-DBQ measured the three deciding queries over real
+ * Slice 1 data and ADR-0015 closed OQ-03/OQ-04: PostgreSQL, JSONB documents,
+ * with an extracted projection where a query is measured to need one. That
+ * record CONFIRMS the shape this store persists — a whole validated Canonical
+ * Recipe per version, appended, never mutated — and REPLACES its storage, which
+ * is in memory and survives nothing. The replacement is its own piece of work;
+ * until it lands this store is what runs, and this notice is what stops
+ * "provisional" from meaning "nobody decided".
  *
  * The concrete class is intentionally NOT exported — callers see only
  * {@link RecipeRepository} and {@link createProvisionalStore}, so no storage
