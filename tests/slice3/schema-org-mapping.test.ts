@@ -19,7 +19,7 @@
 import { describe, expect, it } from "vitest"
 import {
   CanonicalRecipe,
-  type DurationExpression,
+  DurationExpression,
   type RecipeTime,
   type RecipeYield,
   SCHEMA_VERSION,
@@ -366,5 +366,234 @@ describe("slice3/missing-author-explicit-state", () => {
     expect(recipe.recipeYield).toEqual([
       { "@type": "QuantitativeValue", value: 1, unitText: "loaf", name: "1 loaf" },
     ])
+  })
+})
+
+/**
+ * The omission paths themselves, added after `/pr-review` found that the module
+ * could emit a number nobody wrote and could drop a list line with no trace.
+ * Each test here fails against the code as it stood before the fix, which is
+ * what makes it a proof rather than a restatement.
+ */
+describe("slice3/omission-is-recorded-and-exact", () => {
+  it("omits a duration that is not a whole number of seconds, never rounding it", () => {
+    // 2.5 seconds has no ISO 8601 form here. Rounding it to PT3S would publish a
+    // number the source never wrote, silently, in the module whose one rule is
+    // omit-never-coerce.
+    const fractional = canonical({
+      times: [
+        timeOf("prep", { sourceText: "2.5 seconds", kind: "exact", value: 2.5, unit: "seconds" }),
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(fractional)
+    expect(recipe.prepTime).toBeUndefined()
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "not_representable",
+      sourceText: "2.5 seconds",
+      kind: "exact",
+    })
+  })
+
+  it("still converts a duration whose product is a whole second under float error", () => {
+    // The discriminating counter-case, and it has to be a MEASURED one. An
+    // earlier version of this test used `0.1 h` on the stated grounds that
+    // `0.1 * 3600` is `360.00000000000006`. It is exactly `360`, so that test
+    // passed with `Number.isInteger` in place of the tolerance and proved
+    // nothing — the constant it was written to guard could have been deleted
+    // with the whole gate staying green.
+    //
+    // `1.1 * 3600` really is `3960.0000000000005`. The assertion below is the
+    // one the tolerance is load-bearing for: without it, "1.1 h" — a duration a
+    // source can plainly write, and exactly 66 minutes — would be omitted as
+    // unrepresentable.
+    expect(1.1 * 3600).not.toBe(3960)
+    expect(Number.isInteger(1.1 * 3600)).toBe(false)
+
+    const oneAndATenth = canonical({
+      times: [timeOf("prep", { sourceText: "1.1 h", kind: "exact", value: 1.1, unit: "h" })],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(oneAndATenth)
+    expect(recipe.prepTime).toBe("PT1H6M")
+    expect(omissions).toEqual([])
+  })
+
+  it("omits a zero duration as not representable rather than calling it inexact", () => {
+    const zero = canonical({
+      times: [timeOf("prep", { sourceText: "0 min", kind: "exact", value: 0, unit: "min" })],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(zero)
+    expect(recipe.prepTime).toBeUndefined()
+    // The value IS exact; what fails is the representation. Reporting
+    // `non_exact_value` here would misdescribe the source.
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "not_representable",
+      sourceText: "0 min",
+      kind: "exact",
+    })
+  })
+
+  it("distinguishes a missing unit from an unrecognized one", () => {
+    const unitless = canonical({
+      times: [timeOf("prep", { sourceText: "15", kind: "exact", value: 15 })],
+    })
+    const { omissions } = mapCanonicalToSchemaOrg(unitless)
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "missing_unit",
+      sourceText: "15",
+      kind: "exact",
+    })
+  })
+
+  it("does not let a later time fill a field the first one claimed but omitted", () => {
+    // The source stated a RANGE for cooking. Publishing the bake duration as
+    // `cookTime` would tell the consumer a cook time the source never gave.
+    const claimed = canonical({
+      times: [
+        timeOf("cook", { sourceText: "1–2 h", kind: "range", minValue: 1, maxValue: 2, unit: "h" }),
+        timeOf("bake", { sourceText: "45 min", kind: "exact", value: 45, unit: "min" }),
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(claimed)
+    expect(recipe.cookTime).toBeUndefined()
+    expect(omissions).toContainEqual({
+      field: "cookTime",
+      reason: "non_exact_value",
+      sourceText: "1–2 h",
+      kind: "range",
+    })
+    expect(omissions).toContainEqual({
+      field: "cookTime",
+      reason: "duplicate_time_type",
+      sourceText: "45 min",
+      kind: "exact",
+    })
+  })
+
+  it("records an ingredient dropped for blank source wording", () => {
+    const base = canonical()
+    const group = base.ingredientGroups[0]
+    if (group === undefined) throw new Error("fixture has no ingredient group")
+    const blanked = canonical({
+      ingredientGroups: [
+        {
+          ...group,
+          ingredients: [
+            ...group.ingredients,
+            {
+              id: "i-blank",
+              sourceText: "   ",
+              name: "Salt",
+              qualifiers: [],
+              scalingEligibility: "unknown",
+              sourceRefs: [{ blockId: "b-ing" }],
+            },
+          ],
+        },
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(blanked)
+    // A quietly short shopping list misleads exactly as much as an invented
+    // number does, so the drop leaves a trace.
+    expect(recipe.recipeIngredient).not.toContain("   ")
+    expect(omissions).toContainEqual({
+      field: "recipeIngredient",
+      reason: "blank_source_text",
+      sourceText: "Salt",
+    })
+  })
+
+  it("records a step dropped for blank source wording", () => {
+    // The ingredient half of this rule was proved and the step half was not,
+    // although both are written. Half of "record every drop" was unguarded:
+    // deleting the `recipeInstructions` record left the whole suite green.
+    const base = canonical()
+    const section = base.instructionSections[0]
+    if (section === undefined) throw new Error("fixture has no instruction section")
+    const step = section.steps[0]
+    if (step === undefined) throw new Error("fixture has no step")
+    const blanked = canonical({
+      instructionSections: [
+        {
+          ...section,
+          steps: [...section.steps, { ...step, id: "step-blank", sourceText: "  " }],
+        },
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(blanked)
+    expect(recipe.recipeInstructions).toHaveLength(1)
+    expect(omissions).toContainEqual({
+      field: "recipeInstructions",
+      reason: "blank_source_text",
+      sourceText: step.normalizedActionText,
+    })
+  })
+})
+
+/**
+ * Non-finite values, found by `/pr-review` on the very change that closed the
+ * rounding coercion — the same defect class surviving on the line that fixed it.
+ *
+ * `NaN` defeats every comparison: `Math.abs(NaN - NaN) > tolerance` is false and
+ * `NaN <= 0` is false, so it fell through to the ISO builder and produced a bare
+ * `PT` with `omissions: []`. `Infinity` produced `PTInfinityH` the same way.
+ * `-Infinity` was caught, but only by the positivity check — and that asymmetry
+ * is the tell that it was luck rather than a decision.
+ */
+describe("slice3/omission-handles-non-finite-values", () => {
+  it("the contract admits an infinite value, so the mapping really can receive one", () => {
+    // Which is why the two infinities below go through `canonical()`, which
+    // parses. Zod's `z.number()` rejects NaN and accepts the infinities, so a
+    // recipe carrying one is a valid Canonical Recipe today.
+    expect(
+      DurationExpression.safeParse({
+        sourceText: "∞",
+        kind: "exact",
+        value: Number.POSITIVE_INFINITY,
+        unit: "h",
+      }).success,
+    ).toBe(true)
+    expect(
+      DurationExpression.safeParse({ sourceText: "NaN", kind: "exact", value: Number.NaN }).success,
+    ).toBe(false)
+  })
+
+  for (const [label, value] of [
+    ["positive infinity", Number.POSITIVE_INFINITY],
+    ["negative infinity", Number.NEGATIVE_INFINITY],
+  ] as const) {
+    it(`omits a duration of ${label}, recording why`, () => {
+      const wild = canonical({
+        times: [timeOf("prep", { sourceText: String(value), kind: "exact", value, unit: "h" })],
+      })
+      const { recipe, omissions } = mapCanonicalToSchemaOrg(wild)
+      expect(recipe.prepTime).toBeUndefined()
+      expect(omissions).toContainEqual({
+        field: "prepTime",
+        reason: "not_representable",
+        sourceText: String(value),
+        kind: "exact",
+      })
+    })
+  }
+
+  it("omits a NaN duration too, although the contract will not carry one today", () => {
+    // The mapping takes a typed value, not a freshly parsed one, so it does not
+    // get to assume the contract already refused this. Built unparsed on
+    // purpose: if the contract is ever widened, this proof is already standing.
+    const nanRecipe = {
+      ...canonical(),
+      times: [timeOf("prep", { sourceText: "NaN", kind: "exact", value: Number.NaN, unit: "h" })],
+    } as CanonicalRecipe
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(nanRecipe)
+    expect(recipe.prepTime).toBeUndefined()
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "not_representable",
+      sourceText: "NaN",
+      kind: "exact",
+    })
   })
 })
