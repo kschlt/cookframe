@@ -98,16 +98,30 @@ describe("CFV1-DBQ decision record", () => {
     )
   })
 
-  it("dbq/record-is-new-not-a-rewrite — ADR-0003 is left as it was", () => {
-    // ADR-0006: an accepted record is never rewritten. ADR-0003 already says
-    // OQ-03 and OQ-04 stay open and that a later record closes them, so it
-    // must still say exactly that.
+  it("dbq/record-is-new-not-a-rewrite — ADR-0003's decision is not edited", () => {
+    // ADR-0006: an accepted record is never rewritten; a decision changes by a
+    // new record that supersedes it.
+    //
+    // This test used to read that as "ADR-0003 must still say `status:
+    // accepted` and must carry no `superseded_by`". That was wrong, and it
+    // broke main the moment ADR-0018 landed. `docs/adr/README.md` says
+    // supersession is recorded "with `supersedes` and `superseded_by` set on
+    // BOTH sides" — so the front matter of a superseded record is exactly what
+    // the convention expects to change, and forbidding it forbade the
+    // convention.
+    //
+    // What the rule actually protects is the DECISION: ADR-0003's own body
+    // must still say what it said, rather than being quietly edited to close
+    // the questions a later record closes. That is what is asserted now.
     const adr0003 = read("docs", "adr", "ADR-0003-recipe-persistence.md")
-    expect(adr0003).toMatch(/^status: accepted$/m)
     expect(adr0003).toContain("**OQ-03 and OQ-04 stay open.**")
     expect(
       adr0003,
-      "ADR-0003 was edited to point at its successor instead of being superseded",
-    ).not.toMatch(/superseded_by/)
+      "ADR-0003's body was edited to close the questions instead of being superseded",
+    ).not.toMatch(/closed by ADR-0015/)
+    // Superseded is allowed; superseded-without-saying-by-what is not.
+    if (/^status: superseded$/m.test(adr0003)) {
+      expect(adr0003, "a superseded record names its successor").toMatch(/^superseded_by:/m)
+    }
   })
 })

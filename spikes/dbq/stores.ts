@@ -68,6 +68,22 @@ function store(
       await write(valid, version)
       return { recipeId: valid.id, version, recipe: valid }
     },
+    async loadLatestCanonical(recipeId: string): Promise<CanonicalVersion | undefined> {
+      // (6, ADR-0018). Not-found is a return value, not a throw — the interface
+      // is explicit that this follows `loadSnapshot` rather than `readTwoRuns`,
+      // because the shopping slice's capability-URL route has to tell a revoked
+      // token from a missing recipe without catching an exception.
+      await use()
+      const latest = await client.query<{ v: number | null }>(
+        "select max(version) as v from recipe_version where recipe_id = $1",
+        [recipeId],
+      )
+      const version = latest.rows[0]?.v
+      if (version === null || version === undefined) return undefined
+      const recipe = await read(client, recipeId, Number(version))
+      if (recipe === undefined) return undefined
+      return { recipeId, version: Number(version), recipe }
+    },
     async listLibrary(): Promise<readonly LibraryEntry[]> {
       await use()
       return listLibrary(client, schema)
