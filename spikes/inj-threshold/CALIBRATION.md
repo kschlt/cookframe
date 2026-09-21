@@ -294,6 +294,12 @@ rule about wording rather than about bytes, and they were measured here.
   a limitation of the null model rather than of the rule — the cited block does
   contain the word — but it means the protection against fabrication rests on
   multi-token claims, which is where a fabricated recipe's content lives.
+- **The newline residual is unmeasurable on this corpus.** Normalization folds line breaks into
+  spaces, so a claim spanning one line boundary is contained. Every block in this corpus is a
+  single line — 191 of 191 — so the measurement that would price the fix ("how many legitimate
+  claims wrap across a line?") returns zero for a reason that has nothing to do with the question.
+  Recorded as a known-unmeasurable rather than as a clean result, because a zero from a vacuous
+  measurement reads exactly like a zero from a real one.
 - **Nothing here says the model obeys the fence.** Separation and verification
   are independent halves; this document is about the second.
 

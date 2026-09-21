@@ -138,6 +138,20 @@ applied to content: **a model's claim about the source is evidence, never author
 - Verification rests on multi-token claims. A one-word claim is contained in almost any block that
   uses the word, which is correct — the block does contain it — but it means the protection lives
   where a fabricated recipe's content lives, not everywhere uniformly.
+- **Normalization collapses line breaks, so text that is adjacent ACROSS a line boundary counts as
+  contained.** This is the residual of the recombination class, and it is named here rather than
+  left to be found: a claim can still be assembled from source text, in source order, spanning one
+  line break — "Zucker" at the end of one line and "Salz" at the start of the next support
+  "Zucker Salz". It is far weaker than what containment closed, because the words must be adjacent
+  and in the source's own order rather than gathered from anywhere on the page, but it is not
+  nothing.
+  **It is also unmeasured, and the obvious measurement is vacuous.** Every block in the calibration
+  corpus is a single line, so "no legitimate claim depends on the newline fold" is true of that
+  corpus and says nothing about pages whose blocks are paragraphs. Requiring containment within one
+  line would close it, and would refuse any legitimate quotation that wraps — a cost this corpus
+  cannot price. Slice 4's fallback unit sees the first multi-line blocks and is where that
+  measurement belongs; tightening before it exists would be choosing a rule on no evidence, which
+  is the failure the rest of this record is written against.
 - **Legitimate quotations that differ from the source by an inflection are now refused.** That is
   the measured cost of dropping the relaxation: one claim in 696. It was not a free choice. That
   claim had every word present, in order, with a gap — which is also the recombination attack's
