@@ -62,6 +62,27 @@ UNIT_SYNONYMS = {
     "can": "can", "cans": "can",
     "pinch": "pinch", "stick": "stick", "handful": "handful",
     "sprig": "sprig", "sprigs": "sprig", "sheet": "sheet", "sheets": "sheet",
+    # German units. Added 2026-09-21, BEFORE any real-photo score was computed,
+    # because the pre-registered table is English-only and the maintainer's real
+    # sources are German: without these every German unit would read as a miss
+    # for a reason that is not capture accuracy. This extends the normalization
+    # table only — no bar, no comparison rule and no verdict rule is changed, and
+    # --selftest still has to pass. The deviation is recorded in the verdict.
+    "tl": "tsp", "teelöffel": "tsp", "teeloeffel": "tsp",
+    "el": "tbsp", "esslöffel": "tbsp", "essloeffel": "tbsp",
+    "gramm": "g",
+    "kilo": "kg", "kilogramm": "kg",
+    "milliliter": "ml",
+    "liter": "l",
+    "msp": "msp", "messerspitze": "msp",
+    "prise": "pinch", "prisen": "pinch",
+    "stück": "piece", "stueck": "piece", "stk": "piece",
+    "zehe": "clove", "zehen": "clove",
+    "dose": "can", "dosen": "can",
+    "bund": "bunch",
+    "päckchen": "packet", "paeckchen": "packet", "pckg": "packet",
+    "tasse": "cup", "tassen": "cup",
+    "blatt": "sheet", "blätter": "sheet",
 }
 
 UNICODE_FRAC = {"½": "1/2", "¼": "1/4", "¾": "3/4", "⅓": "1/3", "⅔": "2/3", "⅛": "1/8"}
@@ -153,10 +174,12 @@ class Tally:
         return (self.hit / self.total) if self.total else None
 
 
-def score(model: str):
+def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = None):
+    FIX = fixtures_dir or (HERE / "fixtures")
+    RUNS = runs_dir or (HERE / "runs")
     manifest = load_json(FIX / "manifest.json")
     if not manifest:
-        sys.exit("no manifest.json — run generate.mjs first")
+        sys.exit(f"no manifest.json in {FIX} — run generate.mjs first")
 
     fields = {k: Tally() for k in FIELD_BARS}
     edges = {k: Tally() for k in EDGE_BARS}
@@ -341,7 +364,11 @@ def score(model: str):
         "per_class_scores": class_rates,
         "per_fixture": per_fixture,
     }
-    (HERE / f"scores-{model}.json").write_text(json.dumps(result, indent=2) + "\n")
+    # Scores are written beside the RUNS they grade, never unconditionally into
+    # this public spike directory: a real-photo score carries captured recipe
+    # text, which the S1 constraint keeps out of kschlt/cookframe entirely.
+    out_dir = RUNS if runs_dir else HERE
+    (out_dir / f"scores-{model}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
 
     # report
     print(f"# CFV1-S1 capture-quality — model: {model}\n")
@@ -420,10 +447,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--selftest", action="store_true", help="prove the scorer discriminates")
+    ap.add_argument("--fixtures", default=None, help="fixture directory (default: ./fixtures)")
+    ap.add_argument("--runs", default=None, help="run directory (default: ./runs)")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
-    return score(args.model)
+    return score(
+        args.model,
+        Path(args.fixtures) if args.fixtures else None,
+        Path(args.runs) if args.runs else None,
+    )
 
 
 if __name__ == "__main__":
