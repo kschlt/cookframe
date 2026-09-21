@@ -6,14 +6,12 @@ Decisions about *what the product is* go in [`../product-decisions/`](../product
 
 ## Format
 
-- One file per decision, `ADR-NNNN-short-title.md`.
-- Front matter: `id`, `title`, `status`, `date`. Optionally `tags`, `supersedes`, `superseded_by`,
-  `depends_on`, `related_to`, and `decides` for the [open question](../open-questions.md) it closes.
-- `status` is one of `proposed`, `accepted`, `superseded`, `deprecated`.
-- Sections: `## Context`, `## Decision`, `## Consequences`. Add `## Alternatives considered` where
-  the rejected options matter.
-- **An accepted record is never rewritten.** A decision changes by a new record that supersedes it,
-  with `supersedes` and `superseded_by` set on both sides.
+One file per decision, `ADR-NNNN-short-title.md`. The format itself — the front-matter keys a record
+may carry, the `status` values, the section structure, and the never-rewritten supersession rule — is
+defined by [ADR-0020](ADR-0020-decision-record-format-is-declared-once-and-checked.md) (which
+supersedes ADR-0006). That record holds the single machine-readable key list; this README does not
+repeat it, so there is exactly one definition to keep current, and a drift check fails the build if a
+record and the declaration disagree.
 
 ## Records
 

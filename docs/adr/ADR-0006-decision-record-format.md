@@ -1,10 +1,11 @@
 ---
 id: "ADR-0006"
 title: "Decision records: one file each, superseded rather than edited"
-status: accepted
+status: superseded
 date: 2026-09-10
 tags: ["decisions", "documentation"]
 constrained_by: ["PDR-0001"]
+superseded_by: ["ADR-0020"]
 ---
 
 ## Context
