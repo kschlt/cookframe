@@ -19,7 +19,7 @@
 import { describe, expect, it } from "vitest"
 import {
   CanonicalRecipe,
-  type DurationExpression,
+  DurationExpression,
   type RecipeTime,
   type RecipeYield,
   SCHEMA_VERSION,
@@ -491,6 +491,72 @@ describe("slice3/omission-is-recorded-and-exact", () => {
       field: "recipeIngredient",
       reason: "blank_source_text",
       sourceText: "Salt",
+    })
+  })
+})
+
+/**
+ * Non-finite values, found by `/pr-review` on the very change that closed the
+ * rounding coercion — the same defect class surviving on the line that fixed it.
+ *
+ * `NaN` defeats every comparison: `Math.abs(NaN - NaN) > tolerance` is false and
+ * `NaN <= 0` is false, so it fell through to the ISO builder and produced a bare
+ * `PT` with `omissions: []`. `Infinity` produced `PTInfinityH` the same way.
+ * `-Infinity` was caught, but only by the positivity check — and that asymmetry
+ * is the tell that it was luck rather than a decision.
+ */
+describe("slice3/omission-handles-non-finite-values", () => {
+  it("the contract admits an infinite value, so the mapping really can receive one", () => {
+    // Which is why the two infinities below go through `canonical()`, which
+    // parses. Zod's `z.number()` rejects NaN and accepts the infinities, so a
+    // recipe carrying one is a valid Canonical Recipe today.
+    expect(
+      DurationExpression.safeParse({
+        sourceText: "∞",
+        kind: "exact",
+        value: Number.POSITIVE_INFINITY,
+        unit: "h",
+      }).success,
+    ).toBe(true)
+    expect(
+      DurationExpression.safeParse({ sourceText: "NaN", kind: "exact", value: Number.NaN }).success,
+    ).toBe(false)
+  })
+
+  for (const [label, value] of [
+    ["positive infinity", Number.POSITIVE_INFINITY],
+    ["negative infinity", Number.NEGATIVE_INFINITY],
+  ] as const) {
+    it(`omits a duration of ${label}, recording why`, () => {
+      const wild = canonical({
+        times: [timeOf("prep", { sourceText: String(value), kind: "exact", value, unit: "h" })],
+      })
+      const { recipe, omissions } = mapCanonicalToSchemaOrg(wild)
+      expect(recipe.prepTime).toBeUndefined()
+      expect(omissions).toContainEqual({
+        field: "prepTime",
+        reason: "not_representable",
+        sourceText: String(value),
+        kind: "exact",
+      })
+    })
+  }
+
+  it("omits a NaN duration too, although the contract will not carry one today", () => {
+    // The mapping takes a typed value, not a freshly parsed one, so it does not
+    // get to assume the contract already refused this. Built unparsed on
+    // purpose: if the contract is ever widened, this proof is already standing.
+    const nanRecipe = {
+      ...canonical(),
+      times: [timeOf("prep", { sourceText: "NaN", kind: "exact", value: Number.NaN, unit: "h" })],
+    } as CanonicalRecipe
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(nanRecipe)
+    expect(recipe.prepTime).toBeUndefined()
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "not_representable",
+      sourceText: "NaN",
+      kind: "exact",
     })
   })
 })

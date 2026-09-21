@@ -183,6 +183,13 @@ function toIsoDuration(d: DurationExpression):
   if (unitSeconds === undefined) return { omit: "unrecognized_unit" }
 
   const exactSeconds = d.value * unitSeconds
+  // Finiteness first, and as its own check rather than as a side effect of the
+  // two below. `NaN` defeats every comparison — `Math.abs(NaN - NaN) > x` is
+  // false and `NaN <= 0` is false — so a non-finite value would fall through to
+  // the ISO builder and publish `PTInfinityH` or a bare `PT` with nothing
+  // recorded. `-Infinity` happens to be caught by the positivity check, and
+  // that asymmetry is the tell that it was luck rather than a decision.
+  if (!Number.isFinite(exactSeconds)) return { omit: "not_representable" }
   const totalSeconds = Math.round(exactSeconds)
   // Not a whole number of seconds, so no ISO duration says what the source said.
   if (Math.abs(exactSeconds - totalSeconds) > SECOND_TOLERANCE) {
