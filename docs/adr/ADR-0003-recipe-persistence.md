@@ -1,7 +1,8 @@
 ---
 id: "ADR-0003"
 title: "Recipe layers persist as JSON documents behind a narrow repository interface"
-status: accepted
+status: superseded
+superseded_by: ["ADR-0018"]
 date: 2026-09-10
 tags: ["persistence", "boundaries", "reprocessing"]
 constrained_by: ["PDR-0001"]

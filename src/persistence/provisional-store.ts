@@ -4,8 +4,17 @@
  * ADR-0003 defers the database technology and physical shape (OQ-03/OQ-04) and
  * lets Slice 1 persist "JSON documents in the simplest store that works", behind
  * the repository interface, explicitly replaceable. This is that store: an
- * in-memory, append-only implementation — dependency-free and deterministic. It
- * decides nothing about OQ-03/OQ-04; the deciding evaluation is CFV1-DBQ.
+ * in-memory, append-only implementation — dependency-free and deterministic.
+ *
+ * STILL PROVISIONAL, and now provisional against a decision rather than against
+ * an open question. CFV1-DBQ measured the three deciding queries over real
+ * Slice 1 data and ADR-0015 closed OQ-03/OQ-04: PostgreSQL, JSONB documents,
+ * with an extracted projection where a query is measured to need one. That
+ * record CONFIRMS the shape this store persists — a whole validated Canonical
+ * Recipe per version, appended, never mutated — and REPLACES its storage, which
+ * is in memory and survives nothing. The replacement is its own piece of work;
+ * until it lands this store is what runs, and this notice is what stops
+ * "provisional" from meaning "nobody decided".
  *
  * The concrete class is intentionally NOT exported — callers see only
  * {@link RecipeRepository} and {@link createProvisionalStore}, so no storage
@@ -47,6 +56,18 @@ class ProvisionalStore implements RecipeRepository {
     existing.push(valid)
     this.#versions.set(valid.id, existing)
     return { recipeId: valid.id, version: existing.length, recipe: structuredClone(valid) }
+  }
+
+  async loadLatestCanonical(recipeId: string): Promise<CanonicalVersion | undefined> {
+    // Not-found is a return value, not a throw (ADR-0018): a public capability
+    // route tells a revoked token from a missing recipe without catching. A copy
+    // is handed back, like every other read here, so a caller cannot reach into
+    // stored state.
+    const versions = this.#versions.get(recipeId)
+    if (versions === undefined || versions.length === 0) return undefined
+    const latest = versions[versions.length - 1]
+    if (latest === undefined) return undefined
+    return { recipeId, version: versions.length, recipe: structuredClone(latest) }
   }
 
   async listLibrary(): Promise<readonly LibraryEntry[]> {

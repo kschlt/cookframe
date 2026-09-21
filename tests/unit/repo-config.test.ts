@@ -112,6 +112,27 @@ describe("CI workflow (ci.yml)", () => {
     expect(runs, "no CI job runs the S1 scorer's self-test").toMatch(/score\.py --selftest/)
   })
 
+  it("dbq/ci-provides-the-database — the dbq job runs against a real PostgreSQL service", () => {
+    // `tests/dbq/queries.test.ts` skips when no server answers, so without this
+    // job the three deciding queries would be "proved" nowhere. The skip is a
+    // local-machine convenience; CI is where it has to actually run.
+    const job = workflow.jobs["dbq"] as
+      | { services?: Record<string, { image?: string }>; env?: Record<string, string> }
+      | undefined
+    expect(job, "no `dbq` job in CI").toBeTruthy()
+    expect(job?.services?.postgres?.image, "the dbq job has no postgres service").toMatch(
+      /^postgres:/,
+    )
+    expect(job?.env?.DATABASE_URL, "the dbq job does not point the tests at the service").toContain(
+      "postgres://",
+    )
+    const runs = (workflow.jobs["dbq"]?.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    expect(runs).toMatch(/npm run test:dbq/)
+  })
+
   it("slice0/secret-scan-fails-build — a secret scan runs and blocks on a finding", () => {
     const scanJob = workflow.jobs["secret-scan"]
     expect(scanJob).toBeTruthy()
