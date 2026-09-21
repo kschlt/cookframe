@@ -368,3 +368,129 @@ describe("slice3/missing-author-explicit-state", () => {
     ])
   })
 })
+
+/**
+ * The omission paths themselves, added after `/pr-review` found that the module
+ * could emit a number nobody wrote and could drop a list line with no trace.
+ * Each test here fails against the code as it stood before the fix, which is
+ * what makes it a proof rather than a restatement.
+ */
+describe("slice3/omission-is-recorded-and-exact", () => {
+  it("omits a duration that is not a whole number of seconds, never rounding it", () => {
+    // 2.5 seconds has no ISO 8601 form here. Rounding it to PT3S would publish a
+    // number the source never wrote, silently, in the module whose one rule is
+    // omit-never-coerce.
+    const fractional = canonical({
+      times: [
+        timeOf("prep", { sourceText: "2.5 seconds", kind: "exact", value: 2.5, unit: "seconds" }),
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(fractional)
+    expect(recipe.prepTime).toBeUndefined()
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "not_representable",
+      sourceText: "2.5 seconds",
+      kind: "exact",
+    })
+  })
+
+  it("still converts a duration whose product is a whole second under float error", () => {
+    // The discriminating counter-case: 0.1 h is exactly six minutes, but
+    // `0.1 * 3600` is 360.00000000000006 in floating point. A literal integer
+    // test would omit a duration the source did state exactly.
+    const tenth = canonical({
+      times: [timeOf("prep", { sourceText: "0.1 h", kind: "exact", value: 0.1, unit: "h" })],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(tenth)
+    expect(recipe.prepTime).toBe("PT6M")
+    expect(omissions).toEqual([])
+  })
+
+  it("omits a zero duration as not representable rather than calling it inexact", () => {
+    const zero = canonical({
+      times: [timeOf("prep", { sourceText: "0 min", kind: "exact", value: 0, unit: "min" })],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(zero)
+    expect(recipe.prepTime).toBeUndefined()
+    // The value IS exact; what fails is the representation. Reporting
+    // `non_exact_value` here would misdescribe the source.
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "not_representable",
+      sourceText: "0 min",
+      kind: "exact",
+    })
+  })
+
+  it("distinguishes a missing unit from an unrecognized one", () => {
+    const unitless = canonical({
+      times: [timeOf("prep", { sourceText: "15", kind: "exact", value: 15 })],
+    })
+    const { omissions } = mapCanonicalToSchemaOrg(unitless)
+    expect(omissions).toContainEqual({
+      field: "prepTime",
+      reason: "missing_unit",
+      sourceText: "15",
+      kind: "exact",
+    })
+  })
+
+  it("does not let a later time fill a field the first one claimed but omitted", () => {
+    // The source stated a RANGE for cooking. Publishing the bake duration as
+    // `cookTime` would tell the consumer a cook time the source never gave.
+    const claimed = canonical({
+      times: [
+        timeOf("cook", { sourceText: "1–2 h", kind: "range", minValue: 1, maxValue: 2, unit: "h" }),
+        timeOf("bake", { sourceText: "45 min", kind: "exact", value: 45, unit: "min" }),
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(claimed)
+    expect(recipe.cookTime).toBeUndefined()
+    expect(omissions).toContainEqual({
+      field: "cookTime",
+      reason: "non_exact_value",
+      sourceText: "1–2 h",
+      kind: "range",
+    })
+    expect(omissions).toContainEqual({
+      field: "cookTime",
+      reason: "duplicate_time_type",
+      sourceText: "45 min",
+      kind: "exact",
+    })
+  })
+
+  it("records an ingredient dropped for blank source wording", () => {
+    const base = canonical()
+    const group = base.ingredientGroups[0]
+    if (group === undefined) throw new Error("fixture has no ingredient group")
+    const blanked = canonical({
+      ingredientGroups: [
+        {
+          ...group,
+          ingredients: [
+            ...group.ingredients,
+            {
+              id: "i-blank",
+              sourceText: "   ",
+              name: "Salt",
+              qualifiers: [],
+              scalingEligibility: "unknown",
+              sourceRefs: [{ blockId: "b-ing" }],
+            },
+          ],
+        },
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(blanked)
+    // A quietly short shopping list misleads exactly as much as an invented
+    // number does, so the drop leaves a trace.
+    expect(recipe.recipeIngredient).not.toContain("   ")
+    expect(omissions).toContainEqual({
+      field: "recipeIngredient",
+      reason: "blank_source_text",
+      sourceText: "Salt",
+    })
+  })
+})

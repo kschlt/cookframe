@@ -84,9 +84,12 @@ export interface SchemaOrgRecipe {
 /** Why a field (or a numeric value) was omitted rather than coerced. */
 export type OmissionReason =
   | "non_exact_value"
+  | "missing_unit"
   | "unrecognized_unit"
+  | "not_representable"
   | "unmapped_time_type"
   | "duplicate_time_type"
+  | "blank_source_text"
 
 export interface SchemaOrgMappingOmission {
   readonly field: string
@@ -143,21 +146,51 @@ const SECONDS_PER_UNIT: ReadonlyMap<string, number> = new Map([
 ])
 
 /**
- * Convert a duration to an ISO 8601 string ONLY when the source expressed it
- * exactly and its unit is recognized. A range, an approximation, an open-ended
- * bound ("overnight", "at least 2 h") or an unrecognized unit yields `undefined`
- * — the caller omits the field rather than invent a number. The reason is
- * returned so the omission can be recorded.
+ * How close a converted duration must be to a whole number of seconds to count
+ * as exactly representable. Floating-point multiplication is not exact — `0.1 *
+ * 3600` is `360.00000000000006`, and "0.1 hours" plainly means six minutes — so
+ * a literal integer test would omit durations the source did state exactly. The
+ * tolerance is absolute and nine orders of magnitude below one second, which no
+ * source wording can reach: it forgives representation error and nothing else.
  */
-function toIsoDuration(
-  d: DurationExpression,
-): { iso: string } | { omit: Extract<OmissionReason, "non_exact_value" | "unrecognized_unit"> } {
+const SECOND_TOLERANCE = 1e-9
+
+/**
+ * Convert a duration to an ISO 8601 string ONLY when the source expressed it
+ * exactly, its unit is recognized, and the result is a whole number of seconds.
+ * A range, an approximation, an open-ended bound ("overnight", "at least 2 h"),
+ * a missing or unrecognized unit, or a value that is not representable as a
+ * positive ISO duration yields `undefined` — the caller omits the field rather
+ * than invent a number. The reason is returned so the omission can be recorded.
+ *
+ * The last of those conditions is the one that is easy to get wrong. Rounding to
+ * the nearest second looks harmless and is not: "2.5 seconds" would publish as
+ * `PT3S` with no omission recorded, which is a number nobody wrote appearing
+ * silently in the one module whose whole rule is omit-never-coerce. ISO 8601
+ * durations have no sub-second form here, so a sub-second residue is omitted.
+ */
+function toIsoDuration(d: DurationExpression):
+  | { iso: string }
+  | {
+      omit: Extract<
+        OmissionReason,
+        "non_exact_value" | "missing_unit" | "unrecognized_unit" | "not_representable"
+      >
+    } {
   if (d.kind !== "exact" || d.value === undefined) return { omit: "non_exact_value" }
-  const unitSeconds =
-    d.unit === undefined ? undefined : SECONDS_PER_UNIT.get(d.unit.trim().toLowerCase())
+  if (d.unit === undefined || d.unit.trim().length === 0) return { omit: "missing_unit" }
+  const unitSeconds = SECONDS_PER_UNIT.get(d.unit.trim().toLowerCase())
   if (unitSeconds === undefined) return { omit: "unrecognized_unit" }
-  const totalSeconds = Math.round(d.value * unitSeconds)
-  if (totalSeconds <= 0) return { omit: "non_exact_value" }
+
+  const exactSeconds = d.value * unitSeconds
+  const totalSeconds = Math.round(exactSeconds)
+  // Not a whole number of seconds, so no ISO duration says what the source said.
+  if (Math.abs(exactSeconds - totalSeconds) > SECOND_TOLERANCE) {
+    return { omit: "not_representable" }
+  }
+  // Zero and negative durations have no positive ISO form; `PT` alone is not one.
+  if (totalSeconds <= 0) return { omit: "not_representable" }
+
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
@@ -171,8 +204,12 @@ function toIsoDuration(
 /**
  * Which Schema.org time field each Canonical time type fills. `cook` and `bake`
  * share `cookTime`; when both are present the first in the recipe's `times` array
- * order fills it and the later one is omitted (recorded as a duplicate), never
- * merged. A type absent from this map has no Schema.org field and is omitted.
+ * order CLAIMS it and the later one is omitted (recorded as a duplicate), never
+ * merged. Claiming happens on the attempt, not on the conversion: a ranged `cook`
+ * followed by an exact `bake` must not publish the bake duration as `cookTime`,
+ * because that would tell the consumer a cook time the source never stated — it
+ * stated a range. A type absent from this map has no Schema.org field and is
+ * omitted.
  */
 const TIME_FIELD_BY_TYPE: ReadonlyMap<RecipeTime["type"], "prepTime" | "cookTime" | "totalTime"> =
   new Map([
@@ -231,16 +268,35 @@ export function mapCanonicalToSchemaOrg(recipe: CanonicalRecipe): SchemaOrgMappi
   // Ingredients: the source wording verbatim, in canonical order. Reconstructing
   // a line from the parsed quantity risks coercing a range/qualitative amount, so
   // the source text is used as-is (it already carries whatever the source wrote).
-  const recipeIngredient = recipe.ingredientGroups
-    .flatMap((g) => g.ingredients)
-    .map((i) => i.sourceText)
-    .filter((t) => t.trim().length > 0)
+  const recipeIngredient: string[] = []
+  for (const ingredient of recipe.ingredientGroups.flatMap((g) => g.ingredients)) {
+    if (ingredient.sourceText.trim().length > 0) {
+      recipeIngredient.push(ingredient.sourceText)
+      continue
+    }
+    // A dropped ingredient is a missing shopping-list line, so it is recorded
+    // rather than filtered away: omit-never-invent cuts both ways, and a list
+    // that is quietly short is as misleading as one with an invented number.
+    omissions.push({
+      field: "recipeIngredient",
+      reason: "blank_source_text",
+      sourceText: ingredient.name,
+    })
+  }
 
   // Instructions: the source wording of each step, in section/step order.
-  const recipeInstructions = recipe.instructionSections
-    .flatMap((s) => s.steps)
-    .map((step): SchemaOrgHowToStep => ({ "@type": "HowToStep", text: step.sourceText }))
-    .filter((s) => s.text.trim().length > 0)
+  const recipeInstructions: SchemaOrgHowToStep[] = []
+  for (const step of recipe.instructionSections.flatMap((s) => s.steps)) {
+    if (step.sourceText.trim().length > 0) {
+      recipeInstructions.push({ "@type": "HowToStep", text: step.sourceText })
+      continue
+    }
+    omissions.push({
+      field: "recipeInstructions",
+      reason: "blank_source_text",
+      sourceText: step.normalizedActionText,
+    })
+  }
 
   // Yields: every yield preserved in order; exact ones carry a number.
   const recipeYield: SchemaOrgYield[] = []
@@ -254,6 +310,10 @@ export function mapCanonicalToSchemaOrg(recipe: CanonicalRecipe): SchemaOrgMappi
   // time of an already-filled field, and a type with no Schema.org field, are
   // omitted (recorded), never merged or summed.
   const times: { prepTime?: string; cookTime?: string; totalTime?: string } = {}
+  // Which fields a time entry has already claimed, whether or not its duration
+  // converted. Tracked separately from `times`, because a field left empty by an
+  // omitted duration is still spoken for by the entry that omitted it.
+  const claimed = new Set<"prepTime" | "cookTime" | "totalTime">()
   for (const t of recipe.times ?? []) {
     const field = TIME_FIELD_BY_TYPE.get(t.type)
     if (field === undefined) {
@@ -265,7 +325,7 @@ export function mapCanonicalToSchemaOrg(recipe: CanonicalRecipe): SchemaOrgMappi
       })
       continue
     }
-    if (times[field] !== undefined) {
+    if (claimed.has(field)) {
       omissions.push({
         field,
         reason: "duplicate_time_type",
@@ -274,6 +334,7 @@ export function mapCanonicalToSchemaOrg(recipe: CanonicalRecipe): SchemaOrgMappi
       })
       continue
     }
+    claimed.add(field)
     const converted = toIsoDuration(t.durationExpression)
     if ("iso" in converted) {
       times[field] = converted.iso
