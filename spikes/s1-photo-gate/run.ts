@@ -37,7 +37,6 @@ import { createOpenAITransport } from "../../src/pipeline/openai-transport.js"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, "..", "..")
-const outDir = join(repoRoot, "evals", "fixtures", "private", "s1-gate")
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name)
@@ -48,6 +47,12 @@ const API_KEY = process.env.OPENAI_API_KEY
 const MODEL = process.env.OPENAI_MODEL
 const photosDir = arg("--photos")
 const limit = Number(arg("--limit") ?? "0")
+/**
+ * Where snapshots and canonicals land. Defaults to the private gate directory;
+ * `--out` exists so a re-run can be compared against an earlier one instead of
+ * overwriting it — a run costs real money, so clobbering it is a bug.
+ */
+const outDir = arg("--out") ?? join(repoRoot, "evals", "fixtures", "private", "s1-gate")
 
 if (!API_KEY) throw new Error("OPENAI_API_KEY is not set.")
 if (!MODEL) throw new Error('OPENAI_MODEL is not set, e.g. OPENAI_MODEL="gpt-5.4".')
@@ -77,7 +82,7 @@ const contractText = [
 
 /** Wrap a transport so the run can report what it actually cost. */
 function counting(inner: ReturnType<typeof createOpenAITransport>) {
-  const tally = { calls: 0, inputTokens: 0, outputTokens: 0 }
+  const tally = { calls: 0, inputTokens: 0, outputTokens: 0, retries: 0 }
   return {
     tally,
     transport: {
@@ -96,15 +101,24 @@ async function main(): Promise<void> {
   const { transport, tally } = counting(
     createOpenAITransport({ apiKey: API_KEY as string, model: MODEL as string }),
   )
+  // A retried call is billed like any other and nothing in the persisted record
+  // mentions it, so the run counts them itself and prints them beside the cost.
+  const onAttempt = (info: { attempt: number; stage: string; repairing?: string }) => {
+    if (info.attempt === 1) return
+    tally.retries += 1
+    console.log(`       retry ${info.stage} (attempt ${info.attempt}): ${info.repairing ?? ""}`)
+  }
   const capture = createModelCaptureProvider({
     transport,
     promptText: readFileSync(join(repoRoot, "prompts/capture/v1.md"), "utf8"),
     contractText,
+    onAttempt,
   })
   const normalization = createModelNormalizationProvider({
     transport,
     promptText: readFileSync(join(repoRoot, "prompts/normalization/v1.md"), "utf8"),
     contractText,
+    onAttempt,
   })
   const policy = createContentDerivedBlockIdPolicy()
   const repo = createProvisionalStore()
@@ -123,7 +137,7 @@ async function main(): Promise<void> {
 
   mkdirSync(outDir, { recursive: true })
   console.log(`# CFV1-S1 real-photo run — model ${MODEL}, ${selected.length} photo(s)`)
-  console.log(`# outputs -> evals/fixtures/private/s1-gate/ (git-ignored)\n`)
+  console.log(`# outputs -> ${outDir} (git-ignored)\n`)
 
   const summary: unknown[] = []
 
@@ -186,7 +200,7 @@ async function main(): Promise<void> {
   const library = await repo.listLibrary()
   console.log(`\nLibrary: ${library.length} recipe(s) persisted through the real spine.`)
   console.log(
-    `Cost: ${tally.calls} calls, ${tally.inputTokens.toLocaleString()} input + ` +
+    `Cost: ${tally.calls} calls (${tally.retries} of them retries), ${tally.inputTokens.toLocaleString()} input + ` +
       `${tally.outputTokens.toLocaleString()} output tokens` +
       (selected.length > 0
         ? ` (${Math.round(tally.inputTokens / selected.length).toLocaleString()} + ${Math.round(tally.outputTokens / selected.length).toLocaleString()} per photo)`

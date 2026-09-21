@@ -42,6 +42,21 @@ function scripted(reply: string): ModelTransport & { readonly seen: ModelExchang
   }
 }
 
+/**
+ * A transport that replies with each text in turn and repeats the last one once
+ * the script runs out, recording every exchange it was handed.
+ */
+function sequence(...replies: string[]): ModelTransport & { readonly seen: ModelExchange[] } {
+  const seen: ModelExchange[] = []
+  return {
+    seen,
+    async send(exchange) {
+      seen.push(exchange)
+      return { text: replies[Math.min(seen.length - 1, replies.length - 1)] as string }
+    },
+  }
+}
+
 const stage = (transport: ModelTransport) => ({
   transport,
   promptText: "PROMPT",
@@ -234,5 +249,139 @@ describe("slice1/run-provenance-recorded", () => {
     expect(recipe.provenance.runId).toBe("run-normalize")
     expect(recipe.provenance.targetOntologyVersion).toBe("1.0.0")
     expect(recipe.provenance.normalizationModel).toBe("test-model")
+  })
+})
+
+/**
+ * The gap the real-photograph run found: one page in eleven was rejected by
+ * `.strict()` and dropped. Failing closed was right, dropping it was not.
+ */
+describe("slice1/contract-failure-is-retried", () => {
+  /** A canonical the contract rejects: `yields` is required and absent. */
+  const badCanonical = JSON.stringify({
+    schemaVersion: SCHEMA_VERSION,
+    title: "Pfannkuchen",
+    ingredientGroups: [],
+    instructionSections: [],
+  })
+  const goodCanonical = JSON.stringify({
+    schemaVersion: SCHEMA_VERSION,
+    title: "Pfannkuchen",
+    yields: [],
+    ingredientGroups: [],
+    instructionSections: [],
+  })
+  const snapshot: SourceSnapshot = {
+    id: "snap-1",
+    version: 0,
+    sourceType: "image",
+    capturedText: "x",
+    blocks: [{ id: "b1", order: 0, type: "title", text: "Pfannkuchen" }],
+    captureProvenance: { sourceAdapter: "photo", adapterVersion: "1.0.0", runId: "r" },
+  }
+
+  it("recovers a page a single attempt would have dropped", async () => {
+    const transport = sequence(badCanonical, goodCanonical)
+    const recipe = await createModelNormalizationProvider(stage(transport)).normalize(
+      snapshot,
+      normCtx,
+    )
+    expect(transport.seen).toHaveLength(2)
+    // Identity and provenance are still the pipeline's on the recovered reply.
+    expect(recipe.id).toBe("recipe-of-snap-1")
+    expect(recipe.provenance.runId).toBe("run-normalize")
+  })
+
+  it("retries a rejected capture too, not only normalization", async () => {
+    const badCapture = JSON.stringify({
+      capturedText: "x",
+      blocks: [{ order: 0, type: "ingredient_list", text: "200 g Mehl" }],
+    })
+    const transport = sequence(badCapture, captureReply)
+    const snapshotOut = await captureSnapshot(
+      createModelCaptureProvider(stage(transport)),
+      policy,
+      new Uint8Array([0xff, 0xd8, 0xff]),
+      captureCtx,
+    )
+    expect(transport.seen).toHaveLength(2)
+    expect(snapshotOut.blocks).toHaveLength(3)
+  })
+
+  it("spends no second call when the first reply conforms", async () => {
+    const transport = sequence(goodCanonical)
+    await createModelNormalizationProvider(stage(transport)).normalize(snapshot, normCtx)
+    // A speculative retry would be billed for nothing.
+    expect(transport.seen).toHaveLength(1)
+  })
+
+  it("re-sends the input with the failure, as a fresh exchange and not a conversation", async () => {
+    const transport = sequence(badCanonical, goodCanonical)
+    await createModelNormalizationProvider(stage(transport)).normalize(snapshot, normCtx)
+    const [first, second] = transport.seen
+    // Same instructions and same contract: the stage is stateless.
+    expect(second?.system).toBe(first?.system)
+    // The input is carried again, so the model is not asked to remember it.
+    expect(second?.parts[0]).toEqual(first?.parts[0])
+    const repair = second?.parts.at(-1)
+    expect(repair?.kind).toBe("text")
+    const text = repair?.kind === "text" ? repair.text : ""
+    expect(text).toContain("YOUR PREVIOUS REPLY WAS REJECTED")
+    // The validator's own message, not a paraphrase of it.
+    expect(text).toContain("yields")
+  })
+
+  it("still fails closed once the attempts are spent, and says what they cost", async () => {
+    const transport = sequence(badCanonical)
+    const error = await createModelNormalizationProvider(stage(transport))
+      .normalize(snapshot, normCtx)
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ModelReplyError)
+    expect((error as ModelReplyError).attempts).toBe(2)
+    expect(transport.seen).toHaveLength(2)
+  })
+
+  it("makes exactly one call when a caller sets maxAttempts to 1", async () => {
+    const transport = sequence(badCanonical)
+    await expect(
+      createModelNormalizationProvider({ ...stage(transport), maxAttempts: 1 }).normalize(
+        snapshot,
+        normCtx,
+      ),
+    ).rejects.toThrow(ModelReplyError)
+    expect(transport.seen).toHaveLength(1)
+  })
+
+  it("does not retry a failure the model cannot repair", async () => {
+    // A transport or egress failure is not a contract violation: the request may
+    // already have been delivered and billed, and re-sending it is a different
+    // decision with different costs.
+    let calls = 0
+    const failing: ModelTransport = {
+      async send() {
+        calls++
+        throw new Error("egress refused: TIME_LIMIT")
+      },
+    }
+    await expect(
+      createModelNormalizationProvider(stage(failing)).normalize(snapshot, normCtx),
+    ).rejects.toThrow(/TIME_LIMIT/)
+    expect(calls).toBe(1)
+  })
+
+  it("reports every physical call, so a caller can account for what it spent", async () => {
+    const seen: { attempt: number; repairing?: string }[] = []
+    const transport = sequence(badCanonical, goodCanonical)
+    await createModelNormalizationProvider({
+      ...stage(transport),
+      onAttempt: (info) =>
+        seen.push({
+          attempt: info.attempt,
+          ...(info.repairing !== undefined ? { repairing: info.repairing } : {}),
+        }),
+    }).normalize(snapshot, normCtx)
+    expect(seen).toHaveLength(2)
+    expect(seen[0]?.repairing).toBeUndefined()
+    expect(seen[1]?.repairing).toContain("does not conform")
   })
 })

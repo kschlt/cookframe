@@ -43,6 +43,30 @@ persisted — which is the designed behaviour. But **one page in eleven dropped 
 the production path needs **retry-on-contract-failure**. This is the same failure mode CFV1-S6
 measured on the cheap tier, now observed once on the full tier with real input.
 
+**Addressed, and then measured rather than assumed.** The capabilities now retry a reply the
+contract rejects, re-sending the same input with the validator's own message and a bounded second
+attempt; they still fail closed once it is spent. Whether a real model actually repairs this class
+when shown the message was an open assumption, so it was probed on the cheapest input that
+reproduces the failure (`spikes/s6-fidelity/FINDINGS.md`, *Does the retry work?*): over 12
+conversions on the cheap tier, **two of three failures were repaired and one failed again**, moving
+delivery from 9/12 to 11/12. So the retry is real but not a cure, and a caller that needs every page
+must still handle a failure. **This page was not itself re-run** — identifying which photograph it
+was could not be done reliably from what the run recorded (see below), and a re-run costs real money
+against a small budget.
+
+### A smaller finding: a snapshot does not record what it was made from
+
+Trying to re-run the one failed page turned up something the run itself should have recorded. A
+`SourceSnapshot` keeps `captureProvenance` — adapter, version, model, prompt versions, run id — but
+nothing that names the input it was captured from. For a photograph there is no URL to fall back on,
+so the only link between a stored snapshot and the file that produced it is the order the runner
+happened to read a directory in. That is not a link, and reconstructing it afterwards from image
+dimensions and page content failed. It has no consequence for the gate's numbers, but it means a
+run's inputs are not addressable after the fact, which is exactly what a re-run needs. `schema/`
+already has `sourceAttribution` unused; whether that is the right field, or whether snapshots want a
+storage identity of their own, is the same question the `snapshot ↔ scan storageIdentity` item asks,
+and it is a contract decision rather than a fix.
+
 ## Scores against the pre-registered bars
 
 Scored twice. The first truth spec was defective — it instructed transcribers to put the whole

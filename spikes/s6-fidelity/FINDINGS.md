@@ -192,3 +192,54 @@ is therefore no remaining argument for the mini tier here.
 
 **Still Kornelius's to confirm**, and the ADR recording the decision is his call. What the spike
 owed — evidence on both axes — is now delivered.
+
+---
+
+# Does the retry work? (2026-09-21)
+
+ADR-0014 counts **retry-on-contract-failure** as load-bearing: the cheap tier is only viable behind
+one, and the real-photograph run (CFV1-S1) lost one page in eleven on the *full* tier to a
+`.strict()` violation. But "a retry fixes it" was an assumption. The proofs in
+`tests/slice1/model-providers.test.ts` script their replies, so they prove the mechanism — a
+rejected reply is re-sent with the validator's own message, a conforming second reply is used, the
+stage still fails closed once attempts are spent — and cannot prove that a real model, shown a real
+`.strict()` message, actually produces a conforming reply.
+
+`retry-probe.ts` measures that, on the cheapest input that reliably produces the failure: the
+`sparse` fixture, normalization only, on gpt-5.4-mini — the tier S6 already measured at 24/27, every
+failure a contract violation. Text in, text out, so the whole probe costs a few cents rather than
+the ~75 cents a photograph re-run would.
+
+**12 conversions, one retry allowed each:**
+
+| | |
+|---|---|
+| conformed on the first attempt | 9 |
+| **repaired by the retry** | **2** |
+| still failed after the retry | 1 |
+| delivered without the retry | 9/12 (75%) |
+| **delivered with the retry** | **11/12 (92%)** |
+
+Cost: 15 calls, 74 898 input + 14 529 output tokens.
+
+Three things follow.
+
+1. **The premise holds.** A real model shown the validator's own message does repair the violation —
+   two of three failures, including the `Unrecognized key(s) in object: 'sourceSite'` class that S6
+   recorded on this exact cell and that is the same shape as the key the real photograph run lost a
+   page to. The retry is not a hopeful gesture.
+
+2. **One retry is not a cure.** One conversion in twelve failed again after being shown what was
+   wrong — a different violation the second time (a string where the contract wants an object). A
+   caller that needs every page must still handle a failure; the retry moves the rate, it does not
+   remove the case. This is why the stage still fails closed rather than returning something partial.
+
+3. **It does not rescue the cheap tier.** 92% delivered is better than 75% and still not shippable,
+   and the retried calls are billed, so the per-successful-conversion cost that already put mini
+   above the full tier only rises. ADR-0014's choice of the full tier stands; the retry is what makes
+   the *full* tier's occasional failure survivable, not what makes the cheap tier viable.
+
+Reproduce (needs `OPENAI_API_KEY`, costs a few cents):
+`OPENAI_MODEL=gpt-5.4-mini npx tsx spikes/s6-fidelity/retry-probe.ts --runs 12`. Rates will differ
+run to run — this is a 12-sample probe of an ~11% failure rate, not a measurement with a confidence
+interval on it.

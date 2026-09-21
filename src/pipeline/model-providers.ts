@@ -31,6 +31,15 @@
  * rather than returning a half-valid object. CFV1-S6 measured why this matters —
  * a full-tier model produced 27/27 conformant outputs and a mini tier 24/27, and
  * all three failures were contract violations (`.strict()` caught every one).
+ *
+ * Failing closed is right; *dropping the page* is not, so a rejected reply is
+ * retried once by default — see {@link runStage} for what is retried and what is
+ * deliberately not. The retry is measured rather than assumed: on the cheap
+ * tier it repaired two of three real contract violations over 12 conversions,
+ * moving delivery from 9/12 to 11/12, and one failed again
+ * (`spikes/s6-fidelity/FINDINGS.md`, *Does the retry work?*). So it moves the
+ * rate and does not remove the case, which is why the stage still fails closed
+ * once its attempts are spent.
  */
 import { BlockType, type CanonicalRecipe, type SourceSnapshot } from "../../schema/index.js"
 import { validateCanonical } from "../persistence/validate.js"
@@ -47,6 +56,13 @@ import type {
 
 /** Raised when a model reply is unusable: not JSON, or not the contract shape. */
 export class ModelReplyError extends Error {
+  /**
+   * How many physical calls were spent before giving up. 1 unless a retry was
+   * configured; a caller accounting for cost needs this, because every attempt
+   * was billed whether or not it conformed.
+   */
+  attempts = 1
+
   constructor(
     readonly stage: "capture" | "normalization",
     message: string,
@@ -72,7 +88,42 @@ export interface ModelStageConfig {
   readonly transport: ModelTransport
   readonly promptText: string
   readonly contractText: string
+  /**
+   * How many physical calls a stage may spend on one input, counting the first.
+   * Default {@link DEFAULT_MAX_ATTEMPTS}. Set 1 to disable the retry described
+   * in {@link runStage}; values below 1 are treated as 1.
+   */
+  readonly maxAttempts?: number
+  /**
+   * Called once per physical call, before the reply is read. The only way a
+   * caller can count what a conversion actually cost, since a retried call is
+   * billed like any other and nothing in the persisted record mentions it.
+   */
+  readonly onAttempt?: (info: {
+    readonly stage: "capture" | "normalization"
+    /** 1-based. */
+    readonly attempt: number
+    readonly maxAttempts: number
+    /** The failure this attempt is trying to repair; absent on the first. */
+    readonly repairing?: string
+  }) => void
 }
+
+/**
+ * One retry by default.
+ *
+ * The real-photograph run (CFV1-S1) put a full-tier model through eleven pages
+ * and lost one to a `.strict()` violation — an undefined key inside
+ * `ingredientUses`. Failing closed on it was right; *dropping* it was not, and a
+ * capability whose default silently costs the user one page in eleven has the
+ * wrong default. CFV1-S6 measured the same class at 3/27 on a cheap tier.
+ *
+ * Two, not more: a contract violation that survives a second attempt with the
+ * validator's own message in front of the model is a prompt or schema problem,
+ * and grinding through further attempts spends real money to arrive at the same
+ * failure. ADR-0014 counts this retry as part of the per-conversion cost.
+ */
+const DEFAULT_MAX_ATTEMPTS = 2
 
 /** Strip a markdown fence a model may have wrapped its JSON in, then parse. */
 function parseJsonReply(stage: "capture" | "normalization", text: string): unknown {
@@ -114,6 +165,88 @@ function buildExchange(
     ].join("\n"),
     parts,
     jsonOnly: true,
+  }
+}
+
+/** How much of a rejected reply to show the model when asking it to repair. */
+const REPAIR_EXCERPT_CHARS = 4000
+
+/**
+ * Run one stage, retrying a reply the contract rejects.
+ *
+ * **Only a contract failure is retried.** `read` throws {@link ModelReplyError}
+ * when the model wrote something unusable — not JSON, an out-of-contract block
+ * type, a canonical that does not parse — and that is a fault the model can
+ * plausibly repair when it is shown the validator's own message. Anything else
+ * propagates untouched: a transport or egress failure is the transport's
+ * concern and has its own typed reasons, a deadline has already elapsed, and
+ * retrying a call that may have been delivered is a different decision with
+ * different costs. Re-sending a request the provider already answered is not
+ * this function's business.
+ *
+ * The retry is a **fresh exchange with the failure appended**, not a
+ * conversation: the stage is stateless, so the second call carries the same
+ * system prompt, the same contract, the same input parts, plus what was wrong
+ * with the last reply. Nothing from the failed attempt is persisted or read —
+ * only its error text is quoted back — so a retry cannot smuggle a half-valid
+ * object past the contract.
+ *
+ * Failing after the last attempt is still failing closed. The error carries the
+ * attempt count so a caller can tell "the model got it right on the second try"
+ * from "the model never got it right", and account for what both cost.
+ */
+async function runStage<T>(
+  config: ModelStageConfig,
+  stage: "capture" | "normalization",
+  exchange: ModelExchange,
+  read: (replyText: string) => T,
+): Promise<T> {
+  const maxAttempts = Math.max(1, config.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)
+  let lastFailure: ModelReplyError | undefined
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    config.onAttempt?.({
+      stage,
+      attempt,
+      maxAttempts,
+      ...(lastFailure !== undefined ? { repairing: lastFailure.message } : {}),
+    })
+    const thisExchange =
+      lastFailure === undefined ? exchange : withRepairRequest(exchange, lastFailure)
+    const reply = await config.transport.send(thisExchange)
+    try {
+      return read(reply.text)
+    } catch (err) {
+      if (!(err instanceof ModelReplyError)) throw err
+      err.attempts = attempt
+      lastFailure = err
+    }
+  }
+  // Unreachable unless maxAttempts < 1, which the clamp above forbids.
+  throw lastFailure ?? new ModelReplyError(stage, "no attempt was made")
+}
+
+/** The same exchange plus what was wrong with the previous reply. */
+function withRepairRequest(exchange: ModelExchange, failure: ModelReplyError): ModelExchange {
+  return {
+    ...exchange,
+    parts: [
+      ...exchange.parts,
+      {
+        kind: "text",
+        text: [
+          "=== YOUR PREVIOUS REPLY WAS REJECTED ===",
+          "It was checked against the output contract above and did not conform.",
+          `Reason: ${failure.message}`,
+          "",
+          "Emit a corrected reply for the SAME input. Do not explain the error and",
+          "do not include any key the contract does not define — every object is",
+          ".strict(), so an extra key is itself a failure.",
+          "",
+          "Your rejected reply, for reference:",
+          (failure.reply ?? "").slice(0, REPAIR_EXCERPT_CHARS),
+        ].join("\n"),
+      },
+    ],
   }
 }
 
@@ -180,31 +313,31 @@ export function createModelCaptureProvider(config: ModelStageConfig): CapturePro
         `Output a single SourceSnapshot JSON object (schema/source-snapshot.ts). sourceType is "${sourceType}".`,
         parts,
       )
-      const reply = await config.transport.send(exchange)
-      const parsed = asRecord("capture", parseJsonReply("capture", reply.text))
-
-      const blocks = readBlocks(parsed.blocks)
-      const capturedText = parsed.capturedText
-      if (typeof capturedText !== "string") {
-        throw new ModelReplyError("capture", "reply has no string `capturedText`")
-      }
-      // `sourceType` is the caller's, not the model's: a model handed a
-      // photograph of a page may reasonably call it either "image" or "text",
-      // and only the caller knows what it actually passed in.
-      //
-      // `structuredSourcePayload` is deliberately NOT carried over from the
-      // reply, even when the model offers one. It means "the source itself
-      // published machine-readable structure" (Recipe JSON-LD and the like), and
-      // only a deterministic adapter that actually parsed such a payload can
-      // attest to that; a model reading a page can at best re-encode what it
-      // read, which is a different claim wearing the same field's name. The
-      // difference is load-bearing rather than cosmetic: `resolveSourceRefs`
-      // resolves a `payloadPointer` ref by checking that the snapshot carries a
-      // payload at all, so a model-invented payload would make every
-      // payload-pointer ref resolve by construction and turn a fail-closed check
-      // into a tautology. Same rule as block ids and provenance — structure the
-      // pipeline vouches for is never taken from the model.
-      return { sourceType, capturedText, blocks }
+      return runStage(config, "capture", exchange, (replyText) => {
+        const parsed = asRecord("capture", parseJsonReply("capture", replyText))
+        const blocks = readBlocks(parsed.blocks)
+        const capturedText = parsed.capturedText
+        if (typeof capturedText !== "string") {
+          throw new ModelReplyError("capture", "reply has no string `capturedText`", replyText)
+        }
+        // `sourceType` is the caller's, not the model's: a model handed a
+        // photograph of a page may reasonably call it either "image" or "text",
+        // and only the caller knows what it actually passed in.
+        //
+        // `structuredSourcePayload` is deliberately NOT carried over from the
+        // reply, even when the model offers one. It means "the source itself
+        // published machine-readable structure" (Recipe JSON-LD and the like),
+        // and only a deterministic adapter that actually parsed such a payload
+        // can attest to that; a model reading a page can at best re-encode what
+        // it read, which is a different claim wearing the same field's name. The
+        // difference is load-bearing rather than cosmetic: `resolveSourceRefs`
+        // resolves a `payloadPointer` ref by checking that the snapshot carries
+        // a payload at all, so a model-invented payload would make every
+        // payload-pointer ref resolve by construction and turn a fail-closed
+        // check into a tautology. Same rule as block ids and provenance —
+        // structure the pipeline vouches for is never taken from the model.
+        return { sourceType, capturedText, blocks }
+      })
     },
   }
 }
@@ -247,24 +380,24 @@ export function createModelNormalizationProvider(config: ModelStageConfig): Norm
           },
         ],
       )
-      const reply = await config.transport.send(exchange)
-      const parsed = asRecord("normalization", parseJsonReply("normalization", reply.text))
-
-      const candidate = {
-        ...parsed,
-        // Identity and provenance are the pipeline's, never the model's.
-        id: `recipe-of-${snapshot.id}`,
-        provenance: stampProvenance(snapshot, ctx),
-      }
-      try {
-        return validateCanonical(candidate)
-      } catch (cause) {
-        throw new ModelReplyError(
-          "normalization",
-          `reply does not conform to the contract: ${(cause as Error).message}`,
-          reply.text,
-        )
-      }
+      return runStage(config, "normalization", exchange, (replyText) => {
+        const parsed = asRecord("normalization", parseJsonReply("normalization", replyText))
+        const candidate = {
+          ...parsed,
+          // Identity and provenance are the pipeline's, never the model's.
+          id: `recipe-of-${snapshot.id}`,
+          provenance: stampProvenance(snapshot, ctx),
+        }
+        try {
+          return validateCanonical(candidate)
+        } catch (cause) {
+          throw new ModelReplyError(
+            "normalization",
+            `reply does not conform to the contract: ${(cause as Error).message}`,
+            replyText,
+          )
+        }
+      })
     },
   }
 }
