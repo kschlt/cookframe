@@ -61,12 +61,34 @@ li { margin: .3rem 0; }
 `.trim()
 
 /**
+ * Renders a fragment to a string, failing loudly if it turned out to be async.
+ *
+ * `hono/html` returns `HtmlEscapedString | Promise<HtmlEscapedString>`: the
+ * promise arm appears the moment an interpolated value is itself a promise.
+ * Nothing here is async and nothing here should become async — rendering is a
+ * pure function of a Canonical Recipe, which is what makes it deterministic.
+ * But calling `.toString()` on the union is a trap: on the promise arm it
+ * yields the literal `[object Promise]`, so the page would ship with its whole
+ * body replaced by two words and no error raised anywhere. Failing closed turns
+ * that silent corruption into a thrown one.
+ */
+function renderSync(fragment: HtmlEscapedString | Promise<HtmlEscapedString>): string {
+  if (fragment instanceof Promise) {
+    throw new Error(
+      "render produced a promise: rendering is synchronous by construction (CFV1-SL2), so an " +
+        "async fragment means a value reached the template that does not belong on a render path",
+    )
+  }
+  return fragment.toString()
+}
+
+/**
  * Wraps a rendered body in the document shell. `title` is interpolated through
  * the tagged template, so it is escaped; `STYLES` is `raw` because it is this
  * module's own literal and never carries recipe data.
  */
 export function page(title: string, body: HtmlEscapedString | Promise<HtmlEscapedString>): string {
-  return html`<!doctype html>
+  return renderSync(html`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -78,5 +100,5 @@ export function page(title: string, body: HtmlEscapedString | Promise<HtmlEscape
 <main>${body}</main>
 </body>
 </html>
-`.toString()
+`)
 }

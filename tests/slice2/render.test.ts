@@ -11,12 +11,15 @@
  * test that shows the render input carries no numbers at all says something
  * about every recipe.
  */
-import { readdirSync, readFileSync } from "node:fs"
+import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
+import ts from "typescript"
 import { describe, expect, it } from "vitest"
 import { CanonicalRecipe } from "../../schema/index.js"
 import {
+  libraryBody,
+  page,
   recipeBody,
   renderLibraryPage,
   renderRecipePage,
@@ -45,22 +48,54 @@ const tsFilesUnder = (dir: string): string[] =>
     return entry.isFile() && entry.name.endsWith(".ts") ? [full] : []
   })
 
-/** Every module specifier a file imports from, `import` and `export … from`. */
-const importsOf = (file: string): string[] => {
-  const text = readFileSync(file, "utf8")
-  const specifiers: string[] = []
-  const pattern = /(?:^|\n)\s*(?:import|export)\b[^\n;]*?from\s*["']([^"']+)["']/g
-  for (const match of text.matchAll(pattern)) {
-    const specifier = match[1]
-    if (specifier !== undefined) specifiers.push(specifier)
+/**
+ * Every module specifier a file imports from.
+ *
+ * Read with the TypeScript compiler's own pre-processor rather than a regular
+ * expression. A hand-rolled pattern was the first version of this and it had a
+ * hole a review found: it required `from "…"` to sit on the same line as the
+ * `import` keyword, so a multi-line import — the prevailing style in this very
+ * tree — was invisible to it, and a three-line `import … from "hono/jsx"`
+ * passed every guard below. The compiler sees what the compiler sees, including
+ * `export … from`, side-effect imports and dynamic `import()`, which is the
+ * point: these two describes are structural guarantees, and a guarantee that a
+ * line break defeats is not one.
+ */
+const importsOf = (file: string): string[] =>
+  ts.preProcessFile(readFileSync(file, "utf8"), true, true).importedFiles.map((i) => i.fileName)
+
+describe("slice2/import-scanner-sees-every-form", () => {
+  /**
+   * The scanner is load-bearing for two criteria, so it gets its own proof. A
+   * guard is only as strong as its ability to see what it is guarding against.
+   */
+  const scan = (source: string): string[] => {
+    const tmp = join(repoRoot, "node_modules", ".slice2-scan-fixture.ts")
+    writeFileSync(tmp, source)
+    try {
+      return importsOf(tmp)
+    } finally {
+      rmSync(tmp, { force: true })
+    }
   }
-  const bare = /(?:^|\n)\s*import\s*["']([^"']+)["']/g
-  for (const match of text.matchAll(bare)) {
-    const specifier = match[1]
-    if (specifier !== undefined) specifiers.push(specifier)
-  }
-  return specifiers
-}
+
+  it("sees a multi-line import, which a line-anchored pattern misses", () => {
+    expect(scan('import {\n  jsx,\n} from "hono/jsx"\nconst a = 1\nexport default a\n')).toContain(
+      "hono/jsx",
+    )
+  })
+
+  it("sees a side-effect import, an export-from and a dynamic import", () => {
+    const found = scan(
+      'import "react"\nexport * from "preact"\nconst m = () => import("solid-js")\nexport default m\n',
+    )
+    expect(found).toEqual(expect.arrayContaining(["react", "preact", "solid-js"]))
+  })
+
+  it("finds the multi-line schema import this tree actually uses", () => {
+    expect(importsOf(join(renderDir, "view-model.ts"))).toContain("../../schema/index.js")
+  })
+})
 
 describe("slice2/usable-with-source-unavailable", () => {
   /**
@@ -187,6 +222,29 @@ describe("slice2/discovery-signals-visible", () => {
  * helper away from averaging them. The view model drops them, so the page cannot
  * coerce what it cannot reach.
  */
+/**
+ * Every run of digits that appears in a rendered body but in none of the
+ * source's own wording.
+ *
+ * The first version of these tests named the coercions it expected — "1.5",
+ * "90 min", "8 h" — which is a guess about the FORM a fabricated number would
+ * take, and a differently formatted one passes all of them. This asks the
+ * question the criterion actually asks: is every number on the page a number
+ * the source wrote? It needs no guess, and it fails on a coercion in any
+ * format.
+ */
+const stringsIn = (value: unknown): string[] => {
+  if (typeof value === "string") return [value]
+  if (Array.isArray(value)) return value.flatMap(stringsIn)
+  if (value !== null && typeof value === "object") return Object.values(value).flatMap(stringsIn)
+  return []
+}
+
+const unsourcedNumbers = (body: string, recipe: CanonicalRecipe): string[] => {
+  const wording = stringsIn(recipe).join("\u0000")
+  return [...body.matchAll(/\d+/g)].map((m) => m[0]).filter((digits) => !wording.includes(digits))
+}
+
 const numericLeaves = (value: unknown, path = "$"): string[] => {
   if (typeof value === "number") return [path]
   if (Array.isArray(value)) return value.flatMap((item, i) => numericLeaves(item, `${path}[${i}]`))
@@ -208,17 +266,19 @@ describe("slice2/range-renders-as-range", () => {
     // this module's own literal, never carries recipe data, and legitimately
     // contains numbers that read as coercions out of context (`1.55`).
     const body = recipeBody(toRecipeView(onions)).toString()
-    // 1.5 is the midpoint of 1–2 and 11 the midpoint of 10–12; neither was
-    // written by the source, so neither may appear on the page.
-    for (const invented of ["1.5", "1,5", "11 Min", "1.5 Std"]) {
-      expect(body).not.toContain(invented)
-    }
+    // 1.5 is the midpoint of 1–2 and 11 the midpoint of 10–12. Rather than
+    // name those two guesses, require that EVERY number on the page is one the
+    // source wrote — which catches a midpoint in any format, and a coercion
+    // nobody thought of.
+    expect(unsourcedNumbers(body, onions)).toEqual([])
   })
 
   it("a range duration keeps its wording, in the step and in the listing", () => {
     expect(renderRecipePage(onions)).toContain("10–12 Min.")
     expect(renderLibraryPage([onions])).toContain("1–2 Std.")
-    expect(renderLibraryPage([onions])).not.toContain("90 min")
+    expect(unsourcedNumbers(libraryBody([toLibraryCardView(onions)]).toString(), onions)).toEqual(
+      [],
+    )
   })
 
   it("the render input carries no numeric field a formatter could coerce", () => {
@@ -239,11 +299,13 @@ describe("slice2/qualitative-quantity-wording-preserved", () => {
     expect(output).not.toMatch(/\d+\s*(ml|g|TL|EL)?\s*<\/span>\s*Olivenöl/)
   })
 
-  it("an open-ended duration stays open-ended", () => {
-    const output = renderRecipePage(onions)
-    expect(output).toContain("über Nacht")
-    expect(output).not.toContain("480 min")
-    expect(output).not.toContain("8 h")
+  it("an open-ended duration stays open-ended and gains no endpoint", () => {
+    const body = recipeBody(toRecipeView(onions)).toString()
+    expect(body).toContain("über Nacht")
+    // "overnight" has no number, so any duration-shaped number standing in for
+    // it would be unsourced — whether it were rendered as 8 h, 480 min or
+    // anything else.
+    expect(unsourcedNumbers(body, onions)).toEqual([])
   })
 
   it("an approximate amount keeps its hedge", () => {
@@ -290,12 +352,26 @@ describe("slice2/no-client-runtime-in-output", () => {
   })
 
   it("an injected media or link target cannot break out of its attribute", () => {
-    const output = renderRecipePage(onions, {
-      mediaSrc: () => '" onerror="alert(1)',
-    })
-    expect(output).not.toMatch(/\son[a-z]+\s*=\s*["']/i)
-    expect(output).not.toContain('onerror="')
-    expect(output).toContain("&quot; onerror=&quot;alert(1)")
+    const hostileSrc = '" onerror="alert(1)'
+    // Both pages, not just the recipe page: the listing renders an image and a
+    // link of its own, and an escaping gap in one says nothing about the other.
+    for (const output of [
+      renderRecipePage(onions, { mediaSrc: () => hostileSrc }),
+      renderLibraryPage([onions], { mediaSrc: () => hostileSrc, href: () => hostileSrc }),
+    ]) {
+      expect(output).not.toMatch(/\son[a-z]+\s*=\s*["']/i)
+      expect(output).not.toContain('onerror="')
+      expect(output).toContain("&quot; onerror=&quot;alert(1)")
+    }
+  })
+
+  it("a page whose body turned out to be async throws rather than shipping a stub", () => {
+    // `.toString()` on a promise yields "[object Promise]", which would replace
+    // the whole body with two words and raise nothing. Rendering is synchronous
+    // by construction, so the async case is a bug and must say so.
+    expect(() => page("Async", Promise.resolve(recipeBody(toRecipeView(onions))))).toThrow(
+      /synchronous by construction/,
+    )
   })
 })
 
