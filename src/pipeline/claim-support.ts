@@ -59,6 +59,19 @@ import type { CanonicalRecipe, SourceRef, SourceSnapshot, SourceType } from "../
  * HTML page will not. It is therefore a HARDER population than the one this rule
  * governs, which is the conservative direction to be wrong in.
  */
+/**
+ * Retained for DIAGNOSIS, and no longer a decision input anywhere.
+ *
+ * Both stages require containment. The relaxation this number governed was
+ * removed once it was measured to buy one claim of 696 that containment
+ * refuses — a claim whose words are all present, in order, with a gap, which
+ * is the recombination attack's own signature. A rule cannot accept that one
+ * and refuse the attack, because at that point they are the same signal.
+ *
+ * Kept so a refusal can say how close the wording came rather than only that
+ * it failed. `CFV1-THR` — "never change this after seeing a result it moves" —
+ * is satisfied trivially now: nothing moves with it.
+ */
 export const SUPPORT_COVERAGE_THRESHOLD = 0.7
 
 /** Raised when a cited block does not support the fact citing it. */
@@ -69,8 +82,9 @@ export class UnsupportedClaimError extends Error {
     readonly coverage: number,
   ) {
     super(
-      `a fact is not supported by the source it cites (coverage ${coverage.toFixed(2)} < ` +
-        `${SUPPORT_COVERAGE_THRESHOLD}): ${JSON.stringify(claim.slice(0, 200))} cited ` +
+      `a fact is not supported by the source it cites — no cited block contains ` +
+        `its wording (nearest coverage ${coverage.toFixed(2)}): ` +
+        `${JSON.stringify(claim.slice(0, 200))} cited ` +
         `${blockIds.length > 0 ? `block(s) ${blockIds.join(", ")}` : "no block"}`,
     )
     this.name = "UnsupportedClaimError"
@@ -315,12 +329,35 @@ export function verifyClaimSupport(snapshot: SourceSnapshot, canonical: Canonica
     // A `sourceText` is one fact's wording from one place in the source, so
     // the best single block is the right question; a claim no single cited
     // block supports is unsupported however many are named.
-    const coverage = ids
+    const cited = ids
       .map((id) => blockText.get(id))
       .filter((text): text is string => text !== undefined)
-      .reduce((best, text) => Math.max(best, supportCoverage(claim.text, text)), 0)
-    if (coverage < SUPPORT_COVERAGE_THRESHOLD) {
-      throw new UnsupportedClaimError(claim.text, ids, coverage)
+    // CONTAINMENT, in at least one cited block. Not a coverage threshold.
+    //
+    // The relaxation was removed because the size of the text a claim is
+    // scored against is the MODEL's to choose, at every level. Scoring the
+    // cited blocks joined let it choose by citing more; scoring per block left
+    // it choosing by capturing coarser, and `ingredient_group` is a block type
+    // the schema itself defines. Against an ordinary title/ingredients/steps
+    // segmentation, six of six inventions absent from the page scored 1.000 —
+    // "250 g Zwiebel" welded from "250 g rote Linsen" and "1 Zwiebel".
+    //
+    // Bounding block size would have treated the symptom. Containment removes
+    // the dependency instead: a larger haystack cannot manufacture a
+    // contiguous substring, so how the page is segmented stops mattering.
+    //
+    // Measured before it was adopted, over the same 696 claims: the relaxation
+    // was buying exactly ONE claim of 696 that containment refuses. That claim
+    // scores 1.000 — every word present, in order, with a gap — which is the
+    // attack's own signature. The relaxation could not tell them apart,
+    // because at that point they are the same signal.
+    if (cited.some((text) => normalizeForSupport(text).includes(normalizeForSupport(claim.text)))) {
+      continue
     }
+    throw new UnsupportedClaimError(
+      claim.text,
+      ids,
+      cited.reduce((best, text) => Math.max(best, supportCoverage(claim.text, text)), 0),
+    )
   }
 }

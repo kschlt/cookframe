@@ -50,13 +50,18 @@ repair path is the one where the model has already demonstrably left its contrac
 ### 2. Verification
 
 A fact's `sourceText` — the field the ontology defines as the source's own wording (§5.2) — must be
-supported by the block its `sourceRefs` cite, not merely accompanied by a ref that resolves. The
-rule is normalized containment with a bounded token-coverage relaxation, scored against **each
-cited block separately, best block wins** — never against their concatenation. Scoring the
-concatenation made the haystack the model's to choose: coverage counts a claim's words appearing in
-order anywhere in the text scored against, so adding a citation could only raise it, and a model
-that writes its own refs could manufacture support by citing everything. The threshold, the
-measurement behind it and its limits are registered in `spikes/inj-threshold/CALIBRATION.md`. The
+**contained** in one of the blocks its `sourceRefs` cite, after normalization, checked against each
+cited block on its own and never against their concatenation.
+
+**Containment rather than a coverage threshold, because the size of the text a claim is scored
+against is the model's to choose.** A word-coverage rule says "these words appear, in order,
+somewhere in that text", so its meaning depends on how much text it is given — and the model chose
+that at every level available to it. It chose by citing more blocks; when scoring moved per block
+it chose by capturing coarser, and `ingredient_group` is a block type the schema itself defines.
+Bounding block size would have treated the symptom. Containment removes the dependency: a larger
+haystack cannot manufacture a contiguous substring, so segmentation stops being a lever. The
+measurement behind this, and what it cost, are registered in `spikes/inj-threshold/CALIBRATION.md`.
+The
 refusal is its own type, distinct from a contract failure and from a transport failure, and it is
 **not retried**: a page that steered the model will steer it again, and a second billed call buys
 the same answer.
@@ -76,13 +81,10 @@ So on the `url` and `text` paths every captured block must be **contained in the
 normalized — the only text in the pipeline no model has touched. That is the chain's anchor;
 everything downstream verifies against something already verified against it.
 
-**Containment here, not the relaxation used at normalization, and the difference is the whole
-point.** Coverage depends on the size of the text scored against, and at capture that text is a
-whole page rather than one cited block, which makes an in-order word test nearly free: fabricated
-blocks assembled from a page's own vocabulary score 1.000 against it while appearing nowhere on it.
 A captured block is a SPAN of the input — capture segments text, it does not paraphrase — so
 containment is a bar this stage can carry, and every block of every real snapshot measured clears
-it. The relaxation bought no headroom here and was attack surface only.
+it. Coarse segmentation is not itself an attack and is not forbidden; it simply stops being useful,
+because the same rule applies to the claims that cite those blocks.
 
 This makes an architectural requirement of Slice 4's fallback structural rather than advisory: the
 fallback must hand capture the **extracted text** it is asking the model to read, not the raw HTML
@@ -112,18 +114,33 @@ applied to content: **a model's claim about the source is evidence, never author
   rate belongs to Slice 4's fallback unit to measure.
 - A refusal names the claim and the block it failed against, so it is diagnosable rather than
   mysterious. A capture-stage refusal names the block and the input it failed against.
-- **The two stages share a comparator but NOT a rule.** Capture requires containment; normalization
-  allows the calibrated relaxation against the best cited block. One bar for both was tried first
-  and was wrong, because the relaxation's meaning depends on how large the text scored against is —
-  a rule calibrated for one cited block does not transfer to a whole page. `CALIBRATION.md` records
-  that reasoning error rather than replacing it quietly, because the argument that justified it
-  reads as sound and is backwards for exactly the direction that matters.
-- Neither rule was loosened in response to a score. Both were TIGHTENED in response to a reproduced
-  attack, which is the one direction needing no timestamp defence.
-- The relaxation threshold is a permanent contract. Changing it after seeing a result it moves is
-  the failure `CFV1-THR` exists to prevent; it changes by a new record, with a new measurement.
-- Verification rests on multi-token claims. A one-word claim scores as supported against almost any
-  block that contains the word, which is correct — the block does contain it — but it means the
-  protection lives where a fabricated recipe's content lives, not everywhere uniformly.
+- **Only `sourceText` is verified. An invented value in a PARSED field beside it is not caught.**
+  `sourceText` is a quotation and can be checked against the source; `name`, `quantityExpression`
+  and the rest are the contract's split-out forms, which a source need not contain verbatim, so
+  there is nothing to compare them to. The consequence is concrete and worth stating in the terms
+  this record itself uses: an ingredient whose `sourceText` is the verbatim, verified "250 g rote
+  Linsen" and whose `name` is "Erdnussbutter" passes. That is an invented allergen in a persisted
+  recipe — the exact harm this record cites when it argues a refusal is the recoverable direction.
+  Verification narrows where invention can live; it does not eliminate it. Whether parsed fields
+  get their own check is a separate decision and its own item; Slice 4 will be built against this
+  record, so the limit is named here rather than left to be discovered.
+- **The threshold is gone, not merely lowered.** Both stages require containment, so there is no
+  bar to calibrate and none to protect from being tuned. `SUPPORT_COVERAGE_THRESHOLD` survives only
+  so a refusal can report how close the wording came.
+- No rule was loosened in response to a score. Each was TIGHTENED in response to a reproduced
+  attack, which is the one direction needing no timestamp defence. The measured cost of the last
+  tightening is one claim in 696, and `CALIBRATION.md` records what that claim looked like.
+- **Reintroducing any relaxation is a new record, with a new measurement.** That is what `CFV1-THR`
+  exists to prevent, and it now applies to the rule's SHAPE rather than to a number: a coverage
+  bar, a bounded window, a similarity score — each one reopens the question of who chooses the text
+  being scored against, and each needs the false-acceptance direction measured, not only the
+  false-refusal one.
+- Verification rests on multi-token claims. A one-word claim is contained in almost any block that
+  uses the word, which is correct — the block does contain it — but it means the protection lives
+  where a fabricated recipe's content lives, not everywhere uniformly.
+- **Legitimate quotations that differ from the source by an inflection are now refused.** That is
+  the measured cost of dropping the relaxation: one claim in 696. It was not a free choice. That
+  claim had every word present, in order, with a gap — which is also the recombination attack's
+  signature, so no rule could accept it and refuse the attack.
 - Nothing here establishes that a model obeys the fence, and nothing static could. That is why the
   second half exists.

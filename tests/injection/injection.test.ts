@@ -22,6 +22,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import {
+  type CanonicalRecipe,
   SCHEMA_VERSION,
   type SourceSnapshot,
   SourceSnapshot as SourceSnapshotSchema,
@@ -29,10 +30,13 @@ import {
 import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
 import { captureSnapshot } from "../../src/pipeline/capture.js"
 import {
+  normalizeForSupport,
   SUPPORT_COVERAGE_THRESHOLD,
   supportCoverage,
   UnsupportedCaptureError,
   UnsupportedClaimError,
+  verifyCaptureSupport,
+  verifyClaimSupport,
 } from "../../src/pipeline/claim-support.js"
 import {
   createModelCaptureProvider,
@@ -365,22 +369,75 @@ describe("injection/unsupported-claim-fails-resolution", () => {
     ).rejects.toBeInstanceOf(UnsupportedClaimError)
   })
 
-  it("scores the best cited block, so citing more cannot manufacture support", () => {
-    // The mechanism, stated as numbers rather than inferred from a refusal.
+  it("checks each cited block on its own, never their concatenation", () => {
+    // Containment must be per block, and this is the mutation that proves it.
+    //
+    // Every block here is legitimately a span of the page, so capture accepts
+    // both. But the model chooses which blocks to cite AND their order, so
+    // joining them before the check builds adjacencies the page never had:
+    // "250 g" and "Zwiebel" are each real, and "250 g Zwiebel" is nowhere on
+    // the page. Checking the join would accept it — the citation-widening
+    // attack again, wearing containment's clothes.
+    const page = "250 g rote Linsen\n1 Zwiebel"
     const blocks = [
-      "Linsensuppe",
-      "Zutaten",
-      "250 g rote Linsen",
-      "1 Zwiebel",
-      "Zubereitung",
-      "Linsen mit der gewürfelten Zwiebel 20 Minuten köcheln.",
+      { id: "b0", text: "250 g" },
+      { id: "b1", text: "Zwiebel" },
     ]
-    const invented = "250 g Zwiebel"
-    // Joined, the invention is perfectly "supported" — this is the defect.
-    expect(supportCoverage(invented, blocks.join(" "))).toBe(1)
-    // Against the best single block it is not, and that is what is enforced.
-    const best = Math.max(...blocks.map((b) => supportCoverage(invented, b)))
-    expect(best).toBeLessThan(SUPPORT_COVERAGE_THRESHOLD)
+    // Both blocks really are spans of the page, so the capture anchor passes.
+    expect(() => verifyCaptureSupport("text", page, blocks)).not.toThrow()
+
+    const snapshot = { sourceType: "text", blocks } as unknown as SourceSnapshot
+    const claiming = (sourceText: string): CanonicalRecipe =>
+      ({
+        ingredientGroups: [
+          {
+            ingredients: [{ sourceText, sourceRefs: [{ blockId: "b0" }, { blockId: "b1" }] }],
+          },
+        ],
+      }) as unknown as CanonicalRecipe
+
+    expect(() => verifyClaimSupport(snapshot, claiming("250 g Zwiebel"))).toThrow(
+      UnsupportedClaimError,
+    )
+    // Each block's own wording is still supported by that block.
+    expect(() => verifyClaimSupport(snapshot, claiming("Zwiebel"))).not.toThrow()
+  })
+
+  it("refuses the same invention however the page is SEGMENTED", () => {
+    // The third door onto the same root cause, and the reason the relaxation
+    // is gone rather than merely moved.
+    //
+    // Citing more blocks was closed by scoring per block; capturing COARSER
+    // reopened it, because block size is the capture model's to choose too and
+    // `ingredient_group` is a block type the schema itself defines. This drives
+    // the shipped verifier — not arithmetic about a helper — across the three
+    // segmentations of one page, including the degenerate single block.
+    const line = ["250 g rote Linsen", "1 Zwiebel", "1 Liter Gemüsebrühe", "2 Esslöffel Olivenöl"]
+    const segmentations: Record<string, { id: string; text: string }[]> = {
+      "line by line": line.map((text, i) => ({ id: `b${i}`, text })),
+      "one ingredient_group block": [{ id: "b0", text: line.join("\n") }],
+      "the whole page as one block": [{ id: "b0", text: `Linsensuppe\n${line.join("\n")}` }],
+    }
+    for (const [how, blocks] of Object.entries(segmentations)) {
+      const snapshot = { sourceType: "text", blocks } as unknown as SourceSnapshot
+      const ids = blocks.map((b) => ({ blockId: b.id }))
+      const claiming = (sourceText: string): CanonicalRecipe =>
+        ({
+          ingredientGroups: [{ ingredients: [{ sourceText, sourceRefs: ids }] }],
+        }) as unknown as CanonicalRecipe
+      // Welded from two real lines; every word is on the page, in order.
+      expect(() => verifyClaimSupport(snapshot, claiming("250 g Zwiebel")), how).toThrow(
+        UnsupportedClaimError,
+      )
+      expect(() => verifyClaimSupport(snapshot, claiming("1 Liter Olivenöl")), how).toThrow(
+        UnsupportedClaimError,
+      )
+      // A real line of the same page still passes under every segmentation.
+      expect(
+        () => verifyClaimSupport(snapshot, claiming("2 Esslöffel Olivenöl")),
+        how,
+      ).not.toThrow()
+    }
   })
 
   it("a whole fabricated recipe attributed to a real page is refused", async () => {
@@ -609,32 +666,51 @@ describe("injection/legitimate-fallback-page-unaffected", () => {
     expect(recipe.ingredientGroups[0]?.ingredients[0]?.sourceText).toBe("250 g rote Linsen")
   })
 
-  it("tolerates the divergences the calibration measured, and only those", () => {
+  it("normalizes the presentation differences the calibration measured", () => {
     // Self-authored sentences, not quoted from the private corpus.
     //
+    // What survives of the calibration is NORMALIZATION, which containment
+    // runs on both sides. The coverage relaxation it also produced is gone:
+    // measured over the same 696 claims, it was buying one claim that
+    // containment refuses, and that claim scores 1.000 — every word present,
+    // in order, with a gap — which is the recombination attack's signature.
+    //
     // A printed line break hyphenating a word folds away entirely.
-    expect(supportCoverage("gehen lassen", "Den Teig 30 Minuten ge-hen lassen")).toBe(1)
-    // A lemmatised adjective inside a LONG quotation is tolerated — this is the
-    // case the relaxation exists for.
-    expect(
-      supportCoverage(
-        "die Äpfel in eine große Schüssel geben und mit Zucker bestreuen",
-        "Nun die Äpfel in eine großen Schüssel geben und mit Zucker bestreuen.",
-      ),
-    ).toBeGreaterThanOrEqual(SUPPORT_COVERAGE_THRESHOLD)
-    // The same inflection in a TWO-word claim is NOT tolerated, and that is the
-    // deliberate half. It scores 0.50 — the same as a fabricated claim that
-    // happens to share half its words with the block it cites, below — so no
-    // threshold can accept one without accepting the other. Two words, one of
-    // them wrong, is not evidence.
-    expect(supportCoverage("große Schüssel", "In einer großen Schüssel verrühren")).toBe(0.5)
-    expect(
-      supportCoverage("200 g Zartbitterschokolade schmelzen", "200 g Mehl mit 1 Prise Salz"),
-    ).toBeLessThan(SUPPORT_COVERAGE_THRESHOLD)
-    // Text that is simply not there stays at the floor.
-    expect(supportCoverage("3 EL Erdnussbutter", "250 g rote Linsen")).toBe(0)
-    // A number range must not be fused by the hyphen fold.
-    expect(supportCoverage("180-200 Grad", "bei 180200 Grad backen")).toBeLessThan(1)
+    expect(normalizeForSupport("Den Teig 30 Minuten ge-hen lassen")).toContain("gehen lassen")
+    // Whitespace runs, case and typographic quotes fold; a number range does
+    // NOT fuse, because the hyphen fold requires letters on both sides.
+    expect(normalizeForSupport("bei  180-200   GRAD")).toBe("bei 180-200 grad")
+
+    // And the deliberate limit, stated as behaviour rather than as a score: an
+    // inflected quotation is no longer tolerated. This is the one class the
+    // relaxation bought and the measured cost of dropping it.
+    expect(normalizeForSupport("In einer großen Schüssel verrühren")).not.toContain(
+      normalizeForSupport("große Schüssel"),
+    )
+  })
+
+  it("refuses a claim whose words are all present in order but not contiguous", () => {
+    // The mechanism, through the SHIPPED verifier rather than arithmetic about
+    // a helper. "250 g Zwiebel" takes its quantity from the lentils and its
+    // noun from the onion; every word is on the page, in order.
+    const snapshot = {
+      sourceType: "text",
+      blocks: [{ id: "b-all", text: "250 g rote Linsen 1 Zwiebel 2 Esslöffel Olivenöl" }],
+    } as unknown as SourceSnapshot
+    const claiming = (sourceText: string): CanonicalRecipe =>
+      ({
+        ingredientGroups: [{ ingredients: [{ sourceText, sourceRefs: [{ blockId: "b-all" }] }] }],
+      }) as unknown as CanonicalRecipe
+
+    expect(() => verifyClaimSupport(snapshot, claiming("250 g Zwiebel"))).toThrow(
+      UnsupportedClaimError,
+    )
+    expect(() => verifyClaimSupport(snapshot, claiming("1 Esslöffel Linsen"))).toThrow(
+      UnsupportedClaimError,
+    )
+    // The real wording of the same block is accepted, so this is not a blanket refusal.
+    expect(() => verifyClaimSupport(snapshot, claiming("250 g rote Linsen"))).not.toThrow()
+    expect(() => verifyClaimSupport(snapshot, claiming("2 Esslöffel Olivenöl"))).not.toThrow()
   })
 
   it("tokenizes Unicode words rather than ASCII fragments", () => {

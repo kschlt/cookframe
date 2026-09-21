@@ -213,6 +213,72 @@ and was not re-chosen: both changes TIGHTEN the rule in response to a
 reproduced attack, which is the one direction that needs no timestamp defence.
 Loosening either after seeing a score is what `CFV1-THR` exists to prevent.
 
+## Round three: the threshold is gone
+
+A third review round found the same root cause behind a third door, and closing
+it removed the relaxation entirely. **This document now records how a threshold
+was chosen, measured, defended — and then found not to be the right shape of
+rule at all.** That sequence is kept rather than rewritten, because the reasoning
+that produced the threshold was not lazy and is worth being able to re-read.
+
+### The finding
+
+Scoring per cited block closed citation-widening. It did not close **block
+granularity**, because how large a block is is also the capture model's choice,
+and `ingredient_group` and `instruction_group` are block types the schema itself
+defines. Against an ordinary title / ingredients / steps segmentation of a
+13-line page, six of six inventions absent from the page scored 1.000 — "250 g
+Zwiebel" welded from "250 g rote Linsen" and "1 Zwiebel"; a step welded from two
+separate steps. Driven end to end in the degenerate one-block case, a fact
+nowhere on the page reached a valid canonical with its ref resolving.
+
+The ADR's own sentence named the mechanism — *"the relaxation's meaning depends
+on how large the text scored against is"* — and then applied it to the capture
+stage only.
+
+### The measurement that decided it
+
+Over the same 696 claims, with the shipped TypeScript:
+
+| rule at normalization | claims refused of 696 |
+|---|---|
+| best cited block, coverage 0.70 (round 2) | 2 |
+| **containment in one cited block** | **3** |
+| windowed coverage, window ≤ 1x claim length | 3 |
+| windowed coverage, window ≤ 2x claim length | 3 |
+| windowed coverage, window ≤ 3x claim length | 2 |
+
+Two readings, and the second is the one that settled it.
+
+**A bounded window buys nothing over containment** until the window is wide
+enough (3x) to admit recombination again — so the intermediate rule would have
+added a parameter to calibrate and defend while purchasing no headroom.
+
+**The relaxation was buying exactly one claim of 696**, and of the three claims
+containment refuses, two were already refused at 0.70. That one claim scores
+**1.000**: every word present, in order, with a gap. That is the recombination
+attack's own signature. **No rule can accept that claim and refuse the attack,
+because at that point they are the same signal.** The choice was not "strict
+versus tolerant"; it was "keep one legitimate claim in 696 and keep the attack
+class, or lose both".
+
+### What this costs, stated plainly
+
+A legitimate quotation differing from its source by an inflection is now
+refused. One in 696 on this corpus, which is photographs and harder than the
+fetched pages the rule governs. It is a real cost and it is not zero.
+
+### What replaced the threshold
+
+Nothing. Both stages require containment on the normalized text, checked per
+block. There is no bar to calibrate, none to protect from tuning, and no second
+parameter. `SUPPORT_COVERAGE_THRESHOLD` survives so a refusal can report how
+close the wording came; it decides nothing.
+
+Normalization is what survives of this calibration and still carries weight: the
+Unicode, dash, quote, hyphen and whitespace folds are what make containment a
+rule about wording rather than about bytes, and they were measured here.
+
 ## What this calibration does not establish
 
 - **The corpus is photographs; the rule governs fetched pages.** Photographs
