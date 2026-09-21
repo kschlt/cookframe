@@ -21,6 +21,7 @@
     "test:url-fetch-security": "vitest run tests/url-fetch",
     "test:model-egress": "vitest run tests/security",
     "test:slice1": "vitest run tests/slice1",
+    "test:slice4": "vitest run tests/slice4",
     "test:watch": "vitest",
     "eval": "tsx evals/harness.ts",
     "quality": "npm run typecheck && biome ci . && vitest run"
