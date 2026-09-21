@@ -475,7 +475,9 @@ describe("slice2/no-jsx-or-component-system-imported", () => {
    * that the allowlist only enforces.
    */
   const packageRoot = (specifier: string): string =>
-    specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0]
+    specifier.startsWith("@")
+      ? specifier.split("/").slice(0, 2).join("/")
+      : (specifier.split("/")[0] ?? specifier)
 
   const declaredPackages = (): Set<string> => {
     const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
