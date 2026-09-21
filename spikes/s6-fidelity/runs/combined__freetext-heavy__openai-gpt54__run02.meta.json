@@ -1,0 +1,22 @@
+{
+  "model": "gpt-5.4",
+  "shape": "combined",
+  "fixture": "freetext-heavy",
+  "run": "02",
+  "latencyMs": 36317,
+  "usage": {
+    "prompt_tokens": 4297,
+    "completion_tokens": 2828,
+    "total_tokens": 7125,
+    "prompt_tokens_details": {
+      "cached_tokens": 3840,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  }
+}

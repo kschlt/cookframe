@@ -22,7 +22,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-11 | exact shortcut packaging/distribution mechanism | closed by PDR-0003 |
 | OQ-12 | exact mobile component/layout system | open |
 | OQ-13 | eager vs. background vs. lazy Cooking Plan generation | closed by PDR-0004 |
-| OQ-14 | exact capture-eval thresholds | open |
+| OQ-14 | exact capture-eval thresholds | open — Gate A run on real photographs returned **FAIL** and scan deletion stays disabled (`spikes/s1-photo-gate/VERDICT.md`); the run also showed exact-name matching to be under-specified for real sources, so the thresholds themselves need a maintainer decision |
 | OQ-15 | exact scaling-classification algorithm | out of V1 scope |
 | OQ-16 | exact safe URL-fetch implementation | closed by ADR-0010 |
 | OQ-17 | exact capability-token format/lifetime/revocation mechanism | closed by ADR-0016 (256-bit base64url secret in the URL path, one recipe per token, permanent-but-revocable — revocation the only end) |

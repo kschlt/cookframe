@@ -62,6 +62,27 @@ UNIT_SYNONYMS = {
     "can": "can", "cans": "can",
     "pinch": "pinch", "stick": "stick", "handful": "handful",
     "sprig": "sprig", "sprigs": "sprig", "sheet": "sheet", "sheets": "sheet",
+    # German units. Added 2026-09-21, BEFORE any real-photo score was computed,
+    # because the pre-registered table is English-only and the maintainer's real
+    # sources are German: without these every German unit would read as a miss
+    # for a reason that is not capture accuracy. This extends the normalization
+    # table only — no bar, no comparison rule and no verdict rule is changed, and
+    # --selftest still has to pass. The deviation is recorded in the verdict.
+    "tl": "tsp", "teelöffel": "tsp", "teeloeffel": "tsp",
+    "el": "tbsp", "esslöffel": "tbsp", "essloeffel": "tbsp",
+    "gramm": "g",
+    "kilo": "kg", "kilogramm": "kg",
+    "milliliter": "ml",
+    "liter": "l",
+    "msp": "msp", "messerspitze": "msp",
+    "prise": "pinch", "prisen": "pinch",
+    "stück": "piece", "stueck": "piece", "stk": "piece",
+    "zehe": "clove", "zehen": "clove",
+    "dose": "can", "dosen": "can",
+    "bund": "bunch",
+    "päckchen": "packet", "paeckchen": "packet", "pckg": "packet",
+    "tasse": "cup", "tassen": "cup",
+    "blatt": "sheet", "blätter": "sheet",
 }
 
 UNICODE_FRAC = {"½": "1/2", "¼": "1/4", "¾": "3/4", "⅓": "1/3", "⅔": "2/3", "⅛": "1/8"}
@@ -153,10 +174,24 @@ class Tally:
         return (self.hit / self.total) if self.total else None
 
 
-def score(model: str):
+def times_match(truth_times: dict, cap_times: dict) -> bool:
+    """A capture's times are correct only if EVERY present truth time matches.
+
+    A conjunction over every key the truth records: a key the capture does not
+    carry fails, and so does one it carries differently. Named rather than
+    inlined so that `--selftest` can prove it discriminates — a rule that lives
+    only inside `score()` is a rule nothing checks, and this one was quietly
+    narrowed once already (see the note at its call site).
+    """
+    return all(norm_str(cap_times.get(k)) == norm_str(v) for k, v in truth_times.items())
+
+
+def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = None):
+    FIX = fixtures_dir or (HERE / "fixtures")
+    RUNS = runs_dir or (HERE / "runs")
     manifest = load_json(FIX / "manifest.json")
     if not manifest:
-        sys.exit("no manifest.json — run generate.mjs first")
+        sys.exit(f"no manifest.json in {FIX} — run generate.mjs first")
 
     fields = {k: Tally() for k in FIELD_BARS}
     edges = {k: Tally() for k in EDGE_BARS}
@@ -165,6 +200,7 @@ def score(model: str):
     per_fixture = []
     captures_present = 0
     identical_to_truth = 0
+    unmeasured: dict[str, list[str]] = {}
 
     for entry in manifest["fixtures"]:
         fid, cls = entry["id"], entry["class"]
@@ -203,11 +239,29 @@ def score(model: str):
         else:
             check("yield", sorted(c_yields) == sorted(t_yields))
 
-        # times: correct only if every present truth time matches
+        # times: correct only if every present truth time matches.
+        #
+        # This rule is as pre-registered, and a narrowing of it was REVERTED
+        # rather than kept. On 2026-09-21 the real-photograph run was scored
+        # (19:51), the truth files were then re-transcribed (19:55-19:57) with a
+        # `*_label` key added beside each time, and the rule was then restricted
+        # to ("prep", "cook", "total") at 20:00 — after the score. Dropping keys
+        # from an `all(...)` conjunction can only ADD matches, never remove one,
+        # and it took `time` from 0% (0/2) to 100% (2/2), making it the single
+        # field that met its bar.
+        #
+        # THRESHOLD.md row 11 does name the field "time (prep/cook/total)", so
+        # the narrowed rule is the one the written threshold describes and this
+        # wider one is arguably the implementation that had drifted from it. That
+        # argument does not survive the clock: the label keys and the narrowing
+        # arrived together, AFTER the score, so neither number is a clean
+        # measurement. The rule kept here is the one that needs no change made
+        # after seeing a result. The verdict records both numbers and leans on
+        # neither, and lists the truth-format defect as something to fix BEFORE
+        # the next run rather than after it.
         tt = {k: v for k, v in (truth.get("times") or {}).items() if v}
         if tt:
-            ct = cap.get("times") or {}
-            check("time", all(norm_str(ct.get(k)) == norm_str(v) for k, v in tt.items()))
+            check("time", times_match(tt, cap.get("times") or {}))
 
         # temperatures (incl ranges)
         t_temps = [norm_qty(x) for x in (truth.get("temperatures") or [])]
@@ -262,6 +316,16 @@ def score(model: str):
 
         # split / reserved
         t_split = truth.get("split_reserved") or []
+        # THRESHOLD.md requires the structured use/reserve PAIR. A truth file that
+        # records split/reserved as free strings cannot express that pair, so the
+        # field is recorded as NOT MEASURED for this fixture rather than being
+        # scored — a harness limitation must not be reported as a capture result
+        # in either direction. The verdict names the affected fixtures, and a
+        # critical field left unmeasured cannot meet its bar, so the gate cannot
+        # read PASS while any remain.
+        if t_split and not all(isinstance(x, dict) for x in t_split):
+            unmeasured.setdefault("split_reserved", []).append(fid)
+            t_split = []
         if t_split:
             c_split = cap.get("split_reserved") or []
             ok_s = True
@@ -318,7 +382,11 @@ def score(model: str):
         if r is not None and r < bar:
             failing.append(f"edge:{k} {r:.2%} < {bar:.0%}")
 
-    verdict = "PASS" if not failing and not missing_runs else "FAIL"
+    # A critical field left unmeasured cannot have met its bar, so it blocks a
+    # PASS exactly as a failing field does (THRESHOLD.md: PASS only if EVERY bar
+    # is met). It is reported separately from a failure, because "we did not
+    # measure this" and "capture got this wrong" are different facts.
+    verdict = "PASS" if not failing and not missing_runs and not unmeasured else "FAIL"
 
     # Circularity override: if every present capture is byte-identical to its
     # truth, the numeric bars are tautological and a PASS would be meaningless.
@@ -336,12 +404,17 @@ def score(model: str):
         "captures_present": captures_present,
         "identical_to_truth": identical_to_truth,
         "circular": circular,
+        "unmeasured": unmeasured,
         "field_scores": field_rates,
         "edge_class_scores": edge_rates,
         "per_class_scores": class_rates,
         "per_fixture": per_fixture,
     }
-    (HERE / f"scores-{model}.json").write_text(json.dumps(result, indent=2) + "\n")
+    # Scores are written beside the RUNS they grade, never unconditionally into
+    # this public spike directory: a real-photo score carries captured recipe
+    # text, which the S1 constraint keeps out of kschlt/cookframe entirely.
+    out_dir = RUNS if runs_dir else HERE
+    (out_dir / f"scores-{model}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
 
     # report
     print(f"# CFV1-S1 capture-quality — model: {model}\n")
@@ -373,6 +446,13 @@ def score(model: str):
             "self-authored content is indistinguishable from a copy of the answer, so the "
             "numeric bars above are tautological and cannot establish OQ-14 (see oq14-verdict.md)."
         )
+    if unmeasured:
+        for field, ids in sorted(unmeasured.items()):
+            print(
+                f"\nNOT MEASURED: '{field}' on {len(ids)} fixture(s) ({', '.join(ids)}) — the truth "
+                "files record it in a form the pre-registered rule cannot compare. This is a harness\n"
+                "limitation, NOT a capture result; a critical field left unmeasured blocks a PASS."
+            )
     print(f"\nVERDICT (OQ-14): {verdict}")
     if failing:
         print("  failing:", "; ".join(failing))
@@ -406,6 +486,18 @@ def selftest() -> int:
             "circular guard: differing not flagged",
             canon_json({"title": "A"}) != canon_json({"title": "B"}),
         ),
+        # the times comparator — the rule this spike narrowed post hoc and then
+        # reverted. Untested, "selftest passes" proved everything except it.
+        ("times match accepted", times_match({"prep": "20 min"}, {"prep": "20 Min."})),
+        ("times mismatch caught", not times_match({"prep": "20 min"}, {"prep": "25 min"})),
+        (
+            "times: a key the capture lacks is caught",
+            not times_match({"prep": "20 min", "prep_label": "VORBEREITUNG"}, {"prep": "20 min"}),
+        ),
+        (
+            "times: every truth key counts, not just the first",
+            not times_match({"prep": "20 min", "cook": "40 min"}, {"prep": "20 min", "cook": "45 min"}),
+        ),
     ]
     ok = True
     print("# scorer self-test (discrimination proof)\n")
@@ -420,10 +512,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--selftest", action="store_true", help="prove the scorer discriminates")
+    ap.add_argument("--fixtures", default=None, help="fixture directory (default: ./fixtures)")
+    ap.add_argument("--runs", default=None, help="run directory (default: ./runs)")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
-    return score(args.model)
+    return score(
+        args.model,
+        Path(args.fixtures) if args.fixtures else None,
+        Path(args.runs) if args.runs else None,
+    )
 
 
 if __name__ == "__main__":

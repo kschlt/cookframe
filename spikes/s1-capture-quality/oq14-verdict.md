@@ -1,4 +1,11 @@
-# OQ-14 verdict — capture-quality gate (Gate A)
+# OQ-14 verdict — capture-quality gate (Gate A), synthetic fixtures
+
+> **Superseded as the live gate result, 2026-09-21.** The run this verdict asked for — real
+> photographs with ground truth independent of the capture — has since happened. Its result is
+> [`../s1-photo-gate/VERDICT.md`](../s1-photo-gate/VERDICT.md): **FAIL**, on measured per-field
+> rates rather than on circularity. Scan deletion stays disabled either way, so the gate's practical
+> outcome is unchanged. This record stands as written — it is the synthetic pass and the reasoning
+> that made the real run necessary — and is not rewritten.
 
 **Proof: `capture-quality/oq14-verdict`.** Bars are the pre-registered ones in
 [`THRESHOLD.md`](THRESHOLD.md), recorded before any capture was read

@@ -13,9 +13,15 @@
  *
  * This is the enforcement of ADR-0010's central decision. The guard's guarantee —
  * resolve-and-pin, per-hop revalidation, the bounds — protects nothing if another
- * module can open its own socket. The undici connector (`src/security/safe-fetch.ts`)
- * is the one network call in the tree; it lives inside the allowed directory, and
- * this test keeps every other module off the network.
+ * module can open its own socket. `src/security/` is the one directory that may
+ * open one, and this test keeps every other module off the network.
+ *
+ * Two modules inside it do, for two different threat models: `safe-fetch.ts`
+ * fetches attacker-influenced URLs (SSRF, the address policy), and
+ * `model-egress.ts` posts to the operator's configured model endpoint (a fixed
+ * address, a credential not to be forwarded). Allowing a whole directory would
+ * otherwise let a third appear unnoticed, so the second assertion pins the list:
+ * adding a module that opens a socket is a decision, and it has to be made here.
  */
 import { readFileSync } from "node:fs"
 import { dirname, join, relative, sep } from "node:path"
@@ -37,6 +43,26 @@ function isUnderGuardDir(file: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !rel.startsWith(sep))
 }
 
+/**
+ * Every module inside the guard directory, with what it is for. The scan above
+ * exempts this whole directory, so a file added here is exempt the moment it
+ * lands — which is fine for a guard and not fine silently. Declaring the
+ * inventory turns "a second egress path appeared" into a failing test with a
+ * message, so adding one stays a decision someone makes on purpose.
+ *
+ * Matching on the pattern set instead would not work here: these files talk
+ * about network primitives in their own prose and names, and the set is built to
+ * flag the words wherever they appear.
+ */
+const GUARD_MODULES = new Map([
+  ["address-policy.ts", "ADR-0010 points 4-5: the default-deny address predicate"],
+  ["reason-codes.ts", "ADR-0010 point 8: discriminable refusal codes; opens nothing"],
+  ["safe-fetch.ts", "ADR-0010 point 1: the guarded URL-ingestion connector — OPENS SOCKETS"],
+  ["url-guard.ts", "ADR-0010 point 2: URL-level pre-flight checks"],
+  ["model-egress.ts", "CFV1-SL1: the guarded model-provider egress path — OPENS SOCKETS"],
+  ["url-byte-source.ts", "CFV1-SL4: the one caller of the safe-fetch connector — CALLS fetch"],
+])
+
 describe("safe-fetch chokepoint", () => {
   it("no module outside the guard opens a network connection", () => {
     for (const file of sourceFiles(srcDir)) {
@@ -48,6 +74,25 @@ describe("safe-fetch chokepoint", () => {
           `${relative(repoRoot, file)} makes a network call outside src/security/ — route it through the safe-fetch guard (ADR-0010: one chokepoint)`,
         ).toBe(false)
       }
+    }
+  })
+
+  it("the exempt directory holds only the modules it is declared to hold", () => {
+    const present = new Set<string>()
+    for (const file of sourceFiles(srcDir)) {
+      if (!isUnderGuardDir(file)) continue
+      const name = relative(GUARD_DIR, file)
+      present.add(name)
+      expect(
+        GUARD_MODULES.has(name),
+        `src/security/${name} sits in the one directory the chokepoint scan exempts but is not declared in GUARD_MODULES — say what it is for and, if it opens a socket, which record allows it`,
+      ).toBe(true)
+    }
+    for (const [name, why] of GUARD_MODULES) {
+      expect(
+        present.has(name),
+        `GUARD_MODULES lists src/security/${name} (${why}) but no such module exists — the inventory is stale`,
+      ).toBe(true)
     }
   })
 })

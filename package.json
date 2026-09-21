@@ -19,6 +19,7 @@
     "test:schema-contract": "vitest run tests/schema",
     "test:normalization-invariant": "vitest run tests/normalization",
     "test:url-fetch-security": "vitest run tests/url-fetch",
+    "test:model-egress": "vitest run tests/security",
     "test:slice1": "vitest run tests/slice1",
     "test:slice3": "vitest run tests/slice3",
     "test:slice4": "vitest run tests/slice4",

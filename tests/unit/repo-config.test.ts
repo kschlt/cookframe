@@ -85,7 +85,11 @@ describe("CI workflow (ci.yml)", () => {
     // A non-zero exit from any of these fails the job (no continue-on-error),
     // which fails the build.
     expect(runsOf("typecheck")).toMatch(/npm run typecheck/)
-    expect(runsOf("lint")).toMatch(/npm run lint/)
+    // The lint job runs `npm run check` (`biome check`), not `npm run lint`:
+    // the narrower command does not run the import-organisation assist, so a
+    // push could be green here and red where `biome ci` runs. Asserting the
+    // superset keeps the two from drifting apart again.
+    expect(runsOf("lint")).toMatch(/npm run check/)
     expect(runsOf("schema-contract")).toMatch(/test:schema-contract/)
     expect(runsOf("normalization-invariant")).toMatch(/test:normalization-invariant/)
     expect(runsOf("url-fetch-security")).toMatch(/test:url-fetch-security/)
@@ -93,6 +97,19 @@ describe("CI workflow (ci.yml)", () => {
       (j.steps ?? []).every((s) => s["continue-on-error"] !== true),
     )
     expect(noContinueOnError).toBe(true)
+  })
+
+  it("capture-quality/selftest-runs-in-ci — the scorer's discrimination proof is actually run", () => {
+    // VERDICT.md offers `score.py --selftest` as one of the four committed
+    // things that decide what the S1 rates mean. It is Python, under `spikes/`,
+    // so no npm script reaches it: without a step here it is a proof the gate
+    // never runs, and "selftest passes" would be a claim nothing checks.
+    const runs = Object.values(workflow.jobs)
+      .flatMap((j) => j.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    expect(runs, "no CI job runs the S1 scorer's self-test").toMatch(/score\.py --selftest/)
   })
 
   it("slice0/secret-scan-fails-build — a secret scan runs and blocks on a finding", () => {

@@ -47,6 +47,14 @@ export interface CaptureContext {
   readonly runId: string
   readonly captureModel?: string
   readonly capturePromptVersions?: readonly string[]
+  /**
+   * The media type of the bytes being captured, e.g. `image/jpeg` for a phone
+   * photo or `text/plain` for a pasted source. It is not provenance — it is what
+   * the caller knows about the input and the provider cannot reliably infer, and
+   * it decides whether a model-backed provider takes its vision path or its text
+   * path. A provider that does not care about it ignores it.
+   */
+  readonly sourceMediaType?: string
 }
 
 /**
@@ -65,4 +73,67 @@ export interface CaptureResult {
 /** The ADR-0004 capture capability: source bytes become a snapshot segmentation. */
 export interface CaptureProvider {
   capture(input: Uint8Array, ctx: CaptureContext): Promise<CaptureResult>
+}
+
+/**
+ * A single exchange with a model: one system instruction plus the user payload,
+ * which may mix text and image parts (a photographed recipe page is an image
+ * part; a pasted source or a snapshot handed back for normalization is a text
+ * part).
+ *
+ * This is deliberately *provider-agnostic*, which is what ADR-0004 asks for: no
+ * provider type, SDK type or model identifier appears here or in the capabilities
+ * built on it. Which vendor serves the exchange, how its request body is shaped
+ * and where its bytes leave the process are all properties of the transport
+ * implementation, not of the pipeline.
+ */
+export interface ModelTextPart {
+  readonly kind: "text"
+  readonly text: string
+}
+
+/** An image handed to the model, with the media type needed to encode it. */
+export interface ModelImagePart {
+  readonly kind: "image"
+  readonly mediaType: string
+  readonly bytes: Uint8Array
+}
+
+export type ModelPart = ModelTextPart | ModelImagePart
+
+/** What one exchange asks of the model. */
+export interface ModelExchange {
+  readonly system: string
+  readonly parts: readonly ModelPart[]
+  /**
+   * Require a response that is a single JSON object and nothing else. Every
+   * pipeline capability sets this: the stages emit contract objects, never prose.
+   */
+  readonly jsonOnly: boolean
+}
+
+/** Token accounting for one exchange, when the transport can report it. */
+export interface ModelUsage {
+  readonly inputTokens?: number
+  readonly outputTokens?: number
+}
+
+/** What one exchange returns: the model's text, plus what it cost to get it. */
+export interface ModelReply {
+  readonly text: string
+  readonly usage?: ModelUsage
+  readonly latencyMs?: number
+}
+
+/**
+ * The transport seam: something that can run one {@link ModelExchange}.
+ *
+ * It is an injected argument exactly like {@link CaptureProvider} and
+ * {@link NormalizationProvider} are — so a test drives the real capability
+ * implementations through a scripted transport with no network, and production
+ * wires a transport that reaches a vendor. The capabilities below contain no
+ * network primitive of their own; egress is the transport's concern alone.
+ */
+export interface ModelTransport {
+  send(exchange: ModelExchange): Promise<ModelReply>
 }
