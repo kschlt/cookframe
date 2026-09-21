@@ -10,9 +10,9 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
+  createModelEndpoint,
   EgressReason,
   ModelEgressError,
-  createModelEndpoint,
 } from "../../src/security/model-egress.js"
 
 const CREDENTIAL = "sk-test-do-not-log-me"
