@@ -68,6 +68,91 @@ model, if block ids are ever to survive a re-capture.
 ## Status / next
 
 - Fidelity half of OQ-24: **answered** (evidence above).
-- Pending before OQ-24 can be fully closed (and an ADR written to record the decision): the OpenAI
-  cost/latency confirming pass. `openai-run.ts` reproduces this exact matrix on OpenAI and records
-  latency + token usage per call. The architecture decision (and any ADR) is Kornelius's to confirm.
+- Cost/latency half: **answered** by the OpenAI confirming run below (2026-09-21).
+
+---
+
+# OpenAI confirming run (2026-09-21) — closes OQ-24
+
+Measured on `kschlt/cookframe` with `OPENAI_API_KEY` present, via `openai-run.ts --runs 3`:
+**54 further runs**, 27 per model, same prompts / fixtures / scorer as above.
+Models: **gpt-5.4** (full tier) and **gpt-5.4-mini** (cheap tier). Reproduce with
+`npx tsx spikes/s6-fidelity/score.ts` over the committed `runs/` (87 runs, 33 cells total).
+
+## Fidelity on OpenAI
+
+| model | structural validity | sourceRefs resolved |
+|---|---|---|
+| gpt-5.4 | **27/27 (100%)** | **564/564 (100%)** |
+| gpt-5.4-mini | 24/27 (89%) | 455/455 (100%) |
+
+The Claude-side finding **replicates on the production provider**: within-run sourceRef resolution
+is 100% in both the one-call and the two-call shape. Resolution still does not discriminate between
+one call and two.
+
+The three gpt-5.4-mini failures are all *contract* failures, not reference failures — an invented
+key (`sourceSite`), a `null` where the schema wants a string, and two omitted required `sourceRefs`
+arrays. `.strict()` caught every one. This is a **model-tier** signal, not an architecture signal:
+the cheap tier breaks the schema in ~11% of calls, the full tier in none.
+
+## Cost and latency — the half the Claude pass could not produce
+
+Per conversion, mean over 9 runs per shape (two-call = capture + normalization summed):
+
+| model | | latency | input tok | output tok | total tok |
+|---|---|---|---|---|---|
+| gpt-5.4 | two-call | 16.2 s | 9 134 | 2 336 | 11 470 |
+| gpt-5.4 | **one-call** | 18.1 s | 4 253 | 2 225 | **6 478** |
+| gpt-5.4-mini | two-call | 12.1 s | 9 134 | 2 472 | 11 606 |
+| gpt-5.4-mini | **one-call** | 9.7 s | 4 253 | 2 077 | **6 330** |
+
+**One-call costs ~45% fewer tokens per conversion**, on both tiers. The saving is structural, not
+incidental: two-call sends the schema bundle twice and additionally sends the whole snapshot back
+in as normalization input, so its input is 2.1x the one-call input. Output volume is near-identical
+(~2.1-2.3k either way), which is the tell that the *work* is the same and only the framing differs.
+
+Latency splits by tier: one-call is 20% faster on mini, 11% slower on gpt-5.4. Neither is decisive.
+Roughly 71-80% of input tokens came back `cached` (automatic prompt caching on the stable schema
+prefix), so the real billed input is well below the raw figure — which further favours the shape
+with fewer, larger calls.
+
+## Block-id stability: the earlier reading was too kind to the models
+
+Across all three models now measured, STABLE/UNSTABLE lands in **no consistent pattern** — not by
+fixture, not by shape, not by model:
+
+| capture · fixture | sonnet | gpt-5.4 | gpt-5.4-mini |
+|---|---|---|---|
+| freetext-heavy | UNSTABLE | STABLE | UNSTABLE |
+| sparse | UNSTABLE | UNSTABLE | UNSTABLE |
+| multi-component | STABLE | UNSTABLE | UNSTABLE |
+
+The Claude-only pass read this as "structured input is stable, prose is not". With a second provider
+in the table that reading does not hold: gpt-5.4 was stable on the *prose* fixture and unstable on
+the *structured* one, exactly inverting sonnet. **Model-emitted block-id stability is noise.** It
+cannot be relied on, tuned for, or predicted from the input.
+
+That is a stronger form of the requirement the first pass already stated, and it is already
+discharged in the product: `src/pipeline/block-id-policy.ts` (PR #14) derives block ids from block
+content in code, and `RawBlock = Omit<SnapshotBlock, "id">` makes it structurally impossible for a
+model-chosen id to reach a snapshot. The spike now supplies the evidence for why that seam has to
+exist rather than being a precaution.
+
+## OQ-24 — answer
+
+**Both shapes are correct; one-call is the cheaper one, and its traceability is safer by
+construction.** Evidence: identical validity at a given model tier, 100% within-run sourceRef
+resolution in both, ~45% fewer tokens for one-call, no decisive latency difference.
+
+The residual argument for two-call is stage separation and independently swappable prompts. The
+residual argument against it is that its correctness depends on persisting the exact snapshot that
+was normalized — which the repository spine does do (PR #12/#16), so it is a live option, not a
+broken one.
+
+Separately and independently of the one-vs-two choice: **the full tier is required for
+contract conformance.** gpt-5.4-mini's 89% validity would mean roughly one in nine conversions
+failing `.parse` in production. A mini tier is only viable behind a retry, and a retry erases the
+cost advantage that is the only reason to pick it.
+
+**Still Kornelius's to confirm**, and the ADR recording the decision is his call. What the spike
+owed — evidence on both axes — is now delivered.
