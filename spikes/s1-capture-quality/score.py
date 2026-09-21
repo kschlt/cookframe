@@ -174,6 +174,23 @@ class Tally:
         return (self.hit / self.total) if self.total else None
 
 
+def selected_truth_times(truth: dict) -> dict:
+    """Which of the truth's recorded times the comparison is run over.
+
+    EVERY key the truth records that carries a value, and no subset of them.
+
+    This selection — not the comparison below — is the line that was narrowed
+    after the run had been scored: filtering the truth's keys down to
+    ("prep", "cook", "total") dropped the `*_label` keys from an `all(...)`
+    conjunction, which can only turn misses into hits, and it moved `time` from
+    0/2 to 2/2. Extracting only the COMPARATOR left this half unguarded, so the
+    same narrowing could be re-applied and `--selftest` would still print PASS.
+    It is named here for exactly the reason `times_match` is: a rule that lives
+    only inside `score()` is a rule nothing checks.
+    """
+    return {k: v for k, v in (truth.get("times") or {}).items() if v}
+
+
 def times_match(truth_times: dict, cap_times: dict) -> bool:
     """A capture's times are correct only if EVERY present truth time matches.
 
@@ -259,7 +276,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         # after seeing a result. The verdict records both numbers and leans on
         # neither, and lists the truth-format defect as something to fix BEFORE
         # the next run rather than after it.
-        tt = {k: v for k, v in (truth.get("times") or {}).items() if v}
+        tt = selected_truth_times(truth)
         if tt:
             check("time", times_match(tt, cap.get("times") or {}))
 
@@ -493,6 +510,26 @@ def selftest() -> int:
         (
             "times: a key the capture lacks is caught",
             not times_match({"prep": "20 min", "prep_label": "VORBEREITUNG"}, {"prep": "20 min"}),
+        ),
+        # The selection half. Without these, re-applying the narrowing at the
+        # call site leaves every other check green — which is what a review
+        # found after the comparator alone had been extracted.
+        (
+            "times: selection keeps every key the truth records",
+            selected_truth_times({"times": {"prep": "20 min", "prep_label": "VORBEREITUNG"}})
+            == {"prep": "20 min", "prep_label": "VORBEREITUNG"},
+        ),
+        (
+            "times: selection drops only keys with no value",
+            selected_truth_times({"times": {"prep": "20 min", "cook": "", "total": None}})
+            == {"prep": "20 min"},
+        ),
+        (
+            "times: selection and comparison together still catch a missing key",
+            not times_match(
+                selected_truth_times({"times": {"prep": "20 min", "prep_label": "VORBEREITUNG"}}),
+                {"prep": "20 min"},
+            ),
         ),
         (
             "times: every truth key counts, not just the first",
