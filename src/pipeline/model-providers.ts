@@ -44,6 +44,7 @@
 import { BlockType, type CanonicalRecipe, type SourceSnapshot } from "../../schema/index.js"
 import { validateCanonical } from "../persistence/validate.js"
 import type { RawBlock } from "./block-id-policy.js"
+import { verifyCaptureSupport, verifyClaimSupport } from "./claim-support.js"
 import type {
   CaptureProvider,
   CaptureResult,
@@ -53,6 +54,7 @@ import type {
   NormalizationContext,
   NormalizationProvider,
 } from "./providers.js"
+import { type MarkerSource, sealSourceText, untrustedRegionRule } from "./untrusted-source-text.js"
 
 /** Raised when a model reply is unusable: not JSON, or not the contract shape. */
 export class ModelReplyError extends Error {
@@ -94,6 +96,13 @@ export interface ModelStageConfig {
    * in {@link runStage}; values below 1 are treated as 1.
    */
   readonly maxAttempts?: number
+  /**
+   * Test seam for the untrusted-text fence's random marker (CFV1-INJ). Left
+   * unset in production, where the marker is drawn from `crypto.randomUUID()`;
+   * a test supplies a predictable one so a fixture can attempt to forge the
+   * fence and be shown not to.
+   */
+  readonly markerSource?: MarkerSource
   /**
    * Called once per physical call, before the reply is read. The only way a
    * caller can count what a conversion actually cost, since a retried call is
@@ -156,10 +165,24 @@ function asRecord(
   return value as Record<string, unknown>
 }
 
+/**
+ * Assemble one exchange.
+ *
+ * Instructions go in `system`; untrusted source text goes in `parts`, and only
+ * ever through {@link sealSourceText} (CFV1-INJ). The two are never concatenated
+ * — there is no string here into which a page's bytes and a pipeline
+ * instruction both flow — and when a sealed region is present the system message
+ * states the rule naming that region's own unforgeable marker.
+ *
+ * `trustedParts` are the pipeline's own words (a label, a repair request); the
+ * image bytes of a photograph are trusted in the same sense, since the image
+ * path is outside CFV1-INJ's scope by the item's own terms.
+ */
 function buildExchange(
   config: ModelStageConfig,
   contract: string,
-  parts: readonly ModelPart[],
+  trustedParts: readonly ModelPart[],
+  sealed?: { readonly marker: string; readonly part: ModelPart },
 ): ModelExchange {
   return {
     system: [
@@ -173,8 +196,11 @@ function buildExchange(
       "",
       "=== THIS CALL ===",
       contract,
+      ...(sealed !== undefined
+        ? ["", "=== SOURCE DATA ===", untrustedRegionRule(sealed.marker)]
+        : []),
     ].join("\n"),
-    parts,
+    parts: sealed !== undefined ? [...trustedParts, sealed.part] : trustedParts,
     jsonOnly: true,
   }
 }
@@ -222,7 +248,9 @@ async function runStage<T>(
       ...(lastFailure !== undefined ? { repairing: lastFailure.message } : {}),
     })
     const thisExchange =
-      lastFailure === undefined ? exchange : withRepairRequest(exchange, lastFailure)
+      lastFailure === undefined
+        ? exchange
+        : withRepairRequest(exchange, lastFailure, config.markerSource)
     const reply = await config.transport.send(thisExchange)
     try {
       return read(reply.text)
@@ -236,8 +264,27 @@ async function runStage<T>(
   throw lastFailure ?? new ModelReplyError(stage, "no attempt was made")
 }
 
-/** The same exchange plus what was wrong with the previous reply. */
-function withRepairRequest(exchange: ModelExchange, failure: ModelReplyError): ModelExchange {
+/**
+ * The same exchange plus what was wrong with the previous reply.
+ *
+ * The rejected reply is **sealed like any other untrusted text** (CFV1-INJ). It
+ * is the model's own output rather than the page's, but a page that steers the
+ * model steers what it emits, so quoting a rejected reply back unfenced would
+ * reopen on the repair path exactly the boundary the first call closed — and it
+ * would do so on the one path where the model has already demonstrably departed
+ * from its contract. The reason line is the validator's own words and is the
+ * pipeline's to state; only the excerpt is sealed.
+ */
+function withRepairRequest(
+  exchange: ModelExchange,
+  failure: ModelReplyError,
+  markerSource: MarkerSource | undefined,
+): ModelExchange {
+  const excerpt = sealSourceText(
+    "your rejected reply",
+    (failure.reply ?? "").slice(0, REPAIR_EXCERPT_CHARS),
+    markerSource,
+  )
   return {
     ...exchange,
     parts: [
@@ -253,10 +300,12 @@ function withRepairRequest(exchange: ModelExchange, failure: ModelReplyError): M
           "do not include any key the contract does not define — every object is",
           ".strict(), so an extra key is itself a failure.",
           "",
+          untrustedRegionRule(excerpt.marker),
+          "",
           "Your rejected reply, for reference:",
-          (failure.reply ?? "").slice(0, REPAIR_EXCERPT_CHARS),
         ].join("\n"),
       },
+      excerpt.part,
     ],
   }
 }
@@ -313,17 +362,27 @@ export function createModelCaptureProvider(config: ModelStageConfig): CapturePro
       const mediaType = ctx.sourceMediaType ?? "image/jpeg"
       const isImage = mediaType.startsWith("image/")
       const sourceType = isImage ? "image" : "text"
-      const parts: ModelPart[] = isImage
+      // The image path hands over bytes the user physically photographed, which
+      // CFV1-INJ leaves out of scope by its own terms. The TEXT path is the one
+      // that carries someone else's words — a fetched page, or a paste of one —
+      // so it never reaches the prompt as an interpolated string: it is sealed
+      // into its own fenced part and the system message states the rule.
+      const trustedParts: ModelPart[] = isImage
         ? [
             { kind: "text", text: "RAW SOURCE (photographed recipe page):" },
             { kind: "image", mediaType, bytes: input },
           ]
-        : [{ kind: "text", text: `RAW SOURCE:\n${new TextDecoder().decode(input)}` }]
+        : [{ kind: "text", text: "RAW SOURCE follows in the fenced region below." }]
+      const sourceText = isImage ? "" : new TextDecoder().decode(input)
+      const sealed = isImage
+        ? undefined
+        : sealSourceText("raw source text", sourceText, config.markerSource)
 
       const exchange = buildExchange(
         config,
         `Output a single SourceSnapshot JSON object (schema/source-snapshot.ts). sourceType is "${sourceType}".`,
-        parts,
+        trustedParts,
+        sealed,
       )
       return runStage(config, "capture", exchange, (replyText) => {
         const parsed = asRecord("capture", parseJsonReply("capture", replyText), replyText)
@@ -336,6 +395,14 @@ export function createModelCaptureProvider(config: ModelStageConfig): CapturePro
         // photograph of a page may reasonably call it either "image" or "text",
         // and only the caller knows what it actually passed in.
         //
+        // CFV1-INJ. Verification at normalization compares the canonical against
+        // the SNAPSHOT, and on the fallback path the snapshot is this model's
+        // own output — so without this the chain verifies an invention against
+        // itself. Measured before it was closed: a fabricated ingredient block
+        // survived capture, normalization and resolution together. Anchored on
+        // the decoded input, which is the one thing here the model did not
+        // write. Not a `ModelReplyError`, so `runStage` does not retry it.
+        verifyCaptureSupport(sourceType, sourceText, blocks)
         // `structuredSourcePayload` is deliberately NOT carried over from the
         // reply, even when the model offers one. It means "the source itself
         // published machine-readable structure" (Recipe JSON-LD and the like),
@@ -382,15 +449,21 @@ function stampProvenance(snapshot: SourceSnapshot, ctx: NormalizationContext) {
 export function createModelNormalizationProvider(config: ModelStageConfig): NormalizationProvider {
   return {
     async normalize(snapshot, ctx): Promise<CanonicalRecipe> {
+      // The snapshot's blocks ARE the source's words, so the normalization call
+      // is an untrusted-text call too — the fallback path's model sees the
+      // fetched page here, not at capture. Sealing the whole snapshot keeps one
+      // boundary rather than two, and keeps it verbatim: `verifyClaimSupport`
+      // below compares the reply against exactly these block texts.
+      const sealed = sealSourceText(
+        "source snapshot",
+        JSON.stringify(snapshot, null, 2),
+        config.markerSource,
+      )
       const exchange = buildExchange(
         config,
         "Output a single CanonicalRecipe JSON object (schema/canonical-recipe.ts). schemaVersion must equal SCHEMA_VERSION; every sourceRef.blockId must be an id present in the input snapshot's blocks.",
-        [
-          {
-            kind: "text",
-            text: `SOURCE SNAPSHOT (input):\n${JSON.stringify(snapshot, null, 2)}`,
-          },
-        ],
+        [{ kind: "text", text: "SOURCE SNAPSHOT (input) follows in the fenced region below." }],
+        sealed,
       )
       return runStage(config, "normalization", exchange, (replyText) => {
         const parsed = asRecord(
@@ -404,8 +477,9 @@ export function createModelNormalizationProvider(config: ModelStageConfig): Norm
           id: `recipe-of-${snapshot.id}`,
           provenance: stampProvenance(snapshot, ctx),
         }
+        let canonical: CanonicalRecipe
         try {
-          return validateCanonical(candidate)
+          canonical = validateCanonical(candidate)
         } catch (cause) {
           throw new ModelReplyError(
             "normalization",
@@ -413,6 +487,14 @@ export function createModelNormalizationProvider(config: ModelStageConfig): Norm
             replyText,
           )
         }
+        // CFV1-INJ. Deliberately NOT a `ModelReplyError`: `runStage` retries
+        // that class and only that class, so an `UnsupportedClaimError` leaves
+        // this stage on the first attempt. A page that steered the model into
+        // inventing content will steer it again, and spending a second billed
+        // call to be lied to twice is not a retry policy. It is also distinct
+        // from a transport failure, so a caller can tell the three apart.
+        verifyClaimSupport(snapshot, canonical)
+        return canonical
       })
     },
   }
