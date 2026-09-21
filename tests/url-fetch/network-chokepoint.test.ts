@@ -60,6 +60,7 @@ const GUARD_MODULES = new Map([
   ["safe-fetch.ts", "ADR-0010 point 1: the guarded URL-ingestion connector — OPENS SOCKETS"],
   ["url-guard.ts", "ADR-0010 point 2: URL-level pre-flight checks"],
   ["model-egress.ts", "CFV1-SL1: the guarded model-provider egress path — OPENS SOCKETS"],
+  ["url-byte-source.ts", "CFV1-SL4: the one caller of the safe-fetch connector — CALLS fetch"],
 ])
 
 describe("safe-fetch chokepoint", () => {
