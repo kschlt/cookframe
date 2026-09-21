@@ -57,12 +57,13 @@ shape and the tier class, not a vendor or a model id.
   a schema change or an interface change.
 - **Retry on contract failure becomes load-bearing rather than optional.** With one call per
   conversion, a non-conforming reply costs a whole conversion, and the first real-photograph run had
-  one page in eleven rejected by `.strict()`. Failing closed is correct and is not sufficient: the
-  production path owes a retry.
+  one page in eleven rejected by `.strict()` (`spikes/s1-photo-gate/VERDICT.md`). Failing closed is
+  correct and is not sufficient: the production path owes a retry.
 - The cheap tier has no remaining argument here. It is worse on conformance and more expensive per
   usable recipe, so "use the small model to save money" is closed as a question, not left to taste.
-- The record is re-checkable without a key: `score.ts` computes these figures from the `.meta.json`
-  usage sidecars committed beside each run, so re-scoring costs nothing.
+- The record is re-checkable without a key. The OpenAI pass ships its usage sidecars beside each
+  run in `spikes/s6-fidelity/runs/`, and `score.ts` recomputes these figures from them, so the
+  evidence can be re-derived — and this record contradicted — with no spend and no credential.
 - A side finding that belongs with the evidence rather than in its own record: with a second
   provider measured, model-emitted block-id stability follows no pattern by fixture, shape or model.
   Model-supplied ids are noise, which is the measured justification for the content-derived
