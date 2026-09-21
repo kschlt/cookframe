@@ -29,6 +29,7 @@
     "quality": "npm run typecheck && biome ci . && vitest run"
   },
   "dependencies": {
+    "hono": "^4.13.8",
     "ipaddr.js": "^2.5.0",
     "undici": "^7.29.1",
     "zod": "^3.25.76"

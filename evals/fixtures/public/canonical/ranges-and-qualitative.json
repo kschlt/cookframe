@@ -1,0 +1,232 @@
+{
+  "id": "recipe-fixture-0002",
+  "schemaVersion": "1.0.0",
+  "title": "Eingelegte Zwiebeln",
+  "description": "A synthetic public fixture whose quantities and durations are deliberately non-scalar: a range, a qualitative quantity, an approximate amount and an open-ended rest. It also carries no author, so that \"a missing author stays missing\" is exercised rather than asserted.",
+  "sourceName": "Cookframe Fixtures",
+  "sourceClassifications": [
+    {
+      "kind": "category",
+      "sourceText": "Beilage",
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    },
+    {
+      "kind": "cooking_method",
+      "sourceText": "eingelegt",
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    }
+  ],
+  "yields": [
+    {
+      "id": "y-jar",
+      "sourceText": "1 Glas, reicht für 4–6 Portionen",
+      "valueExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+      "unit": "Glas",
+      "contextText": "reicht für 4–6 Portionen",
+      "scalingEligibility": "unknown",
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    }
+  ],
+  "times": [
+    {
+      "type": "total",
+      "sourceLabel": "Gesamtzeit",
+      "durationExpression": {
+        "sourceText": "1–2 Std.",
+        "kind": "range",
+        "minValue": 60,
+        "maxValue": 120,
+        "unit": "min"
+      },
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    },
+    {
+      "type": "rest",
+      "sourceLabel": "Ziehzeit",
+      "durationExpression": { "sourceText": "über Nacht", "kind": "qualitative" },
+      "sourceRefs": [{ "blockId": "b-meta" }]
+    }
+  ],
+  "equipment": [
+    {
+      "id": "e-jar",
+      "sourceText": "1 Einmachglas",
+      "name": "Einmachglas",
+      "quantityExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+      "qualifiers": ["sauber"],
+      "sourceRefs": [{ "blockId": "b-eq" }]
+    }
+  ],
+  "ingredientGroups": [
+    {
+      "id": "g-main",
+      "title": "Für das Glas",
+      "sourceRefs": [{ "blockId": "b-ing-group" }],
+      "ingredients": [
+        {
+          "id": "i-onion",
+          "sourceText": "etwa 500 g rote Zwiebeln",
+          "quantityExpression": { "sourceText": "etwa 500", "kind": "approximate", "value": 500 },
+          "unit": "g",
+          "name": "rote Zwiebeln",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [{ "blockId": "b-ing-1" }]
+        },
+        {
+          "id": "i-mustard",
+          "sourceText": "1–2 TL Senfkörner",
+          "quantityExpression": {
+            "sourceText": "1–2",
+            "kind": "range",
+            "minValue": 1,
+            "maxValue": 2
+          },
+          "unit": "TL",
+          "name": "Senfkörner",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [{ "blockId": "b-ing-2" }]
+        },
+        {
+          "id": "i-oil",
+          "sourceText": "ein Schuss Olivenöl",
+          "quantityExpression": {
+            "sourceText": "ein Schuss",
+            "kind": "qualitative",
+            "qualifierText": "ein Schuss"
+          },
+          "name": "Olivenöl",
+          "qualifiers": [],
+          "scalingEligibility": "non_scalable",
+          "sourceRefs": [{ "blockId": "b-ing-3" }]
+        },
+        {
+          "id": "i-bay",
+          "sourceText": "1 Lorbeerblatt, optional",
+          "quantityExpression": { "sourceText": "1", "kind": "exact", "value": 1 },
+          "name": "Lorbeerblatt",
+          "qualifiers": [],
+          "optional": true,
+          "scalingEligibility": "non_scalable",
+          "sourceRefs": [{ "blockId": "b-ing-4" }]
+        }
+      ]
+    }
+  ],
+  "preparedComponents": [
+    {
+      "id": "c-brine",
+      "label": "Sud",
+      "createdByStepId": "s-1",
+      "sourceRefs": [{ "blockId": "b-step-1" }]
+    }
+  ],
+  "instructionSections": [
+    {
+      "id": "sec-1",
+      "title": "Zubereitung",
+      "sourceRefs": [{ "blockId": "b-steps" }],
+      "steps": [
+        {
+          "id": "s-1",
+          "sourceText": "Essig, Zucker und Senfkörner aufkochen, bis sich der Zucker gelöst hat.",
+          "normalizedActionText": "Essig, Zucker und Senfkörner aufkochen, bis sich der Zucker gelöst hat.",
+          "sourceRefs": [{ "blockId": "b-step-1" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-mustard",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-step-1" }]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": ["c-brine"],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "10–12 Min.",
+                "kind": "range",
+                "minValue": 10,
+                "maxValue": 12,
+                "unit": "min"
+              },
+              "sourceLabel": "Kochzeit",
+              "sourceRefs": [{ "blockId": "b-step-1" }]
+            }
+          ],
+          "temperatures": [],
+          "donenessCues": [
+            {
+              "sourceText": "bis sich der Zucker gelöst hat",
+              "sourceRefs": [{ "blockId": "b-step-1" }]
+            }
+          ],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "s-2",
+          "sourceText": "Zwiebeln in das Glas schichten, den Sud darübergiessen und über Nacht ziehen lassen.",
+          "normalizedActionText": "Zwiebeln in das Glas schichten, den Sud darübergiessen und über Nacht ziehen lassen.",
+          "sourceRefs": [{ "blockId": "b-step-2" }],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-onion",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-step-2" }]
+            },
+            {
+              "ingredientId": "i-oil",
+              "usage": "use_partial_unspecified",
+              "quantityExpression": {
+                "sourceText": "ein Schuss",
+                "kind": "qualitative",
+                "qualifierText": "ein Schuss"
+              },
+              "sourceRefs": [{ "blockId": "b-step-2" }]
+            }
+          ],
+          "componentUses": [
+            {
+              "componentId": "c-brine",
+              "usage": "use_all",
+              "sourceRefs": [{ "blockId": "b-step-2" }]
+            }
+          ],
+          "equipmentUses": [{ "equipmentId": "e-jar", "sourceRefs": [{ "blockId": "b-step-2" }] }],
+          "producesComponents": [],
+          "durations": [
+            {
+              "durationExpression": { "sourceText": "über Nacht", "kind": "qualitative" },
+              "sourceLabel": "Ziehzeit",
+              "sourceRefs": [{ "blockId": "b-step-2" }]
+            }
+          ],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [
+            { "sourceText": "der Sud ist fertig", "sourceRefs": [{ "blockId": "b-step-2" }] }
+          ],
+          "waitCues": [
+            { "sourceText": "über Nacht ziehen lassen", "sourceRefs": [{ "blockId": "b-step-2" }] }
+          ]
+        }
+      ]
+    }
+  ],
+  "media": {
+    "heroImage": {
+      "storageIdentity": "sha256-0000000000000000000000000000000000000000000000000000000000000002",
+      "origin": "user_added",
+      "attribution": "Cookframe Fixtures"
+    }
+  },
+  "provenance": {
+    "sourceSnapshotId": "snapshot-fixture-0002",
+    "sourceSnapshotVersion": 0,
+    "targetOntologyVersion": "1.0.0",
+    "runId": "run-fixture-0002"
+  }
+}
