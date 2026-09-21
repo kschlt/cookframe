@@ -396,14 +396,25 @@ describe("slice3/omission-is-recorded-and-exact", () => {
   })
 
   it("still converts a duration whose product is a whole second under float error", () => {
-    // The discriminating counter-case: 0.1 h is exactly six minutes, but
-    // `0.1 * 3600` is 360.00000000000006 in floating point. A literal integer
-    // test would omit a duration the source did state exactly.
-    const tenth = canonical({
-      times: [timeOf("prep", { sourceText: "0.1 h", kind: "exact", value: 0.1, unit: "h" })],
+    // The discriminating counter-case, and it has to be a MEASURED one. An
+    // earlier version of this test used `0.1 h` on the stated grounds that
+    // `0.1 * 3600` is `360.00000000000006`. It is exactly `360`, so that test
+    // passed with `Number.isInteger` in place of the tolerance and proved
+    // nothing — the constant it was written to guard could have been deleted
+    // with the whole gate staying green.
+    //
+    // `1.1 * 3600` really is `3960.0000000000005`. The assertion below is the
+    // one the tolerance is load-bearing for: without it, "1.1 h" — a duration a
+    // source can plainly write, and exactly 66 minutes — would be omitted as
+    // unrepresentable.
+    expect(1.1 * 3600).not.toBe(3960)
+    expect(Number.isInteger(1.1 * 3600)).toBe(false)
+
+    const oneAndATenth = canonical({
+      times: [timeOf("prep", { sourceText: "1.1 h", kind: "exact", value: 1.1, unit: "h" })],
     })
-    const { recipe, omissions } = mapCanonicalToSchemaOrg(tenth)
-    expect(recipe.prepTime).toBe("PT6M")
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(oneAndATenth)
+    expect(recipe.prepTime).toBe("PT1H6M")
     expect(omissions).toEqual([])
   })
 
@@ -491,6 +502,32 @@ describe("slice3/omission-is-recorded-and-exact", () => {
       field: "recipeIngredient",
       reason: "blank_source_text",
       sourceText: "Salt",
+    })
+  })
+
+  it("records a step dropped for blank source wording", () => {
+    // The ingredient half of this rule was proved and the step half was not,
+    // although both are written. Half of "record every drop" was unguarded:
+    // deleting the `recipeInstructions` record left the whole suite green.
+    const base = canonical()
+    const section = base.instructionSections[0]
+    if (section === undefined) throw new Error("fixture has no instruction section")
+    const step = section.steps[0]
+    if (step === undefined) throw new Error("fixture has no step")
+    const blanked = canonical({
+      instructionSections: [
+        {
+          ...section,
+          steps: [...section.steps, { ...step, id: "step-blank", sourceText: "  " }],
+        },
+      ],
+    })
+    const { recipe, omissions } = mapCanonicalToSchemaOrg(blanked)
+    expect(recipe.recipeInstructions).toHaveLength(1)
+    expect(omissions).toContainEqual({
+      field: "recipeInstructions",
+      reason: "blank_source_text",
+      sourceText: step.normalizedActionText,
     })
   })
 })

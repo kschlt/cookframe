@@ -147,11 +147,21 @@ const SECONDS_PER_UNIT: ReadonlyMap<string, number> = new Map([
 
 /**
  * How close a converted duration must be to a whole number of seconds to count
- * as exactly representable. Floating-point multiplication is not exact — `0.1 *
- * 3600` is `360.00000000000006`, and "0.1 hours" plainly means six minutes — so
- * a literal integer test would omit durations the source did state exactly. The
- * tolerance is absolute and nine orders of magnitude below one second, which no
- * source wording can reach: it forgives representation error and nothing else.
+ * as exactly representable. Floating-point multiplication is not exact, so a
+ * literal `Number.isInteger` test would omit durations the source did state
+ * exactly. The tolerance is absolute and nine orders of magnitude below one
+ * second, which no source wording can reach: it forgives representation error
+ * and nothing else.
+ *
+ * Which products actually miss is not obvious, and guessing at one is how this
+ * comment was wrong before: it claimed `0.1 * 3600` is `360.00000000000006`,
+ * and it is exactly `360`. The measured counter-cases, the ones that make this
+ * constant load-bearing rather than decorative, are `1.1 h` (`3960.0000000000005`),
+ * `2.2 h` (`7920.000000000001`) and `4.1 min` (`245.99999999999997`). Each is a
+ * duration a source can plainly write, and each would be omitted as
+ * unrepresentable without the tolerance. `slice3/omission-is-recorded-and-exact`
+ * holds one of them as a proof, so deleting this constant turns a test red
+ * instead of passing unnoticed.
  */
 const SECOND_TOLERANCE = 1e-9
 
