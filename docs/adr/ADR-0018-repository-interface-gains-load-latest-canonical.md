@@ -51,10 +51,15 @@ ADR-0003 stays readable in place, its `superseded_by` set to this record.
    `loadSnapshot`, which already returns `undefined`, not `readTwoRuns`, which throws
    for a caller that named a version ordinal and got it wrong. Inside a store a throw
    is fine; at this interface, for this caller, the absence is data.
-3. **The caller is named, and it is real.** A read is added only with a caller that
-   exists — `loadLatestCanonical` exists because the capability-URL route consumes
-   it. The interface is not padded with reads "for completeness"; such a read is a
-   commitment every future store must honour, bought with nothing.
+3. **The read is added for a specific, active consumer — not for completeness.**
+   `loadLatestCanonical` is added for the shopping slice's capability-URL route
+   (ADR-0016), the immediate next unit: its token→recipeId resolution already exists
+   (`src/shopping/capability-token.ts`), and turning that resolved id into the recipe
+   the route serves is exactly this read. The read is added *with* the unit that needs
+   it — which is blocked only on the HTTP framework (ADR-0007), not on any design
+   question — rather than ahead of any consumer. The interface is not padded with
+   reads "for completeness"; such a read is a commitment every future store must
+   honour, bought with nothing.
 4. **The other five are unchanged.** Their signatures and behaviour are exactly as
    ADR-0003 fixed them, and the durable commitments of that record carry forward
    unchanged: all persistence goes through this interface, no storage type appears

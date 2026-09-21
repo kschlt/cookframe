@@ -28,12 +28,29 @@ for (const [label, makeStore] of STORES) {
 const here = dirname(fileURLToPath(import.meta.url))
 
 describe("repo-reads/one-suite-every-store", () => {
-  it("every registered store is proved by the one shared contract, not its own suite", () => {
+  it("every registered store answers to the whole interface and is run through the one contract", () => {
     // The property, not just an assertion: one exported contract function is
     // applied to every store in the registry (the loop above), so adding a store
-    // cannot mean adding a divergent suite.
+    // cannot mean adding a divergent suite. Discriminating on the registry: each
+    // registered factory must produce a store exposing the whole interface — a row
+    // that did not (an empty registry, or a store missing an operation) fails here,
+    // which is the same conformance the loop then proves behaviourally.
     expect(STORES.length).toBeGreaterThanOrEqual(1)
     expect(typeof runRepositoryContract).toBe("function")
+    const interfaceOps = [
+      "storeSnapshot",
+      "loadSnapshot",
+      "appendCanonicalVersion",
+      "loadLatestCanonical",
+      "listLibrary",
+      "readTwoRuns",
+    ] as const
+    for (const [label, makeStore] of STORES) {
+      const store = makeStore() as unknown as Record<string, unknown>
+      for (const op of interfaceOps) {
+        expect(typeof store[op], `${label}.${op}`).toBe("function")
+      }
+    }
   })
 
   it("the shared contract depends only on the interface, never a concrete store", () => {
