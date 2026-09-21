@@ -58,6 +58,18 @@ class ProvisionalStore implements RecipeRepository {
     return { recipeId: valid.id, version: existing.length, recipe: structuredClone(valid) }
   }
 
+  async loadLatestCanonical(recipeId: string): Promise<CanonicalVersion | undefined> {
+    // Not-found is a return value, not a throw (ADR-0018): a public capability
+    // route tells a revoked token from a missing recipe without catching. A copy
+    // is handed back, like every other read here, so a caller cannot reach into
+    // stored state.
+    const versions = this.#versions.get(recipeId)
+    if (versions === undefined || versions.length === 0) return undefined
+    const latest = versions[versions.length - 1]
+    if (latest === undefined) return undefined
+    return { recipeId, version: versions.length, recipe: structuredClone(latest) }
+  }
+
   async listLibrary(): Promise<readonly LibraryEntry[]> {
     const entries: LibraryEntry[] = []
     for (const [recipeId, versions] of this.#versions) {
