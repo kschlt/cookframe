@@ -172,6 +172,13 @@ export const LIBRARY_SQL: Record<string, string> = {
 export async function listLibrary(client: Client, schema: string): Promise<readonly LibraryEntry[]> {
   const sql = LIBRARY_SQL[schema]
   if (sql === undefined) throw new Error(`no library query for shape ${schema}`)
+  // Apply the schema rather than only selecting SQL by it. Without this the
+  // query read whatever the session's `search_path` happened to point at, so
+  // the parameter promised a scoping it did not perform — every caller set the
+  // path first, which is why nothing failed, and a caller that trusted the
+  // name would have got another shape's rows. `shoppingRequirements` already
+  // did this; the two now behave the same way.
+  await client.query(`set search_path to ${schema}`)
   const r = await client.query<LibraryEntry>(sql)
   return r.rows
 }
