@@ -8,8 +8,7 @@ Decisions about *what the product is* go in [`../product-decisions/`](../product
 
 - One file per decision, `ADR-NNNN-short-title.md`.
 - Front matter: `id`, `title`, `status`, `date`. Optionally `tags`, `supersedes`, `superseded_by`,
-  `depends_on`, `constrained_by`, `related_to`, and `decides` for the
-  [open question](../open-questions.md) it closes.
+  `depends_on`, `related_to`, and `decides` for the [open question](../open-questions.md) it closes.
 - `status` is one of `proposed`, `accepted`, `superseded`, `deprecated`.
 - Sections: `## Context`, `## Decision`, `## Consequences`. Add `## Alternatives considered` where
   the rejected options matter.

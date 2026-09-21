@@ -88,8 +88,9 @@ including one nested in a subdirectory, as does a declared module that has been 
 - `ADR-0010`'s falsification clause is narrowed, not discarded: a second **fetch** surface — an
   external image, oEmbed, a favicon, anything whose address comes from a source — must still route
   through `safe-fetch`, and one that does not is still the failure that record most expects.
-- The transport moves out of `spikes/`, and the spike runners consume the module instead of keeping
-  their own copy — otherwise the second copy this record exists to prevent survives in the spikes.
+- The transport has moved out of `spikes/` into `src/pipeline/`, and both spike runners now consume
+  the shared module rather than keeping their own copy — otherwise the second copy this record
+  exists to prevent would survive in the spikes, which is where it started.
 - Model-provider capabilities contain no network primitive themselves; they receive the transport
   injected, which is what lets their proofs drive production paths with no model and no network.
 
