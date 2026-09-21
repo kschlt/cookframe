@@ -26,7 +26,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-15 | exact scaling-classification algorithm | out of V1 scope |
 | OQ-16 | exact safe URL-fetch implementation | closed by ADR-0010 |
 | OQ-17 | exact capability-token format/lifetime/revocation mechanism | closed by ADR-0016 (256-bit base64url secret in the URL path, one recipe per token, permanent-but-revocable — revocation the only end) |
-| OQ-18 | exact Bring integration mechanism after spike | open |
+| OQ-18 | exact Bring integration mechanism after spike | closed by ADR-0017 (server-side pull of a Schema.org/Recipe page at the capability URL — no Bring API/push; omit-never-invent mapping served verbatim, one canonical yield as base) |
 | OQ-19 | exact hero-image compression/storage variants | open |
 | OQ-20 | exact unit conversion behavior | out of V1 scope |
 | OQ-21 | semantic ingredient alias vocabulary | out of V1 scope |
