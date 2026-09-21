@@ -77,29 +77,56 @@ per-field percentages were a property of the harness, not of the capture, and ar
 as a result.** The spec was corrected and all 11 photographs re-transcribed by fresh readers that
 again saw no capture; the captures were already paid for, so re-scoring cost nothing.
 
-| field | bar | measured |
-|---|---|---|
-| time (prep / cook / total) | 98% | **100%** |
-| yield | 98% | **100%** |
-| ingredient.quantity | 98% | 67% |
-| ingredient.unit | 98% | 74% |
-| ingredient.name | 98% | 77% |
-| classification | (see `THRESHOLD.md`) | 0% |
-| split / reserved bindings | required | **not measured** |
+Below is the scorer's **whole** report, not a selection from it. An earlier draft of this verdict
+quoted six fields and called `split_reserved` unmeasured; that was written before the projection
+derived the binding from `UsageKind`, and quoting part of a failing report reads as a kinder result
+than the run earned.
 
-**FAIL on the all-bars-or-nothing rule.** Three of the ingredient bars are missed and one required
-field was never measured at all, and either alone blocks a PASS.
+| field | bar | measured | n |
+|---|---|---|---|
+| yield | 95% | **100%** ✓ | 9 |
+| time (prep / cook / total) | 95% | **100%** ✓ | 2 |
+| temperature | 98% | 86% | 7 |
+| ingredient.name | 95% | 77% | 95 |
+| ingredient.unit | 98% | 74% | 95 |
+| ingredient.quantity | 98% | 67% | 95 |
+| title | 95% | 70% | 10 |
+| instruction.text | 95% | 47% | 53 |
+| instruction.order | 95% | 10% | 10 |
+| split / reserved bindings | 98% | 0% | 3 |
+| ingredient_group | 90% | 0% | 1 |
+| classification | 90% | 0% | 3 |
+| multiple_yields | 98% | 0% | 1 |
+| nutrition | 90% | n/a | 0 |
 
-## Why the ingredient rates are what they are
+| quantity edge class | bar | measured | n |
+|---|---|---|---|
+| ranges | 98% | **100%** ✓ | 1 |
+| ambiguous_units | 95% | 50% | 2 |
+| fractions | 98% | 0% | 1 |
+| multiple_yields | 98% | 0% | 1 |
 
-Two of the eleven fixtures account for most of the gap, and both are structural, not misreads:
+By fixture class: clean-page 66%, glare-shadow 78%, handwriting 70%, unclassified 57%.
+
+**FAIL on the all-bars-or-nothing rule** — eleven field bars and three edge-class bars are missed.
+Note the denominators: several bars rest on one to three observations, so "0%" there means one or
+three misses and not a rate worth reasoning about. The ingredient and instruction bars, at 95 and 53
+observations, are the ones carrying real weight.
+
+## What the misses actually are
+
+Most of the gap is **convention and segmentation**, some is **structural**, and one is a genuine
+defect. Separating them is the point of reading the report rather than the headline.
+
+**Two fixtures dominate, and both are structural rather than misreads:**
 
 - **A page carrying four separate recipes.** Truth records 23 ingredients; the capture returned 9 —
-  the first recipe only. 14 unmatched ingredients come from this one fixture. See finding 1 below.
+  the first recipe only. 14 unmatched ingredients, and its 17 truth steps against 6 captured ones,
+  come from this fixture alone. See finding 1 below.
 - **A handwritten partial card with no ingredient list.** Truth has **0** ingredients because the
   card has none; the capture **derived 12** from the method prose. Each one is genuinely named in
-  the method, and handwritten quantities were read correctly, so this is derivation, not
-  fabrication. See finding 2 below.
+  the method, and handwritten quantities were read correctly, so this is derivation rather than
+  invention. See finding 2 below.
 
 Excluding those two, on the 8 structurally comparable photographs **names agree on 57 of 71 (80%)**,
 and where names agree, quantity and unit are exact ~95-100% of the time. The residual name gaps are
@@ -108,30 +135,39 @@ say, the capture writes the head noun with the rest in `qualifiers`. `classifica
 the same kind of reason — both readers recorded the page's running footer, one under `course` and
 one under `category`.
 
-**So: the capture reads real pages well, and "exact string match on `ingredient.name`" is
-under-specified for real sources.** The pre-registered bar assumed synthetic fixtures where both
-sides shared a naming convention by construction; with an independent transcriber they do not, and
-the bar charges the difference to capture accuracy. That is a *threshold* question, and changing a
-pre-registered bar after seeing the score is exactly what pre-registration forbids — so it is
-Kornelius's to decide, in a new threshold record, not something to relax here.
+**The instruction bars are a segmentation mismatch, not missing method.** `instruction.text` is an
+exact string match per step and `instruction.order` compares the whole sequence, so a capture that
+splits or merges a step fails both even when every word is present. Re-checking the 53 truth steps
+against the captures: 25 match exactly (47%, the scorer's figure), **12 more are close paraphrases
+of a captured step** (≥0.75 similarity), and 16 have no close match — and of those 16, most come
+from the four-recipe page, where three recipes were never captured. The step counts show the
+mechanism plainly: two fixtures have more captured steps than truth steps (3→9, 1→5, the capture
+splitting a long instruction), and one has far fewer (17→6, the four-recipe page). `instruction.order`
+at 1/10 is that same fact stated all-or-nothing per fixture.
+
+**`split_reserved` at 0/3 is two different things.** One capture did produce the binding, with the
+`use` side matching the truth exactly and the `reserve` side phrased as the instruction rather than
+as the ingredient phrase — a wording miss on a correct reading. The other two produced **no binding
+at all**, one of them on the four-recipe page where the relevant recipe was never captured. So one
+in three was read and mis-phrased; two in three were not expressed. That distinction matters for
+what to fix and is invisible in the 0%.
+
+**So: the capture reads real pages well, and several pre-registered bars are under-specified for
+real sources.** Exact string matching on an ingredient name, on a step, and on a step sequence all
+assumed synthetic fixtures where both sides shared a convention by construction; with an independent
+transcriber they do not, and the bars charge the difference to capture accuracy. That is a
+*threshold* question, and changing a pre-registered bar after seeing the score is exactly what
+pre-registration forbids — so it is Kornelius's to decide, in a new threshold record, not something
+to relax here.
 
 A diagnostic, reported as a diagnostic: pairing ingredients by the schema's own name/qualifier
 relationship instead of by exact name, **74 of 77 paired ingredients have an exact quantity (96%)
 and 69 of 77 an exact unit (90%)** — still under the 98% bars, so the verdict is unchanged either
 way. **This was computed after the failing score was seen** and therefore carries less weight than a
 pre-registered measure; it is recorded because it identifies the cause, not because it changes the
-outcome.
+outcome. The same caveat applies to the paraphrase and step-count figures above.
 
-## `split_reserved` was not measured
-
-Three fixtures carry split/reserved instructions ("use part now, keep the rest for a later step"),
-but the first truth spec recorded them as free strings where `THRESHOLD.md` requires a structured
-use/reserve pair. Rather than score them generously or strictly on a mismatched format, they are
-reported as **not measured**, which blocks a PASS on its own. The projection now derives the pair
-from the contract's own `UsageKind` (a `use_partial_unspecified` followed by `use_remaining` on the
-same ingredient *is* the reserve-to-a-later-step binding), so a re-run can measure it.
-
-## Two findings that need a product decision, not a prompt tweak
+## Three findings that need a product decision, not a prompt tweak
 
 1. **A source carrying several recipes loses all but one, silently.** The contract assumes one
    recipe per source, and nothing in the pipeline notices when that assumption is false. No error,
@@ -144,7 +180,19 @@ same ingredient *is* the reserve-to-a-later-step binding), so a re-run can measu
    contract points the same way, while a cook would plainly want the list. The two readings of the
    same principle disagree, so the principle needs sharpening.
 
-A third, smaller, affects any comparison harness: **a time keeps its value but moves its label.**
+3. **A required field with no source value gets one manufactured, and nothing says so.** On the
+   handwritten card the capture stage was right: it segmented the page into four `instruction`
+   blocks and **no title block**, because the card has no title. The contract then requires
+   `title: z.string()` on a canonical recipe — required, and the one content field on the recipe
+   root with no `sourceRefs` beside it. So normalization filled it with the full text of the first
+   instruction, and the stored recipe is titled with a sentence from its own method. Nothing in the
+   record marks that title as manufactured, and no ref can be checked against a block, because the
+   field carries no ref. This is the mirror image of finding 1: that one loses content silently,
+   this one adds it silently, and both are the class Gate A exists to catch. It is the same root
+   cause as finding 2 — the contract asks for structure the source does not have — which is why
+   sharpening that principle has to cover required fields, not only optional lists.
+
+A fourth, smaller, affects any comparison harness: **a time keeps its value but moves its label.**
 The source's label is captured into `sourceLabel` and the duration into the value, so a truth record
 holding "«label»: «duration»" as one string will not match a correct capture.
 
@@ -168,12 +216,16 @@ adjudicated disagreements.
 
 ## What a valid re-run needs
 
-The captures are already paid for, so all of this is free to redo:
+The captures are already paid for, so re-scoring is free and has been redone: the corrected truth
+spec and the `UsageKind`-derived split/reserved pair are what the table above reports, so no field
+is left unmeasured any more. What is left is not free:
 
-1. Re-score with the corrected truth spec and the `UsageKind`-derived split/reserved pair, so the
-   unmeasured field becomes measured.
-2. Adjudicate the remaining disagreements — that is the only place human time is needed.
-3. A decision on the two findings above, and on whether exact-name matching is the right bar, before
-   any re-run can produce a PASS rather than a better FAIL.
+1. **A decision on the three findings**, and on whether exact matching on names, steps and step
+   order is the right bar for a source an independent human transcribes. Without that, a re-run can
+   only produce a better-explained FAIL.
+2. **Adjudicate the remaining disagreements** — the one place human time is actually needed.
+3. **Re-capture the one page that failed its contract check.** It now has a retry behind it, but the
+   page could not be identified from what the run recorded (see *A smaller finding* above), so this
+   waits on a re-run of the whole set rather than of one photograph.
 
 Until then: **`OQ-14` stays open and scan deletion stays disabled.**
