@@ -57,6 +57,25 @@ function sequence(...replies: string[]): ModelTransport & { readonly seen: Model
   }
 }
 
+/**
+ * The rejected-reply excerpt, unwrapped from the CFV1-INJ fence it travels in.
+ *
+ * The repair prompt quotes the model's previous reply, and that reply is
+ * untrusted text like any other — a page that steered the model steers what it
+ * emits — so it is sealed into its own part rather than interpolated into the
+ * instruction. These proofs are about WHAT is quoted, so they unwrap the fence
+ * and keep asserting the exact reply.
+ */
+function repairExcerpt(exchange: ModelExchange | undefined): string {
+  const part = exchange?.parts.at(-1)
+  const text = part?.kind === "text" ? part.text : ""
+  const lines = text.split("\n")
+  if (!lines[0]?.startsWith("<<<UNTRUSTED-SOURCE") || !lines.at(-1)?.startsWith("<<<END ")) {
+    return ""
+  }
+  return lines.slice(1, -1).join("\n")
+}
+
 const stage = (transport: ModelTransport) => ({
   transport,
   promptText: "PROMPT",
@@ -164,7 +183,11 @@ describe("slice1/capture-uses-the-vision-path-for-an-image", () => {
     await captureSnapshot(
       createModelCaptureProvider(stage(transport)),
       policy,
-      new TextEncoder().encode("Pfannkuchen"),
+      // The source text the scripted reply claims to have read. On the text
+      // path CFV1-INJ verifies every block against the decoded input, so an
+      // input that did not say what the reply reports is refused — which is
+      // the point of that check, and not what this test is about.
+      new TextEncoder().encode("Pfannkuchen\n\n200 g Mehl\n\nAlles verrühren."),
       { ...captureCtx, sourceMediaType: "text/plain" },
     )
     const parts = transport.seen[0]?.parts ?? []
@@ -327,12 +350,12 @@ describe("slice1/contract-failure-is-retried", () => {
       captureCtx,
     )
     expect(transport.seen).toHaveLength(2)
-    const repair = transport.seen[1]?.parts.at(-1)
-    const text = repair?.kind === "text" ? repair.text : ""
-    expect(text).toContain("YOUR PREVIOUS REPLY WAS REJECTED")
+    const instruction = transport.seen[1]?.parts.at(-2)
+    expect(instruction?.kind === "text" ? instruction.text : "").toContain(
+      "YOUR PREVIOUS REPLY WAS REJECTED",
+    )
     // The whole rejected reply, not just the complaint about it.
-    expect(text).toContain(rejected)
-    expect(text.split("Your rejected reply, for reference:\n")[1]).toBe(rejected)
+    expect(repairExcerpt(transport.seen[1])).toBe(rejected)
   })
 
   it("quotes it back when the reply has no blocks array at all", async () => {
@@ -346,9 +369,7 @@ describe("slice1/contract-failure-is-retried", () => {
       new Uint8Array([0xff, 0xd8, 0xff]),
       captureCtx,
     )
-    const repair = transport.seen[1]?.parts.at(-1)
-    const text = repair?.kind === "text" ? repair.text : ""
-    expect(text.split("Your rejected reply, for reference:\n")[1]).toBe(rejected)
+    expect(repairExcerpt(transport.seen[1])).toBe(rejected)
   })
 
   it("quotes it back when the reply is a JSON array instead of an object", async () => {
@@ -361,9 +382,7 @@ describe("slice1/contract-failure-is-retried", () => {
       new Uint8Array([0xff, 0xd8, 0xff]),
       captureCtx,
     )
-    const repair = transport.seen[1]?.parts.at(-1)
-    const text = repair?.kind === "text" ? repair.text : ""
-    expect(text.split("Your rejected reply, for reference:\n")[1]).toBe(rejected)
+    expect(repairExcerpt(transport.seen[1])).toBe(rejected)
   })
 
   it("spends no second call when the first reply conforms", async () => {
@@ -381,7 +400,8 @@ describe("slice1/contract-failure-is-retried", () => {
     expect(second?.system).toBe(first?.system)
     // The input is carried again, so the model is not asked to remember it.
     expect(second?.parts[0]).toEqual(first?.parts[0])
-    const repair = second?.parts.at(-1)
+    // The repair instruction, then the rejected reply sealed in its own part.
+    const repair = second?.parts.at(-2)
     expect(repair?.kind).toBe("text")
     const text = repair?.kind === "text" ? repair.text : ""
     expect(text).toContain("YOUR PREVIOUS REPLY WAS REJECTED")

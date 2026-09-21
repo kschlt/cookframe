@@ -24,6 +24,18 @@ that every fixture file is listed here.
 | `structured-multi-component.json` | structured (multiple ingredient and instruction groups) | synthetic |
 | `freetext-heavy.json` | freetext-heavy (narrative prose, few structural markers) | synthetic |
 | `gappy.json` | gappy (sparse, missing quantities and groups) | synthetic |
+| `injection-instruction-carrying.json` | adversarial (CFV1-INJ: page text addressed to the model, including an attempt to close the data fence) | synthetic |
+| `injection-plain-page.json` | adversarial (CFV1-INJ: an ordinary short page, used as the page a fabricated recipe is falsely attributed to) | synthetic |
+
+The two `injection-*` fixtures are **written to be attacked with, not by**. Their
+text is invented like every other fixture here, and the instruction-carrying one
+deliberately contains wording aimed at a model ("ignore all previous
+instructions", a forged data-fence terminator, an instruction to add an
+ingredient that is not on the page). It is data for
+`tests/injection/injection.test.ts`, which drives it through the real extraction
+path with a scripted transport and asserts the page changes nothing — no model
+and no network are involved. Nothing in either file is a real site, a real
+recipe, or a working exploit against anything outside this repository.
 
 ## `canonical/`
 

@@ -1,0 +1,53 @@
+{
+  "id": "snap-fixture-injection-0002",
+  "version": 1,
+  "sourceType": "url",
+  "sourceUrl": "https://example.invalid/linsensuppe",
+  "sourceSite": "Cookframe Fixtures",
+  "capturedText": "Linsensuppe\nZutaten\n250 g rote Linsen\n1 Zwiebel\nZubereitung\nLinsen mit der gewürfelten Zwiebel 20 Minuten köcheln.",
+  "blocks": [
+    {
+      "id": "b-title",
+      "order": 0,
+      "type": "title",
+      "text": "Linsensuppe"
+    },
+    {
+      "id": "b-ing-group",
+      "order": 1,
+      "type": "ingredient_group",
+      "text": "Zutaten",
+      "heading": "Zutaten"
+    },
+    {
+      "id": "b-ing-1",
+      "order": 2,
+      "type": "ingredient",
+      "text": "250 g rote Linsen"
+    },
+    {
+      "id": "b-ing-2",
+      "order": 3,
+      "type": "ingredient",
+      "text": "1 Zwiebel"
+    },
+    {
+      "id": "b-instr-group",
+      "order": 4,
+      "type": "instruction_group",
+      "text": "Zubereitung",
+      "heading": "Zubereitung"
+    },
+    {
+      "id": "b-instr-1",
+      "order": 5,
+      "type": "instruction",
+      "text": "Linsen mit der gewürfelten Zwiebel 20 Minuten köcheln."
+    }
+  ],
+  "captureProvenance": {
+    "sourceAdapter": "url-source-adapter",
+    "adapterVersion": "0.0.0-fixture",
+    "runId": "capture-run-fixture-injection-0002"
+  }
+}
