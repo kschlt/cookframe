@@ -59,17 +59,31 @@ def project(recipe: dict) -> dict:
                 t = temp.get("sourceText")
                 if t:
                     temperatures.append(t)
-            # A step that sets a component aside is the split/reserved case.
-            # `producesComponents` entries are component ids (strings) in the
-            # contract, but tolerate an object form rather than crashing on it.
-            for produced in step.get("producesComponents") or []:
-                label = (
-                    produced
-                    if isinstance(produced, str)
-                    else (produced.get("componentId") or produced.get("sourceText"))
-                )
-                if label and text:
-                    split_reserved.append(text)
+            # split/reserved is collected after the walk, from the usage kinds.
+
+    # The split/reserved pair the S1 threshold asks for is carried by the
+    # contract's UsageKind, not by a dedicated field: the same ingredient used
+    # partially in one step and `use_remaining` in a later one IS the
+    # reserve -> later-step binding. Pair them by ingredient id. This reads the
+    # binding the capture recorded; it does not infer one that is not there.
+    partial_by_ing: dict[str, str] = {}
+    remaining_by_ing: dict[str, str] = {}
+    for section in recipe.get("instructionSections") or []:
+        for step in section.get("steps") or []:
+            for use in (step.get("ingredientUses") or []) + (step.get("componentUses") or []):
+                key = use.get("ingredientId") or use.get("componentId")
+                kind = use.get("usage")
+                label = use.get("sourceText") or expr_text(use.get("quantityExpression"))
+                if not key or not label:
+                    continue
+                if kind in ("use_partial_unspecified", "reserve_for_later"):
+                    partial_by_ing.setdefault(key, label)
+                elif kind == "use_remaining":
+                    remaining_by_ing.setdefault(key, label)
+    for key, reserve_label in remaining_by_ing.items():
+        use_label = partial_by_ing.get(key)
+        if use_label:
+            split_reserved.append({"use": use_label, "reserve": reserve_label})
 
     times = {}
     for t in recipe.get("times") or []:

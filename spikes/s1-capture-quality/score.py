@@ -227,8 +227,13 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         else:
             check("yield", sorted(c_yields) == sorted(t_yields))
 
-        # times: correct only if every present truth time matches
-        tt = {k: v for k, v in (truth.get("times") or {}).items() if v}
+        # times: correct only if every present truth time matches.
+        # Restricted to the three kinds THRESHOLD.md names (prep/cook/total): a
+        # truth file may also carry the source's LABEL for a time (e.g.
+        # prep_label "VORBEREITUNG"), and a label is not a time. This narrows the
+        # comparison to the recorded field, it does not loosen it.
+        TIME_KINDS = ("prep", "cook", "total")
+        tt = {k: v for k, v in (truth.get("times") or {}).items() if v and k in TIME_KINDS}
         if tt:
             ct = cap.get("times") or {}
             check("time", all(norm_str(ct.get(k)) == norm_str(v) for k, v in tt.items()))
