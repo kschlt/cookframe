@@ -4,7 +4,8 @@ The single place where Cookframe's open implementation questions are tracked. Ea
 `OQ-NN` id so a decision record can name the question it closes.
 
 `OQ-01`–`OQ-23` originate in the discovery phase, `OQ-24` onwards were found during implementation,
-and `OQ-25`–`OQ-33` are the release-readiness items below. This file is the live register; the
+and `OQ-25`–`OQ-33` are the release-readiness items below. `OQ-25a` is lettered because `OQ-25`
+onwards were already taken by the release-readiness block; an id is never reused or renumbered. This file is the live register; the
 discovery-era wording is kept in [`archive/`](archive/).
 
 | Id | Question | State |
@@ -33,6 +34,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-22 | Focus Mode | out of V1 scope |
 | OQ-23 | sophisticated intermediate-food-state graph | out of V1 scope |
 | OQ-24 | capture and normalization: one physical model call or two | closed by ADR-0014 |
+| OQ-25a | what measurement justifies a SECOND extracted projection | open — ADR-0015 chose "JSONB documents plus an extracted projection where a query is measured to need one" and added exactly one, the ingredient projection. It does not say what a later query would have to measure to earn another, so the next person deciding has the precedent but not the bar. Naming it needs a maintainer decision, because it is a threshold and must be fixed before a candidate query is scored against it |
 
 ## Release readiness
 
