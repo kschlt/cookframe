@@ -179,16 +179,23 @@ const options = (() => {
 const scanned = sourcesUnder(repoRoot)
 
 /**
- * The table proof builds a typed program over the whole repository. Measured:
- * about 2.2 s alone, 5.2 s in CI's protections job with thirteen suites running
- * beside it, which is past vitest's default of 5 s. Six times the worst seen.
+ * The table proof builds a typed program over the whole repository: about
+ * 2.2 s alone, and 5,219 ms in CI's protections job with thirteen suites
+ * running beside it, which is past vitest's default of 5 s. The bound is that
+ * measurement times a headroom, in the form `base/the-bound-is-declared` set,
+ * so it cannot be raised without editing the number it was measured as.
  */
-const WHOLE_REPOSITORY_PROGRAM_MS = 30_000
+const MEASURED_WORST_UNDER_CONTENTION_MS = 5219
+const HEADROOM = 5
+const BOUND_MS = MEASURED_WORST_UNDER_CONTENTION_MS * HEADROOM
 
 describe("protections/the-typescript-pin-names-what-hangs-on-it", () => {
   it("names every file that calls the compiler API and everything each one calls", {
-    timeout: WHOLE_REPOSITORY_PROGRAM_MS,
-  }, () => {
+    timeout: BOUND_MS,
+  }, (ctx) => {
+    // Read back from the runner, so dropping the option is red here as
+    // `expected 5000 to be 26095` rather than as a timeout under load in CI.
+    expect(ctx.task.timeout).toBe(BOUND_MS)
     const found = compilerSurfaceIn(programOver(scanned, options), repoRoot)
     const declared = Object.fromEntries(
       Object.entries(COMPILER_API_IN_USE).map(([file, uses]) => [file, [...new Set(uses)].sort()]),
