@@ -101,6 +101,14 @@ consequences:
   second proof lists every file in the tree that names any licence at all and requires each to be
   classified by name, so a declaration in an unrecognised shape arrives as a file to classify rather
   than as silence.
+- The census catches a declaration in an unrecognised *shape*, not one under an unrecognised
+  *name*. What counts as a licence name is a fixed list, and a document declaring the project under
+  a licence nobody has put on it — the Blue Oak Model License, say — in a sentence with no link is
+  invisible to the rule and to the census alike. The review of this record's guard measured exactly
+  that, green. It is kept as a limit rather than closed with a name-agnostic pattern, which would be
+  the per-document heuristic this record exists to avoid. The list itself is held by a table in
+  both directions, so it cannot shrink or grow unnoticed, and the Blue Oak sentence is pinned there
+  as unseen.
 - Writing a licence name as a link is a small constraint on prose, and someone will write one
   without the link. They will be told by a failing census entry, not by a reviewer.
 - The rule reads link syntax and does not know about code spans. A document that quotes an example

@@ -70,6 +70,33 @@
  * three names dropped from `STRUCTURED_SITES`, the markdown rule blinded, the
  * lock rule pointed at a dependency, and each of the two walks narrowed.
  *
+ * ### A ninth way, found in review, and eighteen more plants
+ *
+ * The first version of this header said every way was planted, and it was one
+ * short. `FAMILIES`, the list of licence names, is the breadth underneath all
+ * three parts, and the review of #92 measured that seven of its twelve rows
+ * could go, or the whole list be reversed, with every proof green. The names
+ * table now holds it, measured through the same instrument:
+ *
+ * | planted in `license.ts` | verdict |
+ * | --- | --- |
+ * | each of the twelve `FAMILIES` rows deleted, one at a time | 12 killed |
+ * | a pattern added that overlaps another (GPL without its boundary) | killed |
+ * | a row added that no name in the table reaches | killed |
+ * | Blue Oak added, closing the stated limit silently | killed |
+ * | `MIT` without its word boundary | killed |
+ * | `MIT` matched case-insensitively | killed |
+ * | `ISC` without its word boundary | killed |
+ * | the whole list reversed | survived — REQUIRED |
+ *
+ * The last row is the one to read. The old comment on `FAMILIES` said its
+ * order was load-bearing; it was not, and no pair in the list can collide. The
+ * survivor is the measurement that says so, and the table's "exactly one row"
+ * case is what keeps it true when a row is added. The case-insensitive row was
+ * inconclusive on the first try — its negative entry was spared by the word
+ * boundary, not by case, so it measured nothing it named — and the entry was
+ * replaced by the German word "mit", which only case spares.
+ *
  * The third row is worth its own sentence. `AGPL-3.0-or-later` drifting to
  * `AGPL-3.0-only` is a real change of grant that the licence FAMILY cannot see
  * — both are `AGPL-3.0` — and it is caught only because a declaration also
