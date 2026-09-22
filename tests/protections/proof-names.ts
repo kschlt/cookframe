@@ -40,18 +40,32 @@
  * regression that reclassifies literal names as composed turns red instead of
  * quietly shrinking the set this checks.
  *
- * The path is taken from where a registration is WRITTEN, and only `.test.ts`
- * files are read. A helper that registers tests from another file is therefore
- * invisible: its proofs are neither named nor counted. The tree has one,
- * `runRepositoryContract` in `tests/persistence/repository-contract.ts`, found
- * by comparing this reader's names with vitest's report. The caller says so
- * beside the list it pins.
+ * A call registers only when its function is vitest's: bound, by an import
+ * from `vitest`, to `describe`, `suite`, `it` or `test`, under whatever local
+ * name. The binding decides, not the spelling, so a function of a file's own
+ * that happens to be called `describe` registers nothing ({@link originsIn}).
+ *
+ * The path is taken from where a registration is WRITTEN. A helper, a file
+ * vitest does not run that registers tests when a test file calls it, is read
+ * too, but vitest reports its proofs under the caller's file, which the helper
+ * does not name. So everything a helper registers is counted and none of it is
+ * named ({@link IN_A_HELPER}). The tree has one, `runRepositoryContract` in
+ * `tests/persistence/repository-contract.ts`, found by comparing this reader's
+ * names with vitest's report.
  */
 import ts from "typescript"
 import { decideMarker, type Reading } from "./mutation.js"
 
-/** The registration functions vitest offers. `suite` is `describe`'s alias. */
-const TEST_API: ReadonlySet<string> = new Set(["describe", "suite", "it", "test"])
+/**
+ * The registration functions vitest exports, by the name it exports them under.
+ * `suite` is `describe`'s alias.
+ */
+const TEST_API: ReadonlyMap<string, Api["kind"]> = new Map([
+  ["describe", "describe"],
+  ["suite", "describe"],
+  ["it", "test"],
+  ["test", "test"],
+])
 
 /**
  * Modifiers whose registrations take their names from a table:
@@ -87,20 +101,66 @@ interface Api {
 }
 
 /**
+ * Where a name in one file comes from: the symbol it is bound to, and which
+ * registration function that is when it is one imported from vitest.
+ *
+ * Decided by the name's binding, not by its spelling. `tests/slice5/plist.ts`
+ * declares a function of its own called `describe`, and a reader that went by
+ * the name counted its three calls as suites. The file is bound alone, with no
+ * module resolved and no library, so this costs a parse and a bind, not a type
+ * check: vitest itself is never read, only the import that names it.
+ */
+interface Origins {
+  readonly symbolOf: (id: ts.Identifier) => ts.Symbol | undefined
+  readonly vitestApi: (symbol: ts.Symbol) => Api["kind"] | undefined
+}
+
+function originsIn(sf: ts.SourceFile): Origins {
+  const host: ts.CompilerHost = {
+    getSourceFile: (name) => (name === sf.fileName ? sf : undefined),
+    getDefaultLibFileName: () => "",
+    writeFile: () => {},
+    getCurrentDirectory: () => "",
+    getCanonicalFileName: (name) => name,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => "\n",
+    fileExists: (name) => name === sf.fileName,
+    readFile: () => undefined,
+  }
+  const options: ts.CompilerOptions = { noResolve: true, noLib: true, types: [] }
+  const checker = ts.createProgram([sf.fileName], options, host).getTypeChecker()
+  return {
+    symbolOf: (id) => checker.getSymbolAtLocation(id),
+    vitestApi: (symbol) => {
+      const declaration = symbol.declarations?.[0]
+      if (declaration === undefined || !ts.isImportSpecifier(declaration)) return undefined
+      const from = declaration.parent.parent.parent.moduleSpecifier
+      if (!ts.isStringLiteral(from) || from.text !== "vitest") return undefined
+      return TEST_API.get((declaration.propertyName ?? declaration.name).text)
+    },
+  }
+}
+
+/**
  * What a call's callee registers, walking through `.skip`, `.only`,
  * `.skipIf(c)` and the like, and through a name bound to one of those.
  */
-function apiOf(callee: ts.Expression, aliases: ReadonlyMap<string, Api>): Api | undefined {
+function apiOf(
+  callee: ts.Expression,
+  origins: Origins,
+  aliases: ReadonlyMap<ts.Symbol, Api>,
+): Api | undefined {
   let node: ts.Expression = callee
   let tableDriven = false
   for (;;) {
     if (ts.isIdentifier(node)) {
-      const alias = aliases.get(node.text)
+      const symbol = origins.symbolOf(node)
+      if (symbol === undefined) return undefined
+      const alias = aliases.get(symbol)
       if (alias !== undefined)
         return { kind: alias.kind, tableDriven: tableDriven || alias.tableDriven }
-      if (!TEST_API.has(node.text)) return undefined
-      const kind = node.text === "describe" || node.text === "suite" ? "describe" : "test"
-      return { kind, tableDriven }
+      const kind = origins.vitestApi(symbol)
+      return kind === undefined ? undefined : { kind, tableDriven }
     }
     if (ts.isPropertyAccessExpression(node)) {
       if (TABLE_DRIVEN.has(node.name.text)) tableDriven = true
@@ -128,8 +188,8 @@ function isFactoryCall(call: ts.CallExpression): boolean {
  * registers six suites that way, and without this their proofs would be read
  * with no `describe` in their path.
  */
-function aliasesIn(sf: ts.SourceFile): Map<string, Api> {
-  const aliases = new Map<string, Api>()
+function aliasesIn(sf: ts.SourceFile, origins: Origins): Map<ts.Symbol, Api> {
+  const aliases = new Map<ts.Symbol, Api>()
   const visit = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -139,8 +199,9 @@ function aliasesIn(sf: ts.SourceFile): Map<string, Api> {
       const init = node.initializer
       const bindsFunction =
         ts.isPropertyAccessExpression(init) || (ts.isCallExpression(init) && isFactoryCall(init))
-      const api = bindsFunction ? apiOf(init, aliases) : undefined
-      if (api !== undefined) aliases.set(node.name.text, api)
+      const api = bindsFunction ? apiOf(init, origins, aliases) : undefined
+      const symbol = origins.symbolOf(node.name)
+      if (api !== undefined && symbol !== undefined) aliases.set(symbol, api)
     }
     ts.forEachChild(node, visit)
   }
@@ -329,23 +390,39 @@ function rowsOf(
 }
 
 /**
+ * Why a registration inside a helper has no name the source can give: vitest
+ * reports it under the `.test.ts` file that calls the helper, and which file
+ * that is, and how often it calls, the helper does not say.
+ */
+export const IN_A_HELPER = "in a helper, reported under the file that calls it"
+
+/**
  * Every test `source` registers, by full name where the source spells it out.
  *
  * `file` is the path relative to the repository root, the way vitest prefixes
- * the names it reports.
+ * the names it reports. A `helper` is a file vitest does not run by itself but
+ * that registers tests when a test file calls it: everything it registers is
+ * counted, and nothing it registers is named, because the file its names start
+ * with is the caller's.
  */
-export function proofNamesIn(source: string, file: string): ProofNames {
+export function proofNamesIn(
+  source: string,
+  file: string,
+  { helper = false }: { readonly helper?: boolean } = {},
+): ProofNames {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
-  const aliases = aliasesIn(sf)
+  const origins = originsIn(sf)
+  const aliases = aliasesIn(sf, origins)
   const consts = constsIn(sf)
   const named: string[] = []
   const composed: Composed[] = []
 
-  // `path` is undefined under a describe whose own name is composed: the tests
-  // inside have a full name the source cannot give either.
-  const visit = (node: ts.Node, path: readonly string[] | undefined): void => {
+  // `path` is undefined where the full name is already lost, and `lost` says
+  // what lost it: the helper the registration sits in, or a describe whose own
+  // name is composed. The outermost cause is the one reported.
+  const visit = (node: ts.Node, path: readonly string[] | undefined, lost: string): void => {
     if (ts.isCallExpression(node) && !isFactoryCall(node)) {
-      const api = apiOf(node.expression, aliases)
+      const api = apiOf(node.expression, origins, aliases)
       if (api !== undefined) {
         const own = api.tableDriven ? undefined : literalText(node.arguments[0])
         const full = path === undefined || own === undefined ? undefined : [...path, own]
@@ -359,13 +436,14 @@ export function proofNamesIn(source: string, file: string): ProofNames {
           composed.push({
             file,
             line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
-            why: api.tableDriven
-              ? api.kind === "describe"
-                ? "a describe named from a table"
-                : "named from a table the reader cannot render"
-              : own === undefined
-                ? "composed name"
-                : "inside a describe with a composed name",
+            why:
+              path === undefined
+                ? lost
+                : api.tableDriven
+                  ? api.kind === "describe"
+                    ? "a describe named from a table"
+                    : "named from a table the reader cannot render"
+                  : "composed name",
           })
         } else if (api.kind === "test") {
           named.push([file, ...full].join(" > "))
@@ -374,15 +452,15 @@ export function proofNamesIn(source: string, file: string): ProofNames {
         // under this block's path. The callee is not visited: when it is a call
         // like `describe.skipIf(cond)`, its argument is a condition or a table,
         // and it registers nothing by itself.
-        for (const argument of node.arguments.slice(1)) {
-          visit(argument, api.kind === "describe" ? full : path)
-        }
+        const inner = api.kind === "describe" ? full : path
+        const innerLost = path === undefined ? lost : "inside a describe with a composed name"
+        for (const argument of node.arguments.slice(1)) visit(argument, inner, innerLost)
         return
       }
     }
-    ts.forEachChild(node, (child) => visit(child, path))
+    ts.forEachChild(node, (child) => visit(child, path, lost))
   }
-  visit(sf, [])
+  visit(sf, helper ? undefined : [], IN_A_HELPER)
   return { named, composed }
 }
 

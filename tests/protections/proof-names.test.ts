@@ -18,13 +18,19 @@ import { join, relative } from "node:path"
 import { describe, expect, it } from "vitest"
 import { filesUnder } from "../support/tree.js"
 import { repoRoot } from "./majors.js"
-import { proofNamesIn, unnameableIn } from "./proof-names.js"
+import { IN_A_HELPER, proofNamesIn, unnameableIn } from "./proof-names.js"
 
-const testFiles = filesUnder(join(repoRoot, "tests"), { match: /\.test\.ts$/ }).map((path) =>
+const tsFiles = filesUnder(join(repoRoot, "tests"), { match: /\.ts$/ }).map((path) =>
   relative(repoRoot, path).split("\\").join("/"),
 )
+const testFiles = tsFiles.filter((file) => file.endsWith(".test.ts"))
+/** Every other file under `tests/`: vitest runs none of them, but a test file may call one. */
+const helperFiles = tsFiles.filter((file) => !file.endsWith(".test.ts"))
 const read = (file: string): string => readFileSync(join(repoRoot, file), "utf8")
-const byFile = testFiles.map((file) => ({ file, ...proofNamesIn(read(file), file) }))
+const byFile = [
+  ...testFiles.map((file) => ({ file, ...proofNamesIn(read(file), file) })),
+  ...helperFiles.map((file) => ({ file, ...proofNamesIn(read(file), file, { helper: true }) })),
+]
 const everyName = byFile.flatMap((f) => f.named)
 
 describe("protections/every-proof-can-be-named", () => {
@@ -44,6 +50,22 @@ describe("protections/every-proof-can-be-named", () => {
     ]) {
       expect(testFiles, file).toContain(file)
     }
+  })
+
+  it("reads the helpers too, and hears a registration by where it comes from", () => {
+    // A helper registers proofs when a test file calls it, and vitest reports
+    // them under that test file. So every other file under `tests/` is read as
+    // well, and a call registers only when its function is bound to vitest's
+    // own. Named rather than counted, both ways: the helper that registers, and
+    // the one that has a function of its own called `describe` and registers
+    // nothing. A scan that went by the name would count that one's three calls.
+    for (const file of ["tests/persistence/repository-contract.ts", "tests/slice5/plist.ts"]) {
+      expect(helperFiles, file).toContain(file)
+    }
+    const registering = byFile
+      .filter((f) => helperFiles.includes(f.file) && f.named.length + f.composed.length > 0)
+      .map((f) => f.file)
+    expect(registering).toEqual(["tests/persistence/repository-contract.ts"])
   })
 
   it("finds, by full name, the proofs that were hidden inside another's name", () => {
@@ -109,15 +131,19 @@ describe("protections/every-proof-can-be-named", () => {
     //   another module, which a static reader cannot give.
     // - Two tables the reader does not render: one imported from `src/`, one
     //   built by `.map` over a table of regular expressions.
+    // - Everything `runRepositoryContract` registers: 7 suites and the 25 proofs
+    //   in them, once per store. vitest reports them under
+    //   `tests/persistence/repository-contract.test.ts`, which calls the helper
+    //   in a loop over its store registry, and every suite name carries the
+    //   store's label. Until the scan read helpers, these were neither named
+    //   nor counted.
     //
     // When this is red, look at the new site before moving the list. A name the
     // reader should be able to read belongs in the reader, not in this list.
-    //
-    // NOT on this list, and known: `runRepositoryContract` in
-    // `tests/persistence/repository-contract.ts` registers 25 proofs per store
-    // from outside any `.test.ts` file, so this scan neither names nor counts
-    // them. Found by the same comparison with vitest's report.
     const survivors = byFile.flatMap((f) => f.composed.map((c) => `${c.file}: ${c.why}`)).sort()
+    const contract = `tests/persistence/repository-contract.ts: ${IN_A_HELPER}`
+    const contractSuites = 7
+    const contractProofs = 25
     expect(survivors).toEqual([
       "tests/cooking-ux/start-now-admission.test.ts: composed name",
       "tests/dbq/queries.test.ts: composed name",
@@ -126,6 +152,7 @@ describe("protections/every-proof-can-be-named", () => {
       "tests/fixtures/public-fixtures.test.ts: composed name",
       "tests/fixtures/public-fixtures.test.ts: composed name",
       "tests/multi-recipe/multi-recipe.test.ts: composed name",
+      ...Array.from({ length: contractSuites + contractProofs }, () => contract),
       "tests/run/process.test.ts: composed name",
       "tests/schema/finite-number.contract.test.ts: composed name",
       "tests/schema/finite-number.contract.test.ts: composed name",
@@ -145,6 +172,7 @@ describe("protections/every-proof-can-be-named", () => {
 // --- the reader and the checker, held against sources written for them -------
 
 const FIXTURE = `
+import { describe, it, suite, test, it as check } from "vitest"
 const OBJECTS = [
   { name: "short" },
   { name: "a name longer than forty characters, which vitest cuts" },
@@ -163,6 +191,8 @@ describe("outer", () => {
     it("in alias", () => {})
   })
   it(\`no substitution\`, () => {})
+  check("through an import under another name", () => {})
+  ;[1].forEach((it) => it("a parameter called it"))
   it(\`composed \${x}\`, () => {})
   it.each([1, 2])("row %s", () => {})
   it.for([1, 2])("for row %s", () => {})
@@ -210,6 +240,7 @@ describe("protections/every-proof-can-be-named", () => {
       "f.test.ts > outer > inner > nested",
       "f.test.ts > outer > aliased suite > in alias",
       "f.test.ts > outer > no substitution",
+      "f.test.ts > outer > through an import under another name",
       // Rendered from their tables. Each expected string is the name vitest
       // reported when these same registrations ran (measured 2026-09-22,
       // vitest 5.0.1), including the two cut at 40 characters, the second of
@@ -251,7 +282,48 @@ describe("protections/every-proof-can-be-named", () => {
     // into another left the total unchanged. A reader taught to see through the
     // cast turns this red, and the expectation then changes on purpose.
     expect([...named, ...composed.map((c) => c.why)].join("\n")).not.toContain("behind a cast")
-    expect(named.length + composed.length).toBe(34)
+    expect(named.length + composed.length).toBe(35)
+  })
+
+  it("counts everything a helper registers, and names none of it", () => {
+    // The file a helper's names start with is the caller's, and the helper
+    // does not say which caller, or how many. So a helper's suites and proofs
+    // are counted even where every name in them is written out.
+    const helper = `
+import { describe, it } from "vitest"
+export function runContract(label: string): void {
+  describe(\`contract (\${label})\`, () => {
+    it("a proof", () => {})
+  })
+  describe("a literal suite", () => {
+    it("still reported under its caller", () => {})
+  })
+}
+`
+    expect(proofNamesIn(helper, "h.ts", { helper: true })).toEqual({
+      named: [],
+      composed: [4, 5, 7, 8].map((line) => ({
+        file: "h.ts",
+        line,
+        why: IN_A_HELPER,
+      })),
+    })
+  })
+
+  it("registers nothing through a function that is not vitest's, whatever it is called", () => {
+    // The shape of \`tests/slice5/plist.ts\`: a function of its own called
+    // \`describe\`, and no vitest in sight. And an import of \`test\` from
+    // somewhere that is not vitest. Neither registers anything.
+    const notVitest = `
+import { test } from "./somewhere-else"
+function describe(token: unknown): string {
+  return String(token)
+}
+export const found = \`found \${describe("a token")}\`
+describe("reads like a suite", () => {})
+test("reads like a proof", () => {})
+`
+    expect(proofNamesIn(notVitest, "p.ts", { helper: true })).toEqual({ named: [], composed: [] })
   })
 
   it("accepts names that share a stem but are not inside one another", () => {
