@@ -101,10 +101,6 @@ says so and says why:
 
 Not there yet, stated as plainly as the rest:
 
-- **A link handed to Bring stops working when the instance restarts.** The grant behind it is kept
-  in memory, so the first restart, including the stop an idle machine makes on its own, turns every
-  link already issued into a page that does not exist
-  ([`docs/open-questions.md`](docs/open-questions.md), OQ-48).
 - **Capture quality has not passed its own gate.** The threshold run against real photographs
   returned FAIL, and the thresholds themselves turned out to be under-specified for sources a human
   transcribes ([`docs/open-questions.md`](docs/open-questions.md), OQ-14).
@@ -149,6 +145,7 @@ start it:
 npm ci
 psql "$DATABASE_URL" -f migrations/0001-the-recipe-store.sql
 psql "$DATABASE_URL" -f migrations/0002-the-cooking-plan.sql
+psql "$DATABASE_URL" -f migrations/0003-the-capability-grant.sql
 npm start
 ```
 

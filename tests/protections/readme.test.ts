@@ -94,8 +94,28 @@
  *   above made this exact mistake by moving the handler into an unused
  *   function, and survived. That is why the plant now deletes the route.
  * - **A limit that ends.** The in-memory grant store replaced AND the OQ-48
- *   bullet deleted, together: green. A row with no `working` phrase asks only
- *   that the page stop calling it missing, which is the state #97 leaves.
+ *   bullet deleted, together: green. That is not inertness, and it is
+ *   measured: with the one condition that spares it removed — a reached row
+ *   with no `working` phrase must still be listed as working — the same plant
+ *   goes red at `a Bring link outlives a restart`. So the survivor is spared
+ *   by that condition, and the condition kills something when it goes.
+ *
+ * ## After #97, on the first merge of `main`
+ *
+ * #97 closed OQ-48 and landed while this change was open. Merging it turned
+ * this proof red at three places, each a real finding:
+ *
+ * - `a Bring link outlives a restart`: the page still stated the limit.
+ * - `names only functions that exist`: the row measured the ABSENCE of a
+ *   call to `createInMemoryCapabilityStore`, and #97 deleted the function. A
+ *   row measuring the absence of a name nobody declares would have been true
+ *   forever. It now measures the call that builds the store over the
+ *   repository, and the `notCalled` kind of measure it needed went with it.
+ * - `lists one psql command per file in migrations/`: #97 added
+ *   `migrations/0003-the-capability-grant.sql`, and the README's setup still
+ *   applied two. An operator following the page would have got an instance
+ *   that refuses to start — `main.ts` probes `capability_grant` before it
+ *   binds — with the page itself the reason.
  */
 import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
@@ -311,8 +331,6 @@ const NOT_YET = "Not there yet, stated as plainly as the rest:"
 type Measure =
   /** Reached when every name is called from a module the process loads, outside `except`. */
   | { readonly called: readonly string[]; readonly except?: readonly string[] }
-  /** Reached when the name is called from NO module the process loads. */
-  | { readonly notCalled: string }
   /** Not measurable here: the page must keep saying it, and that is all. */
   | { readonly stated: true }
 
@@ -392,9 +410,14 @@ const ROWS: readonly Row[] = [
   },
   {
     id: "a Bring link outlives a restart",
-    // OQ-48. The grant store the process builds is the in-memory one; the day
-    // it builds another, this row turns red and the bullet has to go.
-    measure: { notCalled: "createInMemoryCapabilityStore" },
+    // OQ-48, closed by #97. Until then the process built its grant store with
+    // `createInMemoryCapabilityStore`, and this row measured that call's
+    // ABSENCE; #97 deleted the function, and `names only functions that exist`
+    // said so on the first run after the merge. The store is now built over the
+    // repository, so the row measures that call instead. It has no `working`
+    // phrase: it is a limit that ended, and the page only has to stop stating
+    // it.
+    measure: { called: ["createCapabilityStore"] },
     notYet: "**A link handed to Bring stops working when the instance restarts.**",
   },
   {
@@ -460,7 +483,6 @@ function calledFromTheProcess(name: string, except: readonly string[] = []): boo
 /** Whether the row's capability is reached today, or `null` when it cannot be measured. */
 function reached(measure: Measure): boolean | null {
   if ("stated" in measure) return null
-  if ("notCalled" in measure) return !calledFromTheProcess(measure.notCalled)
   return measure.called.every((name) => calledFromTheProcess(name, measure.except))
 }
 
@@ -494,9 +516,7 @@ describe("protections/the-readme-says-what-a-running-instance-reaches", () => {
     const declared = new Set<string>()
     for (const source of sources.values())
       for (const name of declaredNames(source)) declared.add(name)
-    const named = ROWS.flatMap(({ measure }) =>
-      "called" in measure ? measure.called : "notCalled" in measure ? [measure.notCalled] : [],
-    )
+    const named = ROWS.flatMap(({ measure }) => ("called" in measure ? measure.called : []))
     expect(named.filter((name) => !declared.has(name))).toEqual([])
   })
 
