@@ -49,7 +49,11 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
+      # Full history so the append-only check below can read bars.json as it stood
+      # at the PR's base commit (or the previous commit on a push to main).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -79,6 +83,12 @@ jobs:
       - run: python3 spikes/s1-capture-quality/thresholds.py verify
       - run: python3 spikes/s1-capture-quality/thresholds.py gen-doc --check
       - run: python3 spikes/s1-capture-quality/test_thresholds.py
+      # A bar edited in place is refused against the committed baseline even if its
+      # per-entry hash was re-forged (which the at-rest `verify` above cannot see):
+      # every entry the base already carried must be unchanged, only appends added.
+      - run: >-
+          python3 spikes/s1-capture-quality/thresholds.py append-only-check
+          --git-base "${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'HEAD^' }}"
 
   schema-contract:
     runs-on: ubuntu-latest

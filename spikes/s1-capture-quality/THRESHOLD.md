@@ -20,9 +20,14 @@ stands in for any field (proof: `capture-quality/per-field-scoring`).
 
 The two tables below are **generated from [`bars.json`](bars.json)** — the single declaration the
 scorer also reads — so the document and the scorer cannot disagree (CFV1-THR, proof:
-`thresholds/single-declaration`). Do not edit a table by hand: change a bar with
-`python3 thresholds.py register …`, then `thresholds.py gen-doc --write`. Each bar carries the date
-it was registered; a revision appends a new dated entry and the superseded one stays in `bars.json`.
+`thresholds/single-declaration`). Do not edit a table or `bars.json` by hand, and there is no
+reseal command: change a bar with
+`python3 thresholds.py register --bar <b> --kind <field|edge> --value <v> --registered <YYYY-MM-DD> --reasoning <why>`,
+which appends a new dated entry and regenerates these tables in one step. Each bar carries the date
+it was registered; the superseded entry stays in `bars.json`. An in-place edit is refused
+(`thresholds/in-place-edit-refused`): a raw hand-edit leaves the entry's stored hash stale, which
+`thresholds.py verify` catches, and `thresholds.py append-only-check` refuses any change to a
+committed entry against the git baseline even if its hash was re-forged.
 
 <!-- BEGIN GENERATED FIELD BARS -->
 | Critical field | Registered | Why it is critical | Pass bar |

@@ -373,6 +373,12 @@ describe("CI workflow (ci.yml)", () => {
       /thresholds\.py gen-doc --check/,
     )
     expect(runs, "CI does not verify the bars registry integrity").toMatch(/thresholds\.py verify/)
+    // The append-only check runs bars.json against its committed baseline, so an
+    // in-place edit that also re-forged its hash (past the at-rest `verify`) is
+    // still refused. Without a CI step it is a guard nobody reaches.
+    expect(runs, "CI does not run the append-only check against the base").toMatch(
+      /thresholds\.py append-only-check/,
+    )
   })
 
   it("dbq/ci-provides-the-database — the dbq job runs against a real PostgreSQL service", () => {

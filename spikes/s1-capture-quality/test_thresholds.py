@@ -25,6 +25,7 @@ import io
 import json
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -105,31 +106,49 @@ def single_declaration() -> bool:
 
 # --- thresholds/every-bar-is-dated-and-reasoned -----------------------------
 
-_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
 
 def every_bar_is_dated_and_reasoned() -> bool:
     doc = T.load()
+    # The PRODUCTION rule (validate_meta) accepts every committed active entry —
+    # this proof calls that function, it does not re-implement the check.
     for e in T.active_entries(doc):
-        if not (isinstance(e.get("registered"), str) and _DATE.match(e["registered"])):
+        if T.validate_meta(e.get("registered"), e.get("reasoning")):
             return False
-        if not (isinstance(e.get("reasoning"), str) and e["reasoning"].strip()):
-            return False
-    # Plant: an entry with a blank reasoning must be rejected by this rule.
-    blank = _synthetic()
+    # The same production rule fires at rest: a blanked reason is reported by
+    # verify_integrity even when the entry's hash is freshly (re)computed, so the
+    # rule is not something only the hash happens to protect.
+    blank = copy.deepcopy(doc)
     blank["registrations"][0]["reasoning"] = "   "
-    ok_blank = all(
-        isinstance(e.get("reasoning"), str) and e["reasoning"].strip()
-        for e in T.active_entries(blank)
-    )
-    return not ok_blank
+    blank = T.seal(blank)  # fresh hashes — only the meta rule can still object
+    if not any("reasoning is empty" in p for p in T.verify_integrity(blank)):
+        return False
+    # And it fires on the WRITE path: register refuses an undated or unreasoned
+    # entry, so a bad registration cannot be committed in the first place.
+    syn = _synthetic()
+    for registered, reasoning in [("2026-09-22", "   "), ("yesterday", "sensible")]:
+        try:
+            T.register(syn, "gravy_viscosity", "field", 0.42, registered, reasoning)
+            return False  # should have refused
+        except T.RegistryInvalid:
+            pass
+    return True
 
 
 # --- thresholds/in-place-edit-refused ---------------------------------------
 
+def _cli(workdir: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run the shipped thresholds.py CLI in a working copy — the path a human
+    actually takes, not a library call the shipped commands never reach."""
+    return subprocess.run(
+        [sys.executable, str(workdir / "thresholds.py"), *args],
+        capture_output=True,
+        text=True,
+    )
+
+
 def in_place_edit_refused() -> bool:
+    # --- write boundary: assert_append_only refuses an edit or a drop ---
     doc = _synthetic()
-    # A raw in-place value edit is refused at the write boundary.
     edited = copy.deepcopy(doc)
     edited["registrations"][0]["value"] = 0.10
     try:
@@ -137,7 +156,6 @@ def in_place_edit_refused() -> bool:
         return False  # should have raised
     except T.InPlaceEditRefused:
         pass
-    # Dropping an entry is refused too.
     dropped = {**doc, "registrations": doc["registrations"][1:]}
     try:
         T.assert_append_only(doc, dropped)
@@ -150,13 +168,60 @@ def in_place_edit_refused() -> bool:
         T.assert_append_only(doc, revised)
     except T.InPlaceEditRefused:
         return False
-    # And a raw hand-tamper that leaves the stored hash stale is caught at rest.
-    if T.verify_integrity(doc):
-        return False  # the clean registry must verify
-    tampered = copy.deepcopy(doc)
-    tampered["registrations"][0]["value"] = 0.10  # value changed, hash left stale
-    if not T.verify_integrity(tampered):
-        return False  # must report the mismatch
+
+    # --- the CLI path, on a copy of the COMMITTED registry ---
+    # A review reproduced the exact documented-route violation: hand-edit a bar in
+    # place, then run the tooling. This drives it through the shipped CLI and
+    # requires each launder attempt caught.
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        shutil.copy(T.HERE / "thresholds.py", tmp / "thresholds.py")
+        shutil.copy(T.BARS_PATH, tmp / "bars.json")
+        shutil.copy(T.DOC_PATH, tmp / "THRESHOLD.md")
+        base = tmp / "base.json"
+        shutil.copy(T.BARS_PATH, base)  # the committed baseline to compare against
+
+        # The laundering command is gone: `seal` is not a subcommand at all, so
+        # there is no CLI path that recomputes an existing entry's hash.
+        seal = _cli(tmp, "seal")
+        if seal.returncode == 0 or "invalid choice" not in seal.stderr:
+            return False
+
+        # The committed registry verifies clean before any tampering.
+        if _cli(tmp, "verify").returncode != 0:
+            return False
+
+        def _write(reg: dict) -> None:
+            (tmp / "bars.json").write_text(json.dumps(reg, indent=2, ensure_ascii=False) + "\n")
+
+        # Plant: hand-edit `temperature` (a food-safety bar) 0.98 -> 0.80 in place,
+        # no entry appended — exactly the reproduced attack.
+        reg = json.loads((tmp / "bars.json").read_text())
+        temp = next(e for e in reg["registrations"] if e["bar"] == "temperature" and e["kind"] == "field")
+        temp["value"] = 0.80
+        _write(reg)
+        # At-rest catch: the stored hash is now stale, so `verify` reports INVALID.
+        if _cli(tmp, "verify").returncode == 0:
+            return False
+
+        # Strongest launder: forge a fresh hash so `verify` alone would pass...
+        temp["hash"] = T.entry_hash(temp)
+        _write(reg)
+        if _cli(tmp, "verify").returncode != 0:
+            return False  # the forge does defeat the at-rest hash check on its own
+        # ...but append-only-check against the committed baseline still refuses it.
+        laundered = _cli(tmp, "append-only-check", "--baseline-file", str(base))
+        if laundered.returncode == 0 or "append-only VIOLATED" not in laundered.stdout:
+            return False
+
+        # A legitimate appended revision, by contrast, passes append-only-check.
+        good = T.register(
+            json.loads(base.read_text()), "temperature", "field", 0.97, "2026-09-22", "tightened after real runs"
+        )
+        _write(good)
+        if _cli(tmp, "append-only-check", "--baseline-file", str(base)).returncode != 0:
+            return False
+
     return True
 
 
