@@ -69,9 +69,27 @@ describe("slice0/env-example-placeholders-only", () => {
 describe("CI workflow (ci.yml)", () => {
   const workflow = parseYaml(read(".github", "workflows", "ci.yml")) as {
     on: Record<string, unknown>
+    env?: Record<string, unknown>
     jobs: Record<string, { steps?: Array<Record<string, unknown>> }>
   }
   const jobNames = Object.keys(workflow.jobs)
+  // A step's `uses:` is `owner/repo[/path]@ref`. Several proofs below find a
+  // step by its action and then assert one of that step's inputs, so the match
+  // has to say WHICH action it found. It compares the half before `@` to a full
+  // name for that reason: `startsWith("actions/checkout")` is satisfied just as
+  // well by `actions/checkout-fork@v1`, and then `fetch-depth: 0` is asserted
+  // about a step nobody vouched for. The ref half is deliberately not read
+  // here, because these proofs are each about one input. Nothing in this file
+  // asserts anything about the ref either — every `uses:` in the workflow ends
+  // in a moving major tag, and no proof says it must. Observed, not closed
+  // here: that is a different claim from any of the ones below, and widening
+  // one of them to carry it is how a named proof comes to guard something
+  // beside its name.
+  const usesAction = (step: Record<string, unknown>, action: string) =>
+    typeof step.uses === "string" && step.uses.split("@")[0] === action
+  const CHECKOUT_ACTION = "actions/checkout"
+  const SETUP_PYTHON_ACTION = "actions/setup-python"
+  const GITLEAKS_ACTION = "gitleaks/gitleaks-action"
 
   it("slice0/ci-job-coverage — all six check jobs are present", () => {
     for (const job of [
@@ -165,9 +183,7 @@ describe("CI workflow (ci.yml)", () => {
 
     // The Python is pinned IN THE SAME JOB. A pin in some other job does not
     // reach this one — each job is a fresh runner.
-    const pin = steps.find(
-      (s) => typeof s.uses === "string" && (s.uses as string).startsWith("actions/setup-python"),
-    )
+    const pin = steps.find((s) => usesAction(s, SETUP_PYTHON_ACTION))
     expect(
       pin,
       `the job \`${jobName}\` that runs the self-test does not pin its Python`,
@@ -442,9 +458,7 @@ describe("CI workflow (ci.yml)", () => {
       ),
     )
     expect(aoJob, "no job runs the append-only check").toBeTruthy()
-    const checkout = (aoJob?.steps ?? []).find(
-      (s) => typeof s.uses === "string" && (s.uses as string).startsWith("actions/checkout"),
-    )
+    const checkout = (aoJob?.steps ?? []).find((s) => usesAction(s, CHECKOUT_ACTION))
     expect(checkout, "the append-only-check job has no checkout step").toBeTruthy()
     expect(
       (checkout as { with?: Record<string, unknown> }).with?.["fetch-depth"],
@@ -700,9 +714,9 @@ describe("CI workflow (ci.yml)", () => {
     // It computes the merge itself, which needs history. A shallow checkout
     // would make the merge impossible, and the failure would look like the
     // repository's rather than the checkout's.
-    const checkout = steps.find(
-      (st) => typeof st.uses === "string" && st.uses.startsWith("actions/checkout"),
-    ) as { with?: Record<string, unknown> } | undefined
+    const checkout = steps.find((st) => usesAction(st, CHECKOUT_ACTION)) as
+      | { with?: Record<string, unknown> }
+      | undefined
     expect(checkout?.with?.["fetch-depth"], `\`${jobName}\` checks out without full history`).toBe(
       0,
     )
@@ -744,12 +758,70 @@ describe("CI workflow (ci.yml)", () => {
   it("slice0/secret-scan-fails-build — a secret scan runs and blocks on a finding", () => {
     const scanJob = workflow.jobs["secret-scan"]
     expect(scanJob).toBeTruthy()
-    const usesGitleaks = (scanJob?.steps ?? []).some(
-      (s) => typeof s.uses === "string" && /gitleaks/i.test(s.uses),
-    )
-    expect(usesGitleaks).toBe(true)
+    const usesGitleaks = (scanJob?.steps ?? []).some((s) => usesAction(s, GITLEAKS_ACTION))
+    expect(usesGitleaks, `no \`${GITLEAKS_ACTION}\` step in \`secret-scan\``).toBe(true)
     const blocks = (scanJob?.steps ?? []).every((s) => s["continue-on-error"] !== true)
     expect(blocks).toBe(true)
+  })
+
+  it("ci/secret-scan-pins-its-scanner — the scanner version is pinned HERE, not in the action", () => {
+    // `slice0/secret-scan-fails-build` above proves a gitleaks step runs and can
+    // fail the build. It cannot see WHICH gitleaks runs, and until this proof
+    // existed nothing could: the action resolves its binary as
+    // `process.env.GITLEAKS_VERSION || "8.24.3"` (`src/index.js`), then builds a
+    // download URL from it (`src/gitleaks.js`, `Install` -> `downloadURL`). Read
+    // at the tag this workflow uses, not inferred. So with the variable unset,
+    // the scanner is pinned in somebody else's repository: the day that literal
+    // changes is the day `secret-scan` scans with a different tool, and no diff
+    // here records it. The `unit` job's `setup-python` step makes exactly this
+    // argument about an unpinned interpreter; the scanner is its peer.
+    //
+    // WHERE the variable is set is deliberately not narrowed to the step. A
+    // `env:` at workflow or job scope reaches the step's process just as well,
+    // so all three pin the scanner, and a guard that reddened on two of them
+    // would be reporting a working configuration — which is how a guard gets
+    // switched off. What the proof insists on is that the value is in THIS file
+    // and is a literal release. Step beats job beats workflow, so it resolves
+    // in that order rather than accepting whichever scope happens to carry one.
+    const job = workflow.jobs["secret-scan"] as
+      | { steps?: Array<Record<string, unknown>>; env?: Record<string, unknown> }
+      | undefined
+    expect(job, "there is no `secret-scan` job").toBeTruthy()
+
+    // The step is identified by its FULL action name rather than by a substring.
+    // A proof about a pin that cannot say what it is pinning is not one, and
+    // `gitleaks/gitleaks-action` is the only spelling whose `src/index.js` was
+    // read for the paragraph above.
+    const steps = (job?.steps ?? []).filter((s) => usesAction(s, GITLEAKS_ACTION))
+    expect(
+      steps.length,
+      `expected exactly one \`${GITLEAKS_ACTION}\` step in \`secret-scan\`, found ${steps.length}`,
+    ).toBe(1)
+
+    const scopes: Array<[string, Record<string, unknown> | undefined]> = [
+      ["the step", (steps[0] as { env?: Record<string, unknown> }).env],
+      ["the `secret-scan` job", job?.env],
+      ["the workflow", workflow.env],
+    ]
+    const found = scopes.find(([, env]) => env?.["GITLEAKS_VERSION"] !== undefined)
+    expect(
+      found,
+      "no `env:` on the step, the job or the workflow sets `GITLEAKS_VERSION`, so the scanner is whatever the action defaults to",
+    ).toBeTruthy()
+    const [where, env] = found as [string, Record<string, unknown>]
+    const pinned = env["GITLEAKS_VERSION"]
+
+    // `latest` is the one value that parses as a pin and is not one: the action
+    // treats it as "resolve the newest release at run time" (`gitleaks.Latest`),
+    // which is precisely the moving target this proof exists to close.
+    expect(
+      pinned,
+      `\`GITLEAKS_VERSION: latest\` on ${where} re-opens what pinning it was meant to close`,
+    ).not.toBe("latest")
+    expect(
+      String(pinned),
+      `\`GITLEAKS_VERSION: ${String(pinned)}\` on ${where} is not an exact release — a range or an expression moves`,
+    ).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   it("slice0/no-deploy-from-fork-prs — no deploy step anywhere, and no pull_request_target", () => {
