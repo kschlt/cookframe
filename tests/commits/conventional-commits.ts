@@ -157,6 +157,23 @@ export function checkRange(commits: readonly Commit[]): RangeReport {
   return { checked, exempted, violations }
 }
 
+/** The pull request environment the `commits` CI job hands the live check. */
+export interface LiveCheckEnv {
+  readonly base: string | undefined
+  readonly head: string | undefined
+  readonly title: string | undefined
+}
+
+/**
+ * Whether the live check was asked for: true when ANY of the three is set, even
+ * to an empty string. A job that set one of them meant the check to run, so a
+ * missing or empty other half has to fail it, not turn it into a skip. Only a
+ * fully absent environment — every other job, and a local run — skips.
+ */
+export function liveCheckRequested(env: LiveCheckEnv): boolean {
+  return env.base !== undefined || env.head !== undefined || env.title !== undefined
+}
+
 /** A field separator no subject line can contain. */
 const FIELD = "\x1f"
 

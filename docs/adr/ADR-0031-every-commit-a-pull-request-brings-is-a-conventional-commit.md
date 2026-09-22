@@ -82,12 +82,18 @@ Both are true at once. Either way, whether the rule applied depended on how a se
   would do the same without it. Nothing in the repository can check that the step keeps doing so.
   A merge made without it writes GitHub's `Merge pull request #N from …` onto `main`, and no
   check here sees that commit.
+- **A red `commits` job binds only a merge step that waits for every check.** Branch protection
+  requires `merge-gate` alone, so GitHub's own merge button still accepts a pull request this job
+  refuses. Making the job binding for everyone takes adding `commits` to the required checks, a
+  setting only the maintainer can change.
 - **Base merges written by git keep git's subject on `main`**, because they are exempt. Writing
   them by hand as `chore: merge main into <branch>` is recommended in `CONTRIBUTING.md` but not
   required, since requiring it would turn every use of GitHub's "Update branch" button red.
 - **An edited title is not re-checked until the next push.** The workflow's `pull_request` trigger
   does not list `edited`, and adding it would re-run every job in the workflow on every edit of a
-  title or a description. A title edited after the last push reaches `main` unchecked.
+  title or a description. The merge step reads the title when it merges, to pass it as the
+  subject, and holds it to the same rule at that moment, which closes the gap for its merges. A
+  title edited after the last push and merged by hand reaches `main` unchecked.
 - **History is not rewritten.** The subjects already on `main` stay as they are, and nothing checks
   them.
 - **The private tooling's own table is narrower** — six types, without `build`, `ci`, `perf`,

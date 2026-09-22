@@ -25,7 +25,7 @@
  * requires that it does.
  */
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -38,8 +38,10 @@ import {
   checkTitle,
   describeViolations,
   isStandardMerge,
+  type LiveCheckEnv,
   listCommits,
   listRangeShas,
+  liveCheckRequested,
   MAX_SUBJECT_LENGTH,
 } from "./conventional-commits.js"
 
@@ -395,15 +397,70 @@ describe("commits/range-check", () => {
   })
 })
 
+describe("commits/live-check-runs-on-any-part-of-its-environment", () => {
+  // One row per subset of the three variables, plus the empty string: a job
+  // that set a variable to nothing still asked for the check. Only the fully
+  // absent environment skips.
+  const ROWS: ReadonlyArray<readonly [LiveCheckEnv, boolean]> = [
+    [{ base: undefined, head: undefined, title: undefined }, false],
+    [{ base: "FETCH_HEAD", head: undefined, title: undefined }, true],
+    [{ base: undefined, head: "abc123", title: undefined }, true],
+    [{ base: undefined, head: undefined, title: "fix: x" }, true],
+    [{ base: "FETCH_HEAD", head: "abc123", title: undefined }, true],
+    [{ base: "FETCH_HEAD", head: undefined, title: "fix: x" }, true],
+    [{ base: undefined, head: "abc123", title: "fix: x" }, true],
+    [{ base: "FETCH_HEAD", head: "abc123", title: "fix: x" }, true],
+    [{ base: "", head: undefined, title: undefined }, true],
+    [{ base: undefined, head: undefined, title: "" }, true],
+  ]
+
+  it("runs whenever any of the three is set, and skips only when none is", () => {
+    for (const [env, expected] of ROWS) {
+      expect(liveCheckRequested(env), `for ${JSON.stringify(env)}`).toBe(expected)
+    }
+  })
+
+  it("commits/live-check-table-discriminates — the table tells the rule apart from each narrower one", () => {
+    const agrees = (rule: (env: LiveCheckEnv) => boolean) =>
+      ROWS.every(([env, expected]) => rule(env) === expected)
+    expect(agrees(liveCheckRequested), "the table does not agree with the real rule").toBe(true)
+    const candidates: ReadonlyArray<readonly [string, (env: LiveCheckEnv) => boolean]> = [
+      [
+        "running only when all three are set",
+        (e) => e.base !== undefined && e.head !== undefined && e.title !== undefined,
+      ],
+      ["running only when the range is set", (e) => e.base !== undefined && e.head !== undefined],
+      ["running only when the base is set", (e) => e.base !== undefined],
+      ["running only when the title is set", (e) => e.title !== undefined],
+      ["treating an empty value as absent", (e) => Boolean(e.base || e.head || e.title)],
+    ]
+    for (const [name, candidate] of candidates) {
+      expect(
+        agrees(candidate),
+        `the live-check table cannot tell the rule apart from ${name}`,
+      ).toBe(false)
+    }
+  })
+
+  it("the live case below decides its skip by this rule, not by a copy of it", () => {
+    // The table proves the function; this proves the live case calls it. An
+    // inlined condition would pass every row above and decide nothing.
+    const source = readFileSync(fileURLToPath(import.meta.url), "utf8")
+    const block = source.slice(source.lastIndexOf('describe("commits/this-pull-request"'))
+    expect(block).toContain("const asked = liveCheckRequested({ base, head, title })")
+    expect(block.match(/skipIf\(([^)]*)\)/g)).toEqual(["skipIf(!asked)", "skipIf(!asked)"])
+  })
+})
+
 describe("commits/this-pull-request", () => {
   const base = process.env.COMMITS_BASE
   const head = process.env.COMMITS_HEAD
   const title = process.env.PR_TITLE
-  const asked = base !== undefined || head !== undefined || title !== undefined
+  const asked = liveCheckRequested({ base, head, title })
 
   it.skipIf(!asked)("every commit this pull request brings is conventional", () => {
-    // Fail closed on half an environment: a job that set one of these meant to
-    // run this, and a missing other half must not turn into a skip.
+    // Fail closed on half an environment: `liveCheckRequested` runs this when
+    // any one of the three is set, so a missing other half is red here.
     expect(base, "COMMITS_BASE is not set").toBeTruthy()
     expect(head, "COMMITS_HEAD is not set").toBeTruthy()
     const commits = listCommits(repoRoot, base as string, head as string)
