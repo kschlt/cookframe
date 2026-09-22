@@ -55,6 +55,27 @@
  * same headers as the pages it belongs with, and `src/http/cooking-app.ts` is
  * gone rather than left as a second door nobody walks through.
  *
+ * **5. Handing a recipe to Bring is one of these addresses too, and it is not a
+ * page.** CFV1-SHOP found the shopping half of ADR-0016 built and unreachable:
+ * `CapabilityStore.issue` and `CapabilityStore.revoke` had no caller anywhere in
+ * `src/`, so a running instance could serve a capability URL and had no way to
+ * mint one or take one back. The two addresses that close that live HERE rather
+ * than in an app of their own, and the reason is decision 2 above: a miss on them
+ * has to be the SAME bytes as a miss on a page, and the credential has to be the
+ * SAME object. A second app would have meant a second `admitted` and a second
+ * `notFound`, which is two things that can drift apart — and the layer already
+ * paid for that once, in the cooking app decision 4 describes.
+ *
+ * They answer JSON, not HTML, because they are submissions rather than pages and
+ * the instance's other submission (`POST /capture`) answers JSON. `no-store` on
+ * them for a sharper reason than the pages have: the response CARRIES the
+ * capability secret.
+ *
+ * The one thing decision 5 needed that no page did is an absolute address to
+ * hand out, and this app still does not know its own: it is given a function
+ * that builds one (`capabilityUrlFor`), so the address stays where ADR-0026's
+ * third cut puts it — in configuration, read by the composition root.
+ *
  * It is a Hono app and nothing more — `app.fetch` is the whole surface
  * (ADR-0007), so it is exercised in process and binds no socket. It knows
  * nothing of its own origin.
@@ -64,6 +85,8 @@ import type { CanonicalRecipe } from "../../schema/index.js"
 import { deriveCookingPlan } from "../cooking/index.js"
 import type { RecipeRepository } from "../persistence/index.js"
 import { renderCookingPage, renderLibraryPage, renderRecipePage } from "../render/index.js"
+import { bringImportUrl } from "../shopping/bring-handoff.js"
+import { type CapabilityStore, isPathSafeToken } from "../shopping/capability-token.js"
 import type { InstanceCredential } from "./instance-credential.js"
 import { bearerCredential } from "./instance-credential.js"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "./not-found.js"
@@ -77,6 +100,20 @@ export interface PagesAppDeps {
    */
   readonly credential: InstanceCredential
   readonly repo: RecipeRepository
+  /**
+   * Mints and revokes the capability grants the Bring handoff is made of
+   * (ADR-0016). The SAME object the capability route resolves against — a second
+   * store here would mint tokens the serving route has never heard of.
+   */
+  readonly capabilityStore: CapabilityStore
+  /**
+   * The absolute URL a token is served at. A FUNCTION from the composition root,
+   * not the base URL itself, and that is ADR-0026's third cut kept rather than
+   * worked around: "no app learns its host, port or base URL", and the capability
+   * URL's origin comes from `PUBLIC_BASE_URL`. Both hold only if the URL is built
+   * outside the app — so this app never holds an address, it asks for one.
+   */
+  readonly capabilityUrlFor: (token: string) => string
   /**
    * Told when the cooking page could not show a plan and served the recipe page
    * instead. Optional, and observation only — nothing about the response depends
@@ -114,6 +151,20 @@ const PAGE_HEADERS = {
  * finding.
  */
 const pageHeaders = (): Record<string, string> => ({ ...PAGE_HEADERS })
+
+/**
+ * Served with both handoff answers.
+ *
+ * `no-store` is not the pages' reason repeated. A share response contains the
+ * capability token itself, in clear, and a token is permanent until it is revoked
+ * (ADR-0016) — so a cache that kept this response would be holding a working
+ * credential for whoever it serves next. A fresh object per response, for the
+ * measured reason `notFoundHeaders` exists.
+ */
+const handoffHeaders = (): Record<string, string> => ({
+  "content-type": "application/json; charset=utf-8",
+  "cache-control": "no-store",
+})
 
 /**
  * Build the pages app. `GET /` is the library, `GET /recipes/:id` is one recipe,
@@ -224,6 +275,76 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
       deps.onDegraded?.(recipeId, error)
       return c.body(renderRecipePage(version.recipe), 200, pageHeaders())
     }
+  })
+
+  /**
+   * Mint a capability URL for one recipe — the Bring handoff (ADR-0016, ADR-0017).
+   *
+   * **A POST, and that is the decision this route makes.** Minting creates a
+   * permanent bearer credential for a recipe, so a GET that did it would mean
+   * every crawl, prefetch or reload of the address issued another live token for
+   * the same recipe and nobody could say how many exist — the store deliberately
+   * offers no enumeration to count them with. It is the same rule the cooking
+   * page above keeps by deriving rather than writing, applied where the write is
+   * a secret.
+   *
+   * **A recipe this instance does not hold is the same 404 as a wrong
+   * credential**, per decision 2: minting first and checking after would answer a
+   * caller with a token, which is a yes/no on whether a recipe id exists.
+   *
+   * Each call mints a NEW token rather than returning an existing one. That is
+   * ADR-0016's model, not a shortcut: the store maps a token to a recipe and
+   * never the other way, because the reverse index is the enumeration the record
+   * refuses. Two tokens for one recipe both work, and each is revoked on its own.
+   */
+  app.post("/recipes/:id/share", async (c) => {
+    if (!admitted(c.req.header("authorization"))) return c.notFound()
+
+    const recipeId = c.req.param("id")
+    const version = await deps.repo.loadLatestCanonical(recipeId)
+    if (version === undefined) return c.notFound()
+
+    const grant = await deps.capabilityStore.issue(recipeId)
+    const url = deps.capabilityUrlFor(grant.token)
+    // Both links, because they are two different acts: `url` is the address to
+    // revoke or to hand somewhere else, `bringImport` is the one that starts an
+    // import. Building the second one from the first is Bring's documented
+    // shape (ADR-0017) and not something the operator should have to remember.
+    return c.body(
+      JSON.stringify({ recipeId, token: grant.token, url, bringImport: bringImportUrl(url) }),
+      200,
+      handoffHeaders(),
+    )
+  })
+
+  /**
+   * Revoke a capability URL — the token's only end (ADR-0016).
+   *
+   * It takes the TOKEN rather than a recipe id, because that is the only handle
+   * that exists: a grant is reachable from its token and from nothing else, and
+   * a route that revoked "this recipe's tokens" would need the reverse index
+   * ADR-0016 refuses to keep.
+   *
+   * The `revoked` field says whether an ACTIVE grant was ended, so revoking
+   * twice answers `true` then `false`. Telling those apart is information about
+   * the store, and the caller who gets it has already presented the library
+   * credential — the indistinguishability ADR-0016 requires is owed to a HOLDER
+   * of a token, which is the serving route's side, not this one's.
+   */
+  app.post("/shares/:token/revoke", async (c) => {
+    if (!admitted(c.req.header("authorization"))) return c.notFound()
+
+    const token = c.req.param("token")
+    // A token that is not path-safe cannot be one this instance minted. The
+    // store would answer `false` for it anyway; refusing it here keeps this
+    // route's reading of a token identical to the serving route's.
+    if (!isPathSafeToken(token)) return c.notFound()
+
+    return c.body(
+      JSON.stringify({ revoked: await deps.capabilityStore.revoke(token) }),
+      200,
+      handoffHeaders(),
+    )
   })
 
   return app
