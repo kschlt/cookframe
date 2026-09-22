@@ -34,7 +34,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "pg"
-import { afterAll, describe, expect, it } from "vitest"
+import { afterAll, describe, expect, it, TestRunner } from "vitest"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS } from "../../src/http/not-found.js"
 import { createPostgresStore } from "../../src/persistence/index.js"
 import {
@@ -194,6 +194,18 @@ async function firstAct(
   match: RegExp,
   timeoutMs = FIRST_ACT_DEADLINE_MS,
 ): Promise<FirstAct> {
+  // The deadline is a named failure only while it ends before the case does.
+  // Past the case's own budget, a process that does neither ends as a bare
+  // vitest timeout again, which is the shape this helper exists to remove. So
+  // the ordering is checked where it matters, at every wait, against the budget
+  // the running case actually has. An absent budget is a failure too: it would
+  // mean the runner stopped saying, and a check that cannot read is not held.
+  const budget = TestRunner.getCurrentTest()?.timeout
+  if (budget === undefined || budget <= timeoutMs) {
+    throw new Error(
+      `this case's budget is ${budget} ms, which does not outlast the ${timeoutMs} ms a wait may take`,
+    )
+  }
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const found = match.exec(started.output())
@@ -342,6 +354,10 @@ describe.skipIf(availability.mode === "skip")("run/the-process-serves-and-stops"
       // and the operating model this instance must tolerate is being stopped
       // as soon as it is idle. A process that ignores it is one the platform
       // eventually kills instead.
+      //
+      // This race is not the hollow shape `refusal` replaced. It asserts `toBe(0)`,
+      // which "timed out" fails, so a process that ignores the signal is red here
+      // under its own message.
       started.child.kill("SIGTERM")
       const code = await Promise.race([
         started.exited,
@@ -498,11 +514,7 @@ describe.skipIf(availability.mode === "skip")(
       const port = await freePort()
       const started = spawnInstance(environment(port, schema.url, blocker))
       try {
-        const code = await Promise.race([
-          started.exited,
-          new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-        ])
-        expect(code, `Output:\n${started.output()}`).not.toBe(0)
+        await refusal(started)
         expect(started.output()).toContain("STORAGE_ROOT cannot be written")
         // Refused BEFORE the port opened, both halves as for the database: it
         // never announced one, and nothing answers on it. A process that bound
