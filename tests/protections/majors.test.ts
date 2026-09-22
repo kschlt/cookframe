@@ -22,81 +22,22 @@
  * ADR-0029 is why the assertions below name things rather than count them. "No
  * problems were found" is satisfied by a checker that looks at nothing, so the
  * inventory is pinned by name, the total is pinned by number, and the checker
- * itself is held against six deliberately broken harnesses that it must reject
- * for the right reason each time.
+ * itself is held against four deliberately broken harnesses that it must reject
+ * for the right reason each time — plus a healthy one it must accept, without
+ * which the four rejections would not tell a reader that the checker can say
+ * yes, and an emptied one, which is the shape this whole file is about.
  */
 import { describe, expect, it } from "vitest"
 import {
-  type MajorHarness,
+  COMPOSED_AT_RUN_TIME,
   MAJOR_HARNESSES,
+  type MajorHarness,
   type MutationGroup,
+  type ReadFile,
+  type Rot,
   readFromRepo,
+  rotIn,
 } from "./majors.js"
-
-/**
- * One way a plant list has stopped describing the tree.
- *
- * `where` carries the harness and the mutation by name, because a problem a
- * reader cannot locate is a problem nobody acts on.
- */
-interface Rot {
-  readonly where: string
-  readonly kind: "find-absent" | "find-ambiguous" | "marker-absent" | "marker-ambiguous"
-}
-
-/**
- * The one marker that is composed at run time and therefore cannot be found in
- * its target's source.
- *
- * `finite-number.contract.test.ts` names its cases from a table —
- * `` it(`${name} exposes numeric fields to check (the sweep is not vacuous)`) ``
- * — so the string vitest reports exists only once the file has been evaluated.
- * The check below would call it absent, which would be a false alarm rather
- * than a finding.
- *
- * It is a SET, asserted by name in its own proof, rather than a condition
- * written into the checker: an exemption nobody can see is how a check dies.
- * `decideMarker` still holds this one at run time, against the baseline's real
- * test names, which is the stronger check and the reason a static exemption
- * costs nothing here.
- */
-const COMPOSED_AT_RUN_TIME: ReadonlySet<string> = new Set([
-  "ValueExpression exposes numeric fields to check",
-])
-
-/** Read a file, or report it as missing rather than throwing. */
-type ReadFile = (relative: string) => string
-
-/**
- * Every way `harness` no longer describes the tree `read` exposes.
- *
- * Pure over a reader so the table below can hand it broken harnesses and real
- * file contents, instead of proving itself against whatever the repository
- * happens to contain today. A checker whose only subject is the real tree
- * passes the day the last violation is deleted and never speaks again.
- */
-export function rotIn(harness: MajorHarness, read: ReadFile): Rot[] {
-  const found: Rot[] = []
-  const occurrences = (haystack: string, needle: string): number =>
-    haystack.split(needle).length - 1
-
-  for (const group of harness.groups) {
-    const subject = read(group.subject)
-    const target = read(group.target)
-    for (const mutation of group.mutations) {
-      const where = `${harness.id} › ${group.subject} › ${mutation.name}`
-      const hits = occurrences(subject, mutation.find)
-      if (hits === 0) found.push({ where, kind: "find-absent" })
-      else if (hits > 1) found.push({ where, kind: "find-ambiguous" })
-
-      if (COMPOSED_AT_RUN_TIME.has(mutation.mustFail)) continue
-      const named = occurrences(target, mutation.mustFail)
-      if (named === 0) found.push({ where, kind: "marker-absent" })
-      else if (named > 1) found.push({ where, kind: "marker-ambiguous" })
-    }
-  }
-  return found
-}
 
 const fromRepo: ReadFile = readFromRepo
 
@@ -251,7 +192,10 @@ describe("protections/the-major-plants-still-describe-this-tree", () => {
 
     for (const [label, broken, kind] of cases) {
       const rot = rotIn(broken, fixtureRead)
-      expect(rot.map((r) => r.kind), label).toEqual([kind])
+      expect(
+        rot.map((r) => r.kind),
+        label,
+      ).toEqual([kind])
     }
   })
 

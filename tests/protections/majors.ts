@@ -188,16 +188,27 @@ const NODE_26: MajorHarness = {
       target: "tests/url-fetch/url-security.connector.test.ts",
       mutations: [
         {
-          // `url-security/redirect-revalidation` alone would be REFUSED, and
-          // the refusal is the useful part: a second test is named
+          // MEASURED, and not the assertion anyone would name first. This plant
+          // reddens five proofs in this suite; `url-security/redirect-revalidation`
+          // is among them and CANNOT be named, because a second proof is called
           // `url-security/redirect-revalidation (named host re-classified on
-          // connect)`, so the shorter marker matches both and could not say
-          // which one objected. The longer name is the one that carries a
-          // verdict.
+          // connect)` and the shorter name is a prefix of the longer one. A
+          // marker is a substring, so naming the short one matches two tests and
+          // `decideMarker` refuses it — correctly, since a failure could not be
+          // attributed to either. Naming the LONG one is worse and was the first
+          // attempt here: it resolves to exactly one test, and that test does
+          // not fail under this plant, so the run came back INCONCLUSIVE rather
+          // than green — the instrument declining to call a kill it had not
+          // seen.
+          //
+          // So the assertion named is the per-hop scheme check, which is unique
+          // and is the defect rather than a neighbour of it: when the fetcher
+          // follows a redirect itself, no hop is re-examined at all, and the
+          // scheme of the hop it followed was never checked.
           name: "the fetcher follows redirects itself instead of revalidating each hop",
           find: '      redirect: "manual",',
           replace: '      redirect: "follow",',
-          mustFail: "url-security/redirect-revalidation (named host re-classified on connect)",
+          mustFail: "url-security/scheme-allowlist (reached by redirect)",
         },
       ],
     },
@@ -234,20 +245,23 @@ const ZOD_4: MajorHarness = {
           find: "    const shape = current._def.shape\n",
           replace:
             "    const shape = (current._def as unknown as { shapeOf?: Record<string, ZodInternals> })\n      .shapeOf\n",
-          mustFail: "the contract requires exactly the ungrounded fields that carry no source content",
+          mustFail:
+            "the contract requires exactly the ungrounded fields that carry no source content",
         },
         {
           name: "an array's element is read by v3's key, so the walk stops at arrays",
           find: '    else if (type === "array" && element !== undefined) current = element\n',
           replace: '    else if (type === "array") return current\n',
-          mustFail: "the contract requires exactly the ungrounded fields that carry no source content",
+          mustFail:
+            "the contract requires exactly the ungrounded fields that carry no source content",
         },
         {
           name: "a literal is read by v3's key, so union branches lose their names",
           find: "          discriminant === undefined ? undefined : unwrap(discriminant)._def.values?.[0]",
           replace:
             "          discriminant === undefined\n            ? undefined\n            : (unwrap(discriminant)._def as unknown as { value?: unknown }).value",
-          mustFail: "the contract requires exactly the ungrounded fields that carry no source content",
+          mustFail:
+            "the contract requires exactly the ungrounded fields that carry no source content",
         },
       ],
     },
@@ -396,3 +410,70 @@ const HONO_NODE_SERVER_2: MajorHarness = {
 
 /** Every harness, by the id the command line names. */
 export const MAJOR_HARNESSES: readonly MajorHarness[] = [NODE_26, ZOD_4, HONO_NODE_SERVER_2]
+
+// --- has a list stopped describing the tree? ------------------------------
+
+/**
+ * One way a plant list has stopped describing the tree.
+ *
+ * `where` carries the harness and the mutation by name, because a problem a
+ * reader cannot locate is a problem nobody acts on.
+ */
+export interface Rot {
+  readonly where: string
+  readonly kind: "find-absent" | "find-ambiguous" | "marker-absent" | "marker-ambiguous"
+}
+
+/**
+ * The one marker that is composed at run time and therefore cannot be found in
+ * its target's source.
+ *
+ * `finite-number.contract.test.ts` names its cases from a table —
+ * `` it(`${name} exposes numeric fields to check (the sweep is not vacuous)`) ``
+ * — so the string vitest reports exists only once the file has been evaluated.
+ * The check below would call it absent, which would be a false alarm rather
+ * than a finding.
+ *
+ * It is a SET, asserted by name in its own proof, rather than a condition
+ * written into the checker: an exemption nobody can see is how a check dies.
+ * `decideMarker` still holds this one at run time, against the baseline's real
+ * test names, which is the stronger check and the reason a static exemption
+ * costs nothing here.
+ */
+export const COMPOSED_AT_RUN_TIME: ReadonlySet<string> = new Set([
+  "ValueExpression exposes numeric fields to check",
+])
+
+/** Read a file, or report it as missing rather than throwing. */
+export type ReadFile = (relative: string) => string
+
+/**
+ * Every way `harness` no longer describes the tree `read` exposes.
+ *
+ * Pure over a reader so the table below can hand it broken harnesses and real
+ * file contents, instead of proving itself against whatever the repository
+ * happens to contain today. A checker whose only subject is the real tree
+ * passes the day the last violation is deleted and never speaks again.
+ */
+export function rotIn(harness: MajorHarness, read: ReadFile): Rot[] {
+  const found: Rot[] = []
+  const occurrences = (haystack: string, needle: string): number =>
+    haystack.split(needle).length - 1
+
+  for (const group of harness.groups) {
+    const subject = read(group.subject)
+    const target = read(group.target)
+    for (const mutation of group.mutations) {
+      const where = `${harness.id} › ${group.subject} › ${mutation.name}`
+      const hits = occurrences(subject, mutation.find)
+      if (hits === 0) found.push({ where, kind: "find-absent" })
+      else if (hits > 1) found.push({ where, kind: "find-ambiguous" })
+
+      if (COMPOSED_AT_RUN_TIME.has(mutation.mustFail)) continue
+      const named = occurrences(target, mutation.mustFail)
+      if (named === 0) found.push({ where, kind: "marker-absent" })
+      else if (named > 1) found.push({ where, kind: "marker-ambiguous" })
+    }
+  }
+  return found
+}
