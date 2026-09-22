@@ -29,7 +29,7 @@ import { readFileSync } from "node:fs"
 import { dirname, join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import type { SourceSnapshot } from "../../schema/index.js"
+import { SnapshotBlock, SourceSnapshot } from "../../schema/index.js"
 import {
   createModelCaptureProvider,
   createModelNormalizationProvider,
@@ -288,7 +288,16 @@ function voiced(voice: string): SourceSnapshot {
     sourceType: "url",
     sourceUrl: `https://${voice}.invalid/${voice}-path`,
     sourceSite: `${voice} site name`,
+    sourceAttribution: `${voice} attribution line`,
     capturedText: `${voice} captured text`,
+    // The page's OWN machine-readable structure — the most directly
+    // attacker-controlled field in the whole snapshot, and the one round 4 was
+    // about. It was missing here for a round, which is what made the guard
+    // narrower than the record claimed.
+    structuredSourcePayload: {
+      name: `${voice} payload name`,
+      recipeIngredient: [`${voice} payload leaf`],
+    },
     blocks: [
       { id: `${voice}-b1`, order: 0, type: "title", text: `${voice} title text` },
       {
@@ -368,7 +377,61 @@ async function exchangesFor(voice: string): Promise<{
   return { capture: captureTransport.seen, normalization: normTransport.seen }
 }
 
+/**
+ * The keys of `SourceSnapshot` the PIPELINE assigns. Everything else on the
+ * contract is the source's, and must be varied by {@link voiced}.
+ *
+ * This is the one judgement the differential still needs, so it is written once,
+ * checked below against the contract itself, and never inferred. Round 6 is why
+ * it is checked rather than described: `voiced` was missing
+ * `structuredSourcePayload` and `sourceAttribution`, both already on the
+ * contract, while ADR-0019 described the gap as something a field added LATER
+ * would open. The gap was already open, and only a reviewer planting the leak
+ * found it — a guard holding less than its name, one more time.
+ */
+const PIPELINE_ASSIGNED = new Set(["id", "version", "sourceType", "captureProvenance"])
+const PIPELINE_ASSIGNED_BLOCK = new Set(["order"])
+
 describe("injection/source-text-crosses-one-boundary", () => {
+  it("the fixture varies every field of the contract the source controls", () => {
+    // Without this, the differential's completeness rests on someone remembering
+    // to add a line when `SourceSnapshot` grows a field — and remembering is
+    // exactly what a guard exists to replace. Reading the key set off the
+    // contract makes a new field fail the build until it is classified, in
+    // either direction: an unclassified field is neither varied nor exempted.
+    const alpha = voiced("alpha") as unknown as Record<string, unknown>
+    const beta = voiced("beta") as unknown as Record<string, unknown>
+    expect(
+      Object.keys(alpha).sort(),
+      "a field of SourceSnapshot is not set by `voiced`, so the differential never exercises it",
+    ).toEqual(Object.keys(SourceSnapshot.shape).sort())
+
+    for (const key of Object.keys(SourceSnapshot.shape)) {
+      if (PIPELINE_ASSIGNED.has(key)) {
+        expect(alpha[key], `${key} is listed as the pipeline's but the fixture varies it`).toEqual(
+          beta[key],
+        )
+      } else {
+        expect(
+          alpha[key],
+          `${key} is the source's but both runs carry the same value, so a leak of it would not show`,
+        ).not.toEqual(beta[key])
+      }
+    }
+  })
+
+  it("the fixture varies every field of a BLOCK the source controls", () => {
+    // Blocks carry the page's words, and a block's `type` is the capture model's
+    // own choice — the route round 3's leak took.
+    const alphaBlock = voiced("alpha").blocks[1] as unknown as Record<string, unknown>
+    const betaBlock = voiced("beta").blocks[1] as unknown as Record<string, unknown>
+    expect(Object.keys(alphaBlock).sort()).toEqual(Object.keys(SnapshotBlock.shape).sort())
+    for (const key of Object.keys(SnapshotBlock.shape)) {
+      if (PIPELINE_ASSIGNED_BLOCK.has(key)) expect(alphaBlock[key]).toEqual(betaBlock[key])
+      else expect(alphaBlock[key], `block.${key} is not varied`).not.toEqual(betaBlock[key])
+    }
+  })
+
   it("nothing the source controls reaches the model outside the fence", async () => {
     const [alpha, beta] = await Promise.all([exchangesFor("alpha"), exchangesFor("beta")])
 

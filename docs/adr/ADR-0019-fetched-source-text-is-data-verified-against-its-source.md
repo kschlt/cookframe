@@ -139,13 +139,23 @@ applied to content: **a model's claim about the source is evidence, never author
   helper several calls down, or a construction nobody has thought of — because none of that is
   looked at. Mutation-checked in eight shapes; one of them, laundering the value through a
   neutrally-named local, is caught by the differential alone and leaves the scan green.
-- **What the differential does not reach, stated so the guarantee is not read wider than it is.** It
-  compares two inputs, so it exercises exactly the fields the fixture varies. A content field added
-  to `SourceSnapshot` later must be varied there, or it is simply not covered — one edit in one
-  place, with a failing differential behind it, but not nothing. The inventory scan is kept beside
-  it for the other half: a NEW module that starts assembling prompts fails the build whether or not
-  anyone thought to drive it. Neither guard says the model obeys the fence; that is verification's
-  half, and this record's whole point is that neither half stands alone.
+- **The differential exercises exactly the fields its fixture varies, so the fixture's key set is
+  checked against the contract.** An earlier draft of this record described that as a
+  forward-looking cost — a field added to `SourceSnapshot` *later* would need a line. That was a
+  round too narrow, and review proved it by planting a leak of two fields already on the contract:
+  `structuredSourcePayload`, which is the page's own machine-readable structure and the most
+  directly attacker-controlled value in the whole snapshot, and `sourceAttribution`. Both were
+  unset in the fixture, so neither guard saw the leak. The honest statement is not "a later field
+  needs a line" but **every source-controlled field needs one**, and the fixture is now compared
+  key-for-key against `SourceSnapshot` itself: a field that is neither varied nor listed as the
+  pipeline's fails the build, in either direction. The pipeline's are `id`, `version`, `sourceType`,
+  `captureProvenance` and a block's `order`; the source's are `sourceUrl`, `sourceSite`,
+  `sourceAttribution`, `capturedText`, `structuredSourcePayload`, and a block's `id`, `type`,
+  `heading` and `text`.
+- **The inventory scan is kept beside it for the other half**: a NEW module that starts assembling
+  prompts fails the build whether or not anyone thought to drive it. Neither guard says the model
+  obeys the fence; that is verification's half, and this record's whole point is that neither half
+  stands alone.
 - **The image path's exemption is keyed on the media type while its reason is about provenance.**
   `verifyCaptureSupport` and the capture provider branch on `mediaType.startsWith("image/")`, but
   the argument for the exemption is that a photograph is a page the user physically held. A URL that
