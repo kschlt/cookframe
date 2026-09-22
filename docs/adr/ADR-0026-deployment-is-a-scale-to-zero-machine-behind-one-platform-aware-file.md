@@ -7,7 +7,7 @@ tags: ["hosting", "deployment", "persistence", "portability"]
 constrained_by: ["PDR-0002"]
 supersedes: ["ADR-0011"]
 depends_on: ["ADR-0009", "ADR-0015"]
-related_to: ["ADR-0007", "ADR-0008", "ADR-0010", "ADR-0016", "ADR-0021"]
+related_to: ["ADR-0007", "ADR-0008", "ADR-0010", "ADR-0016", "ADR-0021", "ADR-0027"]
 decides: ["OQ-05"]
 ---
 
@@ -66,12 +66,14 @@ process that binds a port and serves, and a runtime image separate from the CI o
 this record decided in the abstract is therefore now decidable against real code, and the section
 below re-measures it there.
 
-One gap between those two is worth stating here rather than leaving to be discovered at the first
-import: the entry point does not yet use the Postgres store. `src/server/main.ts` composes
-`createProvisionalStore()`, which is in memory and survives nothing. A deployment made today would
-run, and would be empty after every idle stop — which on a scale-to-zero machine is every idle
-period, not every reboot. The wiring is its own unit, and until it lands nothing real should be
-imported into a deployed instance.
+A gap between those two was open while this record was drafted, and it is worth recording because
+it is exactly the failure this decision would have caused: the entry point composed
+`createProvisionalStore()`, so a deployment would have run correctly and been empty after every
+idle stop — on a scale-to-zero machine that is every idle period, not every reboot. `CFV1-WIRE`
+closed it at `8a02d2f`. The instance now builds `createPostgresStore(resolveDatabaseUrl())`, and
+`ADR-0027` decided the consequence this record's operating model makes acute: the process performs
+one real read per migration before it binds, so it refuses to start against a database it cannot
+reach or that is half-migrated, rather than coming up and failing every page that reads.
 
 ## Decision
 
