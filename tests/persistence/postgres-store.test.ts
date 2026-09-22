@@ -92,6 +92,16 @@ async function inspect<T>(
   }
 }
 
+/** Every projection row, in a stable order, read through the table rather than the store. */
+async function readProjection(schema: ProvisionedSchema): Promise<readonly unknown[]> {
+  return inspect(schema, async (client) => {
+    const result = await client.query(
+      "select * from ingredient order by recipe_id, version, group_ordinal, ordinal",
+    )
+    return result.rows
+  })
+}
+
 afterAll(async () => {
   for (const handle of opened) await handle.close()
   for (const schema of provisioned) await schema.drop()
@@ -483,17 +493,51 @@ withDatabase("persistence/the-projection-is-derived-not-authoritative", () => {
     const { handle, schema } = await freshStore()
     await handle.repository.appendCanonicalVersion(await canonical("run-1"))
     await handle.repository.appendCanonicalVersion(await canonical("run-2"))
-    const read = () =>
-      inspect(schema, async (client) => {
-        const result = await client.query(
-          "select * from ingredient order by recipe_id, version, group_ordinal, ordinal",
-        )
-        return result.rows
-      })
-    const before = await read()
+    const before = await readProjection(schema)
     expect(before.length).toBeGreaterThan(0)
     await handle.rebuildProjection()
-    expect(await read()).toEqual(before)
+    expect(await readProjection(schema)).toEqual(before)
+  })
+
+  it("rebuilds the projection from nothing, so a rebuild that does nothing cannot pass for one", async () => {
+    // Review caught this, and it was right: read-rebuild-compare is satisfied
+    // by a `rebuildProjection` emptied of BOTH its statements, because a no-op
+    // trivially leaves the rows equal. Reproduced before it was changed — all
+    // 56 proofs stayed green against a rebuild that did nothing at all.
+    //
+    // "Derived from the documents" means the rows can be REPRODUCED, so the
+    // rows have to be gone before the rebuild runs. They are destroyed out of
+    // band, through the table rather than through the store, because the store
+    // deliberately offers no way to destroy them.
+    const { handle, schema } = await freshStore()
+    await handle.repository.appendCanonicalVersion(await canonical("run-1"))
+    await handle.repository.appendCanonicalVersion(await canonical("run-2"))
+    const before = await readProjection(schema)
+    expect(before.length).toBeGreaterThan(0)
+
+    await inspect(schema, (client) => client.query("delete from ingredient"))
+    expect(await readProjection(schema)).toHaveLength(0)
+
+    await handle.rebuildProjection()
+    expect(await readProjection(schema)).toEqual(before)
+  })
+
+  it("replaces what it finds rather than adding to it, so a corrupted row does not survive a rebuild", async () => {
+    // The other half of "a cache with a contract": a rebuild that only filled
+    // in what was missing would leave a wrong row standing, and the projection
+    // would disagree with the document it claims to come from.
+    const { handle, schema } = await freshStore()
+    await handle.repository.appendCanonicalVersion(await canonical("run-1"))
+    const before = await readProjection(schema)
+    expect(before.length).toBeGreaterThan(0)
+
+    await inspect(schema, (client) =>
+      client.query("update ingredient set name = $1", ["not what the document says"]),
+    )
+    expect((await readProjection(schema))[0]).not.toEqual(before[0])
+
+    await handle.rebuildProjection()
+    expect(await readProjection(schema)).toEqual(before)
   })
 
   it("a deleted document takes its projection rows with it, so an orphan cannot outlive its truth", async () => {
@@ -505,6 +549,65 @@ withDatabase("persistence/the-projection-is-derived-not-authoritative", () => {
       return result.rows[0]?.n ?? -1
     })
     expect(remaining).toBe(0)
+  })
+})
+
+withDatabase("persistence/a-stored-document-is-parsed-on-the-way-out", () => {
+  // Review caught that this property had no proof at all: replacing the parse
+  // with a bare cast at each of the three read paths, one at a time, left all
+  // 56 green. Reproduced before anything was changed. Nothing in these suites
+  // could write a non-conforming row, so nothing could ever meet the check.
+  //
+  // It is newly load-bearing, which is why it belongs to this PR rather than a
+  // later one: before the durable store, nothing survived a process, so a row
+  // written by an older contract version could not exist. Now it can, and the
+  // answer has to be a refusal rather than a document handed on as if it were
+  // valid — omission over coercion, at the read as well as at the write.
+  //
+  // The bad rows go in through the table, because the store's own write path
+  // parses and would refuse them, which is the point.
+  const NOT_A_RECIPE = { id: "r1", schemaVersion: "0.0.1" }
+
+  it("refuses a Source Snapshot the contract no longer accepts", async () => {
+    const { handle, schema } = await freshStore()
+    await inspect(schema, (client) =>
+      client.query("insert into snapshot (id, doc) values ($1, $2)", [
+        "snap-from-an-older-contract",
+        JSON.stringify(NOT_A_RECIPE),
+      ]),
+    )
+    await expect(handle.repository.loadSnapshot("snap-from-an-older-contract")).rejects.toThrow()
+  })
+
+  it("refuses the latest Canonical version when the stored document no longer parses", async () => {
+    const { handle, schema } = await freshStore()
+    await inspect(schema, (client) =>
+      client.query("insert into recipe_version (recipe_id, version, doc) values ($1, 1, $2)", [
+        "recipe-from-an-older-contract",
+        JSON.stringify(NOT_A_RECIPE),
+      ]),
+    )
+    await expect(
+      handle.repository.loadLatestCanonical("recipe-from-an-older-contract"),
+    ).rejects.toThrow()
+  })
+
+  it("refuses a comparison when either of the two versions no longer parses", async () => {
+    // The stale row is the SECOND version, so a reader that parsed only the
+    // first would still hand this one on.
+    const { handle, schema } = await freshStore()
+    const appended = await handle.repository.appendCanonicalVersion(await canonical("run-1"))
+    await inspect(schema, (client) =>
+      client.query("insert into recipe_version (recipe_id, version, doc) values ($1, 2, $2)", [
+        appended.recipeId,
+        JSON.stringify(NOT_A_RECIPE),
+      ]),
+    )
+    await expect(handle.repository.readTwoRuns(appended.recipeId, 1, 2)).rejects.toThrow()
+    // …and the good version on its own is still readable, so the refusal is
+    // about the stale document and not about the store having given up.
+    const [first] = await handle.repository.readTwoRuns(appended.recipeId, 1, 1)
+    expect(first.recipe.provenance.runId).toBe("run-1")
   })
 })
 
