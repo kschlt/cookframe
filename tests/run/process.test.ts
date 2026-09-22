@@ -366,6 +366,16 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
       // Named as the operator's missing step, not as a driver error about a
       // relation — which is the whole difference the refusal exists to make.
       expect(started.output()).toContain("migrations/0001-the-recipe-store.sql")
+      // And it names the table the FIRST read could not find. Which table is
+      // named is the only thing that distinguishes "the probe read the recipe
+      // store" from "the probe skipped it and tripped on the plan table one
+      // line later" — an empty database makes every read fail, so an assertion
+      // that only checks THAT it refused passes with the first read deleted,
+      // un-awaited, or its failure swallowed. Both halves are needed: without
+      // the negative, naming `cooking_plan` would satisfy the positive too,
+      // because the tail both messages share mentions neither table.
+      expect(started.output()).toContain("recipe_version")
+      expect(started.output()).not.toContain("cooking_plan")
       // And it arrives as ITSELF rather than wrapped in the generic
       // could-not-be-read refusal. Both messages happen to carry the filename,
       // so without this line the branch that distinguishes an empty database
@@ -387,6 +397,63 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
       } finally {
         await cleanup.end().catch(() => {})
       }
+    }
+  }, 60_000)
+})
+
+describe("run/an-unreachable-database-refuses-by-name", () => {
+  it("refuses by name when DATABASE_URL points at nothing, rather than crashing out of the driver", async () => {
+    // The third operator mistake, and the only one of the three that needs no
+    // database to prove: a URL that is set and wrong — the wrong host, the wrong
+    // port, a password rotated out from under the instance.
+    //
+    // What is actually being guarded here is the SHAPE of the refusal. The store
+    // translates a missing table into a sentence naming the operator's missing
+    // step; it cannot translate a refused connection, because there is no
+    // relation to name, so the composition root wraps it. Delete that wrapping —
+    // or merely stop awaiting the read that produces it — and the process still
+    // refuses, still exits non-zero, still never binds, and every line of the two
+    // cases above still passes. What changes is the only thing an operator ever
+    // sees: a named sentence about DATABASE_URL becomes a `pg-pool` stack frame.
+    //
+    // So this case reads the FIRST line of output rather than searching the
+    // whole of it. An unhandled rejection prints the driver's dump and takes the
+    // process down where it stands, so "the refusal is somewhere in the output"
+    // is satisfied by a crash that happens to race the catch block; "the refusal
+    // is what the process said first" is not.
+    const port = await freePort()
+    // A port nothing is listening on. `freePort` returns one it has just
+    // released, which is precisely what is wanted: a refused connection rather
+    // than a hang against a filtered address.
+    const nowhere = await freePort()
+
+    const started = spawnInstance(
+      environment(port, `postgres://postgres:postgres@127.0.0.1:${nowhere}/postgres`),
+    )
+
+    try {
+      const code = await Promise.race([
+        started.exited,
+        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
+      ])
+      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+
+      const firstLine = started.output().trimStart().split("\n")[0] ?? ""
+      expect(firstLine, `Output:\n${started.output()}`).toContain(
+        "the database at DATABASE_URL could not be read",
+      )
+      // And the driver's own words survive inside it: the wrapper explains what
+      // the failure MEANS, it does not replace what went wrong.
+      expect(started.output()).toContain("ECONNREFUSED")
+      // Not the empty-database refusal. The two branches are distinct, and a
+      // wrapper that swallowed the distinction would send an operator whose
+      // server is down to go and run migrations.
+      expect(started.output()).not.toContain("apply the migrations in")
+      // And nothing bound, for the same reason as above.
+      expect(started.output()).not.toContain("listening on port")
+      await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
+    } finally {
+      started.child.kill("SIGKILL")
     }
   }, 60_000)
 })
