@@ -99,7 +99,16 @@ seam, not about proofs. The named proof answers it until that is decided.
 ## Evidence
 
 Each condition the scan decides on is killed by a planted wrong implementation, through
-`tests/protections/mutation.ts`, at the fixture proof named for it: 11 of 11. Against the tree:
+`tests/protections/mutation.ts`, at the fixture proof named for it: 11 of 11.
+
+The scan's breadth is held the same way, by plants that narrow it to what the tree holds today:
+only `sourceMediaType` and `sourceProvenance`, only `CaptureProvider`, only `capture`, only
+`CaptureContext`, only `fake-providers.ts`, only literals that initialise a variable, only
+literals a function returns, only method declarations, only the second parameter, only the last
+parameter. All ten are red. The last two survived until a fixture put the input first, because
+both seams in the tree take their context second and last.
+
+Against the tree:
 
 - A new optional `CaptureContext.sourceLanguage`, read by the shipped provider, is red. It is named
   as an unanswered blind spot with both remedies.

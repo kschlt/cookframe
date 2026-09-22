@@ -180,6 +180,26 @@ describe("protections/the-seam-field-scan-decides-on-each-condition", () => {
     ).toEqual(["Port.run(Ctx).mode"])
   })
 
+  it("finds it when the input is not the last parameter", () => {
+    // Both seams in the tree take their context second and last, so nothing
+    // there holds the scan to every parameter. This does.
+    expect(
+      spotsIn(
+        seam({
+          "src/port.ts": `
+          export interface Ctx { readonly id: string; readonly mode?: string }
+          export interface Port { run(ctx: Ctx, input: string, extra: string): string }`,
+          "src/shipped.ts": `
+          import type { Port } from "./port"
+          export const shipped: Port = { run(ctx, input) { return ctx.mode ?? input } }`,
+          "src/fake-port.ts": `
+          import type { Port } from "./port"
+          export const fake: Port = { run(ctx, input) { return input } }`,
+        }),
+      ),
+    ).toEqual(["Port.run(Ctx).mode"])
+  })
+
   it("does not report it when the fake reads it", () => {
     expect(
       spotsIn(
