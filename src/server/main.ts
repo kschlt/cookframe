@@ -32,6 +32,9 @@ import {
   createModelNormalizationProvider,
 } from "../pipeline/model-providers.js"
 import { createOpenAITransport } from "../pipeline/openai-transport.js"
+import { createUrlCaptureProvider } from "../pipeline/url-capture.js"
+import { createDeterministicUrlCaptureProvider } from "../pipeline/url-jsonld-adapter.js"
+import { createSafeUrlByteSource } from "../security/url-byte-source.js"
 import { createCapabilityStore } from "../shopping/capability-token.js"
 import { readConfiguration } from "./config.js"
 import { startInstance } from "./instance.js"
@@ -130,6 +133,29 @@ async function main(): Promise<void> {
     )
   }
 
+  // No options, deliberately: the loopback and resolver seams the connector
+  // accepts are test-only, and passing none is what gets the fail-closed
+  // defaults ADR-0010 specifies. A production instance that could be talked into
+  // fetching 127.0.0.1 is the whole reason that guard exists.
+  const byteSource = createSafeUrlByteSource()
+
+  /**
+   * The model-backed capture provider, named because BOTH entries are built
+   * from it and they are built from it differently.
+   *
+   * The photograph goes to it directly: pixels have no other reading. A fetched
+   * page goes to it only through {@link createUrlCaptureProvider}, which tries
+   * the page's own structured data first and, when that is missing or unusable,
+   * hands the model the EXTRACTED TEXT rather than the markup (ADR-0019 §4a).
+   * Wiring the same value into both is what made the deterministic reader
+   * unreachable in the first version of the URL route.
+   */
+  const modelCapture = createModelCaptureProvider({
+    transport,
+    promptText: readFileSync(join(repoRoot, "prompts/capture/v1.md"), "utf8"),
+    contractText,
+  })
+
   const instance = await startInstance(
     {
       repo,
@@ -139,11 +165,7 @@ async function main(): Promise<void> {
       capabilityStore: createCapabilityStore(repo),
       ingestCredential: createInstanceCredential(config.ingestCredential, "ingest credential"),
       libraryCredential: createInstanceCredential(config.libraryCredential, "library credential"),
-      capture: createModelCaptureProvider({
-        transport,
-        promptText: readFileSync(join(repoRoot, "prompts/capture/v1.md"), "utf8"),
-        contractText,
-      }),
+      capture: modelCapture,
       normalization: createModelNormalizationProvider({
         transport,
         promptText: readFileSync(join(repoRoot, "prompts/normalization/v1.md"), "utf8"),
@@ -158,6 +180,16 @@ async function main(): Promise<void> {
       targetOntologyVersion: TARGET_ONTOLOGY_VERSION,
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
+      byteSource,
+      // The composite from CFV1-SL4, on the path at last: deterministic reader
+      // first, `modelCapture` only for a page whose structured data is missing
+      // or unusable. A page that publishes its recipe machine-readably costs no
+      // model call at all, and one that does not reaches the model as text.
+      urlCapture: createUrlCaptureProvider(createDeterministicUrlCaptureProvider(), modelCapture),
+      // The URL entry names itself apart from the phone's, because a snapshot's
+      // provenance is meant to say which way the recipe came in.
+      urlSourceAdapter: "url-import",
+      urlAdapterVersion: "1.0.0",
       // Released after the server has stopped accepting and drained, never
       // before: a pool closed while a request is still in flight turns a clean
       // stop into a half-written one. `run/a-stop-leaves-nothing-half-written`
@@ -167,6 +199,8 @@ async function main(): Promise<void> {
       // guards THIS line is a text assertion in `run/only-the-entry-point-binds`,
       // and it says as much rather than reading like a behavioural one.
       closeStore: () => store.close(),
+      // The connector's pool, released on the same drained boundary as the store.
+      closeByteSource: () => byteSource.close(),
     },
     config.port,
   )
