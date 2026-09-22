@@ -436,6 +436,71 @@ describe("CI workflow (ci.yml)", () => {
     ).toMatch(/tests\/dbq/)
   })
 
+  it("ci/merge-gate-job-cannot-be-silently-skipped — the merge check runs, and only where it can", () => {
+    // CFV1-BASE. What the merge gate DOES is proved by running it against real
+    // repositories in `tests/base/merge-gate.test.ts`, including both measured
+    // incidents. This case is narrower and says so: it guards the WIRING, which
+    // exercising the module cannot reach, against the one failure mode #37
+    // already demonstrated — a job that skips reports success, so a disabled
+    // check and a passing check look identical on a pull request.
+    const carries = (j: { steps?: Array<Record<string, unknown>> }) =>
+      (j.steps ?? []).some((st) => typeof st.run === "string" && /merge-gate\.ts/.test(st.run))
+    const entry = Object.entries(workflow.jobs).find(([, j]) => carries(j))
+    expect(entry, "no CI job runs the merge gate").toBeTruthy()
+    // The NAME is load-bearing, unusually for a job. Branch protection lists a
+    // required status check by name, so renaming this job does not break the
+    // build — it silently stops the protection matching anything, and pull
+    // requests merge without the check they are supposed to be waiting for.
+    // Found by mutation: every other assertion here locates the job by what it
+    // RUNS, so a rename passed them all.
+    expect(entry?.[0], "the merge-gate job was renamed; branch protection names it").toBe(
+      "merge-gate",
+    )
+    const [jobName, job] = entry as [
+      string,
+      { steps?: Array<Record<string, unknown>>; if?: unknown; "continue-on-error"?: unknown },
+    ]
+    const steps = job.steps ?? []
+    const step = steps.find(
+      (st) => typeof st.run === "string" && /merge-gate\.ts/.test(st.run),
+    ) as Record<string, unknown>
+
+    expect(
+      step["continue-on-error"] ?? false,
+      `the merge-gate step in \`${jobName}\` may fail without failing the build`,
+    ).toBe(false)
+    expect(
+      job["continue-on-error"] ?? false,
+      `the \`${jobName}\` job may fail without failing the build`,
+    ).toBe(false)
+    expect(step["if"], `the merge-gate step in \`${jobName}\` is conditional`).toBeUndefined()
+
+    // The JOB is conditional, and that condition is load-bearing rather than a
+    // switch: the check reads `pull_request` context a push to main does not
+    // have. Pinning it to exactly that still lets `if: false` — the mutation
+    // that got past #37 — turn this red.
+    expect(job["if"], `the \`${jobName}\` job's condition is not the event guard`).toBe(
+      "github.event_name == 'pull_request'",
+    )
+
+    // It computes the merge itself, which needs history. A shallow checkout
+    // would make the merge impossible, and the failure would look like the
+    // repository's rather than the checkout's.
+    const checkout = steps.find(
+      (st) => typeof st.uses === "string" && st.uses.startsWith("actions/checkout"),
+    ) as { with?: Record<string, unknown> } | undefined
+    expect(checkout?.with?.["fetch-depth"], `\`${jobName}\` checks out without full history`).toBe(
+      0,
+    )
+
+    // And the base is fetched at run time. Reading the ref GitHub computed when
+    // the PR was last pushed is the staleness this item exists to close.
+    expect(
+      steps.some((st) => typeof st.run === "string" && /git fetch .*origin/.test(st.run)),
+      `\`${jobName}\` never fetches the current base tip`,
+    ).toBe(true)
+  })
+
   it("slice0/secret-scan-fails-build — a secret scan runs and blocks on a finding", () => {
     const scanJob = workflow.jobs["secret-scan"]
     expect(scanJob).toBeTruthy()
