@@ -1,5 +1,5 @@
 ---
-id: "ADR-0025"
+id: "ADR-0026"
 title: "Deployment: a scale-to-zero machine and a sleeping managed Postgres, behind one platform-aware file"
 status: proposed
 date: 2026-09-22
@@ -113,17 +113,24 @@ declared inventory of what is exempt, so that a file added later is not exempt b
 
 One of them already exists, and in a better form than this record would have asked for.
 `CFV1-RUN` ships `run/only-the-entry-point-binds`, which refuses the server adapter, a socket
-module, `createServer` and `.listen` anywhere under `src/` except the one named entry-point file,
-and pairs it with a case asserting that the entry point *does* bind — so the rule cannot pass by
-everything having stopped binding. It is anchored on what the code does rather than on the words it
-contains, which a first attempt got wrong. That covers the binding half of cut 4.
+module, `createServer` and `.listen` anywhere under `src/` except the one named entry-point file.
+It is anchored on module specifiers rather than on the words a file contains, which a first attempt
+got wrong: two modules explain the adapter's content-length defect in prose, and a substring match
+reported them as offenders.
+
+That scan cannot stand alone, and this record does not let it. Its companion case, that the entry
+point *is* the file that binds, reads the entry point's text for `@hono/node-server` and `serve(`,
+so it rules out the rule passing trivially the day nothing binds at all — but it is satisfied by a
+file that contains those tokens without ever reaching them. What makes the binding real is
+`run/the-process-serves-and-stops`, which spawns the declared start command and talks to it over a
+socket. Cut 4's binding half is covered by the two together, and the row below names both.
 
 | cut | what a test must assert over `src/` | state |
 |---|---|---|
 | 1 | the only database package any module imports is `pg` — no provider-specific driver, no HTTP-over-`fetch` transport | owed, and no longer vacuous: `CFV1-PG` landed the store, and `pg` is the only database package under `src/`, imported in exactly one module (`src/persistence/postgres-store.ts`). That is the state the assertion demands, and nothing yet keeps a second module or a provider driver from joining it |
 | 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own file | owed. True on the merge result: only `src/storage/filesystem-byte-store.ts` |
 | 3 + 4 | no module takes its configuration from the environment except through a declared seam: a parameter every caller can inject, pre-filled from `process.env` at exactly one point in the signature — never a read inside a function body, and never a module-level constant. The inventory of such seams is declared with the test | owed. Two exist on the merge result, both in the declared shape: `readPlanGenerationPolicy` (`src/cooking/policy.ts`) and `resolveDatabaseUrl` (`src/persistence/configuration.ts`, landed by `CFV1-PG`). `CFV1-RUN`'s composition root will be the third. Each is an injection seam rather than a hidden read — which is why the assertion is about the shape, not about the count |
-| 4 (binding) | nothing outside the entry point names the server adapter, a socket module, `createServer` or `.listen` | **done**, by `run/only-the-entry-point-binds` (`CFV1-RUN`) |
+| 4 (binding) | nothing outside the entry point names the server adapter, a socket module, `createServer` or `.listen`, and the entry point really does bind | **done**, by `run/only-the-entry-point-binds` together with `run/the-process-serves-and-stops` (`CFV1-RUN`). The first without the second is green on a file that names the adapter but never starts it |
 | 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on the merge result: no platform name appears under `src/`, and the only third-party packages it imports are `hono`, `undici`, `ipaddr.js` and `pg` |
 
 Every "true" above was measured on the merge result of this branch against `main`, not on the tree
