@@ -27,6 +27,22 @@
  */
 import type { RecipeTitle } from "../../schema/index.js"
 import type { MultipleRecipesError, UnknownRecipeCountError } from "../pipeline/recipe-inventory.js"
+import type { ReasonCode } from "../security/reason-codes.js"
+
+/**
+ * The one sentence every address refusal gets. Seven reason codes map to it, and
+ * that collapse is the point: which range a name resolved into is what the guard
+ * learned and the caller did not, so telling them apart out here would rebuild
+ * the resolver oracle ADR-0010 closes.
+ */
+const ADDRESS_REFUSAL = "that link points at an address this instance will not fetch from."
+
+/**
+ * What `OK` would mean here: a fetch the guard did NOT refuse, answered as a
+ * refusal anyway. It is a bug in the caller rather than something the person did,
+ * so it says so instead of inventing a cause for them.
+ */
+const UNEXPECTED_OK = "this instance reported a refusal without a reason, which is a fault here."
 
 /** How an entry with no usable title is named, rather than dropped. */
 export const UNTITLED_RECIPE = "one without a title"
@@ -74,4 +90,47 @@ export function refusalWording(error: MultipleRecipesError | UnknownRecipeCountE
 function listed(titles: readonly string[]): string {
   if (titles.length <= 1) return titles[0] ?? ""
   return `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]}`
+}
+
+/**
+ * A URL refusal, as a sentence — and as LITTLE else.
+ *
+ * The guard's own `SafeFetchError` carries a message and, on a redirect chain,
+ * the hop the refusal was taken on. Neither is relayed. A refusal message from
+ * inside the connector can name the address a host resolved to, and the hop URL
+ * is that address when the redirect is what was being refused; handing either
+ * back would make this route answer a question the caller did not ask and the
+ * resolver alone knew. What travels is the `reasonCode` — discriminable, which
+ * is the whole reason `reason-codes.ts` exists — and the sentence below.
+ *
+ * The map is exhaustive over every code but `OK`, so a reason added to the guard
+ * has to be given words here before it can reach a person. `OK` is excluded
+ * because it is the guard's non-refusal value: reaching this function with it
+ * would mean a successful fetch was answered as a failure.
+ */
+const URL_REFUSAL_WORDING: Record<Exclude<ReasonCode, "OK">, string> = {
+  UNPARSEABLE_URL: "that is not a link this instance can read.",
+  SCHEME_NOT_ALLOWED: "only http and https links can be imported.",
+  // The seven address refusals share one sentence on purpose. Which range a
+  // host resolved into is exactly what a caller should not learn from the
+  // outside, and the person who submitted the link needs only to know that the
+  // link, not their instance, is the problem.
+  UNPARSEABLE_ADDRESS: ADDRESS_REFUSAL,
+  LOOPBACK: ADDRESS_REFUSAL,
+  LINK_LOCAL: ADDRESS_REFUSAL,
+  PRIVATE_RANGE: ADDRESS_REFUSAL,
+  CGNAT: ADDRESS_REFUSAL,
+  UNIQUE_LOCAL: ADDRESS_REFUSAL,
+  NON_UNICAST: ADDRESS_REFUSAL,
+  SIZE_LIMIT: "that page is larger than this instance will download.",
+  CONTENT_TYPE_NOT_ALLOWED: "that link did not answer with a web page.",
+  TIME_LIMIT: "that page took too long to answer.",
+  REDIRECT_LIMIT: "that link redirected more times than this instance will follow.",
+  REDIRECT_INVALID: "that link redirected somewhere this instance could not follow.",
+  TRANSPORT: "that page could not be reached.",
+}
+
+export function urlRefusalWording(reasonCode: ReasonCode): string {
+  const rest = reasonCode === "OK" ? UNEXPECTED_OK : URL_REFUSAL_WORDING[reasonCode]
+  return `This link was not imported: ${rest}`
 }
