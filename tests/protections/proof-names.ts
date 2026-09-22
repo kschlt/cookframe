@@ -40,6 +40,15 @@
  * regression that reclassifies literal names as composed turns red instead of
  * quietly shrinking the set this checks.
  *
+ * Whether the reader agrees with vitest is not something the suite can check.
+ * It is measured, and the measurement is to be repeated whenever the renderer
+ * changes: run the whole suite with `--reporter=json`, collect every
+ * `fullName`, and compare it with the names this module gives for every
+ * `.test.ts` file. A name the reader gives that vitest does not report is a
+ * renderer bug; a name vitest reports that the reader neither gives nor counts
+ * is a blind spot. Done on 2026-09-22 against vitest 5.0.1: 992 names given,
+ * every one reported, and one blind spot, below.
+ *
  * The path is taken from where a registration is WRITTEN, and only `.test.ts`
  * files are read. A helper that registers tests from another file is therefore
  * invisible: its proofs are neither named nor counted. The tree has one,

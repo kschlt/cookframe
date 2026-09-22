@@ -113,6 +113,10 @@ describe("protections/every-proof-can-be-named", () => {
     // When this is red, look at the new site before moving the list. A name the
     // reader should be able to read belongs in the reader, not in this list.
     //
+    // An entry holds file, reason and how often, not which registration: one
+    // the reader cannot name has no name to carry. A registration that moves
+    // within one file is therefore invisible here, and cannot be otherwise.
+    //
     // NOT on this list, and known: `runRepositoryContract` in
     // `tests/persistence/repository-contract.ts` registers 25 proofs per store
     // from outside any `.test.ts` file, so this scan neither names nor counts
