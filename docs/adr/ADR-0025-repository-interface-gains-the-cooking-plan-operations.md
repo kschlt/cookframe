@@ -1,7 +1,8 @@
 ---
 id: "ADR-0025"
 title: "The repository interface gains storeCookingPlan and loadCookingPlan, widening ADR-0018 from six operations to eight"
-status: accepted
+status: superseded
+superseded_by: ["ADR-0032"]
 date: 2026-09-22
 tags: ["persistence", "boundaries", "repository-interface", "cooking-plan"]
 supersedes: ["ADR-0018"]

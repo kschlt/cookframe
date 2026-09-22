@@ -4,8 +4,9 @@
  *
  * This is the "one suite, every store" proof: a single exported function that
  * takes a store *factory* and exercises every operation the interface promises —
- * ADR-0003's original five, the read ADR-0018 added, and the two Cooking Plan
- * operations ADR-0025 added. Any store that claims to
+ * ADR-0003's original five, the read ADR-0018 added, the two Cooking Plan
+ * operations ADR-0025 added, and the three grant operations ADR-0032 added. Any
+ * store that claims to
  * implement the interface runs exactly these proofs by joining the registry in
  * `repository-contract.test.ts`, so a second store inherits the suite instead of
  * getting its own. With one store in the tree today, this is also the only way to
@@ -307,6 +308,70 @@ export function runRepositoryContract(
       expect(again?.units.length, "the stored plan was reachable through the copy").toBeGreaterThan(
         0,
       )
+    })
+  })
+
+  describe(`repo-grant/a-grant-reaches-one-recipe-until-revoked (${label})`, () => {
+    it("keeps a grant under its digest and resolves it to its one recipe", async () => {
+      const repo = await makeStore()
+      expect(await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-A" })).toBe(
+        true,
+      )
+      expect(await repo.storeCapabilityGrant({ tokenDigest: "d-2", recipeId: "recipe-B" })).toBe(
+        true,
+      )
+      expect(await repo.resolveCapabilityGrant("d-1")).toBe("recipe-A")
+      expect(await repo.resolveCapabilityGrant("d-2")).toBe("recipe-B")
+      expect(await repo.resolveCapabilityGrant("d-unknown")).toBeUndefined()
+    })
+
+    it("answers a revoked grant exactly as it answers one never stored", async () => {
+      const repo = await makeStore()
+      await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-A" })
+      expect(await repo.revokeCapabilityGrant("d-1")).toBe(true)
+      expect(await repo.resolveCapabilityGrant("d-1")).toBeUndefined()
+      expect(await repo.resolveCapabilityGrant("d-never")).toBeUndefined()
+    })
+
+    it("reports what a revocation did, and a second one does nothing", async () => {
+      const repo = await makeStore()
+      await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-A" })
+      expect(await repo.revokeCapabilityGrant("d-1")).toBe(true)
+      expect(await repo.revokeCapabilityGrant("d-1")).toBe(false)
+      expect(await repo.revokeCapabilityGrant("d-never")).toBe(false)
+    })
+
+    it("revokes one grant and leaves another for the same recipe alone", async () => {
+      const repo = await makeStore()
+      await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-A" })
+      await repo.storeCapabilityGrant({ tokenDigest: "d-2", recipeId: "recipe-A" })
+      await repo.revokeCapabilityGrant("d-1")
+      expect(await repo.resolveCapabilityGrant("d-1")).toBeUndefined()
+      expect(await repo.resolveCapabilityGrant("d-2")).toBe("recipe-A")
+    })
+  })
+
+  describe(`repo-grant/a-held-digest-is-never-overwritten (${label})`, () => {
+    it("refuses a second grant under an active digest and keeps the first", async () => {
+      const repo = await makeStore()
+      await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-A" })
+      expect(await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-B" })).toBe(
+        false,
+      )
+      expect(await repo.resolveCapabilityGrant("d-1")).toBe("recipe-A")
+    })
+
+    it("refuses a grant under a revoked digest, so a revoked secret stays dead", async () => {
+      // ADR-0016 point 5: revoked secrets are retained as revoked so a secret
+      // can never be re-minted onto a different recipe. A store that deleted on
+      // revoke, or overwrote on store, would hand the exposed URL a new recipe.
+      const repo = await makeStore()
+      await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-A" })
+      await repo.revokeCapabilityGrant("d-1")
+      expect(await repo.storeCapabilityGrant({ tokenDigest: "d-1", recipeId: "recipe-B" })).toBe(
+        false,
+      )
+      expect(await repo.resolveCapabilityGrant("d-1")).toBeUndefined()
     })
   })
 }
