@@ -76,7 +76,13 @@ describe("slice1/ingest-composes-the-spine", () => {
     expect(await repo.loadSnapshot(snapshot.id)).toBeDefined()
     // The library lists exactly the recipe ingest produced.
     expect(await repo.listLibrary()).toEqual([
-      { recipeId: canonical.recipeId, latestVersion: 1, title: canonical.recipe.title },
+      {
+        recipeId: canonical.recipeId,
+        latestVersion: 1,
+        ...(canonical.recipe.title.state === "from_source"
+          ? { title: canonical.recipe.title.sourceText }
+          : {}),
+      },
     ])
   })
 

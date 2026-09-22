@@ -53,10 +53,23 @@ describe("Canonical Recipe contract", () => {
   })
 
   it("pins schemaVersion to the current literal", () => {
-    const wrongVersion = { ...(valid as object), schemaVersion: "2.0.0" }
-    const result = CanonicalRecipe.safeParse(wrongVersion)
-    expect(result.success).toBe(false)
-    expect(SCHEMA_VERSION).toBe("1.0.0")
+    // The property is that a version OTHER than the literal is refused, so the
+    // wrong one is derived from the literal rather than written out. The
+    // earlier form spelled both numbers ("2.0.0" is wrong, the literal is
+    // "1.0.0") and so had to be edited on every bump — and on the PDR-0005
+    // bump it would have started asserting that the CURRENT version is
+    // rejected, which is the opposite of what it is for.
+    const [major] = SCHEMA_VERSION.split(".")
+    const wrongVersion = {
+      ...(valid as object),
+      schemaVersion: `${Number(major) + 1}.0.0`,
+    }
+    expect(CanonicalRecipe.safeParse(wrongVersion).success).toBe(false)
+    expect(SCHEMA_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(
+      CanonicalRecipe.safeParse({ ...(valid as object), schemaVersion: SCHEMA_VERSION }).success,
+      "the current literal is the one version that parses",
+    ).toBe(true)
   })
 })
 

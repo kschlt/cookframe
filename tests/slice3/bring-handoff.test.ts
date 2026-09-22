@@ -108,7 +108,11 @@ const buildCanonical = (over: {
   CanonicalRecipe.parse({
     id: "recipe-bring",
     schemaVersion: SCHEMA_VERSION,
-    title: "Kartoffelgratin",
+    title: {
+      state: "from_source",
+      sourceText: "Kartoffelgratin",
+      sourceRefs: [{ blockId: "b-title" }],
+    },
     authors: over.authors,
     yields: (over.yields ?? [{ text: "4 Portionen", value: 4 }]).map((y, i) => ({
       id: `y-${i + 1}`,

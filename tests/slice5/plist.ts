@@ -191,3 +191,29 @@ export function allStrings(value: PlistValue): string[] {
   }
   return []
 }
+
+/**
+ * Every value a `<key>WFDictionaryKey</key>` names, anywhere in the document.
+ *
+ * These are the response fields the Shortcut reads out of the instance's answer,
+ * so they are the client's half of a contract whose other half is the endpoint.
+ * Collected by walking the parsed document rather than by regex over the text,
+ * because a key inside a comment is not a key the client reads.
+ */
+export function dictionaryKeysRead(value: PlistValue): string[] {
+  const found: string[] = []
+  const walk = (node: PlistValue): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item)
+      return
+    }
+    if (node !== null && typeof node === "object") {
+      for (const [key, child] of Object.entries(node)) {
+        if (key === "WFDictionaryKey" && typeof child === "string") found.push(child)
+        else walk(child as PlistValue)
+      }
+    }
+  }
+  walk(value)
+  return [...new Set(found)].sort()
+}

@@ -41,9 +41,9 @@ import type { BlockIdPolicy } from "../pipeline/block-id-policy.js"
 import { ingest } from "../pipeline/ingest.js"
 import type { CaptureProvider, NormalizationProvider } from "../pipeline/providers.js"
 import { MultipleRecipesError, UnknownRecipeCountError } from "../pipeline/recipe-inventory.js"
+import { importWording, refusalWording } from "./capture-wording.js"
 import type { IngestCredential } from "./ingest-credential.js"
 import { bearerCredential } from "./ingest-credential.js"
-import { refusalWording } from "./refusal-wording.js"
 
 /**
  * What the phone may submit.
@@ -166,12 +166,19 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
           targetOntologyVersion: deps.targetOntologyVersion,
         },
       )
+      // The title travels twice, deliberately: as the declared state PDR-0005
+      // made it, and as the sentence the phone shows. A source that gives no
+      // title yields a sentence ABOUT that absence and no name at all — a
+      // placeholder here would be a manufactured title again, one route further
+      // out, and the person reading it could not tell the difference.
+      const title = result.canonical.recipe.title
       return c.json(
         {
           snapshotId: result.snapshot.id,
           recipeId: result.canonical.recipeId,
           version: result.canonical.version,
-          title: result.canonical.recipe.title,
+          title,
+          message: importWording(title),
         },
         201,
       )

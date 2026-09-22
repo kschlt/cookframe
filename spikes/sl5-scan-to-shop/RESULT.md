@@ -64,7 +64,7 @@ almost always in it.
 
 **This is a refusal rate of 2 in 11 on a product whose claim is low friction, and the refusal is
 final: the person is told to photograph one recipe on its own, which on both of these is what they
-already did.** Registered as `OQ-39`. It is not fixed here — SL5 owns making the refusal reach the
+already did.** Registered as `OQ-41`. It is not fixed here — SL5 owns making the refusal reach the
 person, which it does, and `CFV1-MR1` owns the counting. Changing the counting after seeing a rate
 it produces is a decision with a threshold in it, and this unit does not get to take it quietly.
 

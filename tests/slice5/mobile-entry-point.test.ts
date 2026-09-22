@@ -23,11 +23,18 @@
  *    later is caught by a proof written before it.
  */
 import { randomBytes } from "node:crypto"
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { SourceSnapshot } from "../../schema/index.js"
 import { createCapabilityApp } from "../../src/http/capability-app.js"
 import type { IngestIdentity } from "../../src/http/ingest-app.js"
-import { ACCEPTED_CAPTURE_TYPES, createIngestApp } from "../../src/http/ingest-app.js"
+import {
+  ACCEPTED_CAPTURE_TYPES,
+  createIngestApp,
+  MAX_CAPTURE_BYTES,
+} from "../../src/http/ingest-app.js"
 import { createIngestCredential } from "../../src/http/ingest-credential.js"
 import type { RecipeRepository } from "../../src/persistence/index.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
@@ -40,6 +47,7 @@ import {
   UnknownRecipeCountError,
 } from "../../src/pipeline/recipe-inventory.js"
 import { createInMemoryCapabilityStore } from "../../src/shopping/capability-token.js"
+import { dictionaryKeysRead, parsePlist } from "./plist.js"
 
 /**
  * Minted per run rather than written down.
@@ -74,6 +82,29 @@ function capturingProvider(seen: Seen): CaptureProvider {
       seen.bytes = input
       seen.mediaType = ctx.sourceMediaType
       return { sourceType: "image", capturedText: "captured", blocks: segmentation }
+    },
+  }
+}
+
+/** What a 201 carries. `title` is a declared state, never a string (PDR-0005). */
+interface Created {
+  readonly snapshotId: string
+  readonly recipeId: string
+  readonly title: { state: string; sourceText?: string }
+  readonly message: string
+}
+
+/** A capture of a page with no heading — the case PDR-0005 was written for. */
+function titlelessProvider(seen: Seen): CaptureProvider {
+  return {
+    async capture(input, ctx): Promise<CaptureResult> {
+      seen.bytes = input
+      seen.mediaType = ctx.sourceMediaType
+      return {
+        sourceType: "image",
+        capturedText: "captured",
+        blocks: segmentation.filter((b) => b.type !== "title"),
+      }
     },
   }
 }
@@ -145,8 +176,9 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
     const res = await submit(h.app)
 
     expect(res.status, await res.clone().text()).toBe(201)
-    const body = (await res.json()) as { snapshotId: string; recipeId: string; title: string }
-    expect(body.title).toBe("Buttermilk Pancakes")
+    const body = (await res.json()) as Created
+    expect(body.title).toMatchObject({ state: "from_source", sourceText: "Buttermilk Pancakes" })
+    expect(body.message).toBe("Imported: Buttermilk Pancakes")
 
     // It reached INGESTION, not just the handler: both halves of the spine are
     // persisted and the snapshot is the one the response names.
@@ -154,7 +186,10 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
     expect(snapshot, "the submission was answered 201 but nothing was stored").toBeDefined()
     const canonical = await h.repo.loadLatestCanonical(body.recipeId)
     expect(canonical, "a snapshot was stored but no Canonical version was appended").toBeDefined()
-    expect(canonical?.recipe.title).toBe("Buttermilk Pancakes")
+    expect(canonical?.recipe.title).toMatchObject({
+      state: "from_source",
+      sourceText: "Buttermilk Pancakes",
+    })
   })
 
   it("hands the capture the bytes it was posted, and the media type it was told", async () => {
@@ -182,6 +217,124 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
       expect((await submit(h.app, { contentType: t })).status).toBe(201)
     },
   )
+
+  it("tells the person the source gave no title, instead of showing them one", async () => {
+    // PDR-0005's case, on the route most likely to produce it: a photograph of a
+    // handwritten card with no heading. The web page says "No title in the
+    // source" rather than borrowing a sentence from the method; if this endpoint
+    // answered with a borrowed sentence, or with a placeholder in a field called
+    // `title`, the defect that record closed would be back — the person reading
+    // it on a phone cannot tell a manufactured name from a real one.
+    const seen: Seen = {}
+    const h = harness(titlelessProvider(seen))
+    const res = await submit(h.app)
+
+    expect(res.status, await res.clone().text()).toBe(201)
+    const body = (await res.json()) as Created
+    expect(body.title).toEqual({ state: "not_in_source" })
+    expect(body.message).toBe("Imported. No title in the source, so this recipe has none.")
+
+    // No name anywhere in the answer, in any field. A sentence about the absence
+    // is not a name; a name would be a string the Shortcut could display as one.
+    const raw = JSON.stringify(body)
+    for (const block of segmentation) {
+      expect(raw, `the response carried the page's own wording as a title`).not.toContain(
+        block.text,
+      )
+    }
+
+    // And the stored record agrees with what the person was told.
+    const canonical = await h.repo.loadLatestCanonical(body.recipeId)
+    expect(canonical?.recipe.title).toEqual({ state: "not_in_source" })
+  })
+
+  it("refuses a type a prefix check would have let through", async () => {
+    // The point of an ALLOWLIST rather than a `startsWith("image/")` test. A GIF
+    // and a TIFF are images and neither is a type this instance's capture path
+    // is built for, so `application/pdf` above cannot tell the two designs
+    // apart — these can.
+    const h = harness()
+    for (const contentType of ["image/gif", "image/tiff", "image/svg+xml"]) {
+      expect((await submit(h.app, { contentType })).status, contentType).toBe(415)
+    }
+    expect(h.seen.bytes, "an unsupported image type was handed to capture anyway").toBeUndefined()
+  })
+
+  it("reads the media type case-insensitively, as the header field is defined", async () => {
+    // A media type is case-insensitive (RFC 9110 §8.3.1) and a client is free to
+    // send `IMAGE/JPEG`. Refusing that would be this instance inventing a rule
+    // the protocol does not have, and the person would meet it as a capture that
+    // simply does not work on their phone.
+    const h = harness()
+    expect((await submit(h.app, { contentType: "IMAGE/JPEG" })).status).toBe(201)
+    expect((await submit(h.app, { contentType: "Image/Heic; charset=utf-8" })).status).toBe(201)
+    expect(h.seen.mediaType, "the type reached capture in the header's own casing").toBe(
+      "image/heic",
+    )
+  })
+
+  it("refuses an empty submission instead of capturing nothing", async () => {
+    // A Shortcut whose photo action returned nothing posts an empty body. Handing
+    // that to capture spends a paid model call on no image and can persist a
+    // snapshot of nothing, which is a record no reprocess can ever repair.
+    const h = harness()
+    const res = await submit(h.app, { body: new Uint8Array(0) })
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: string }).error).toBe("empty_capture")
+    expect(h.seen.bytes, "an empty body was handed to capture").toBeUndefined()
+    expect(await h.repo.listLibrary(), "an empty body reached persistence").toEqual([])
+  })
+
+  it("refuses a submission past the size bound, and captures nothing from it", async () => {
+    // The bound is a bound: one byte over is refused, and the refusal happens
+    // before capture, so an oversized body cannot be truncated into a page that
+    // looks whole. `MAX_CAPTURE_BYTES` is read off the module rather than
+    // written down here, so raising it cannot leave this proof testing a number
+    // the route no longer uses.
+    const h = harness()
+    const res = await submit(h.app, { body: new Uint8Array(MAX_CAPTURE_BYTES + 1) })
+    expect(res.status).toBe(413)
+    expect(((await res.json()) as { error: string }).error).toBe("capture_too_large")
+    expect(h.seen.bytes, "an oversized body was handed to capture").toBeUndefined()
+    expect(await h.repo.listLibrary(), "an oversized body reached persistence").toEqual([])
+
+    // And the bound admits what it says it admits, so it cannot pass by refusing
+    // everything: exactly at the limit is accepted.
+    const atLimit = new Uint8Array(MAX_CAPTURE_BYTES)
+    atLimit.set(PAGE)
+    expect((await submit(h.app, { body: atLimit })).status).toBe(201)
+  })
+
+  it("answers with every field the committed Shortcut reads, on every outcome", async () => {
+    // The client and this endpoint are two halves of one contract, and only one
+    // half is a TypeScript file. The keys are read out of the committed
+    // definition and required to be present in a real response, so renaming a
+    // response field — or pointing the Shortcut at one that does not exist —
+    // fails here instead of on a phone. `title` deliberately is NOT among them:
+    // since PDR-0005 it is a state, not a sentence, and the client reads the
+    // sentence the instance composed.
+    const plist = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "shortcut")
+    const keys = dictionaryKeysRead(
+      parsePlist(readFileSync(join(plist, "Capture Recipe.plist"), "utf8")),
+    )
+    expect(keys.length, "the Shortcut reads no response field at all").toBeGreaterThan(0)
+
+    const answers = [
+      await submit(harness().app),
+      await submit(
+        harness(refusingProvider(new MultipleRecipesError({ count: 2, titles: ["A", "B"] }))).app,
+      ),
+      await submit(
+        harness(refusingProvider(new UnknownRecipeCountError("the model gave no count"))).app,
+      ),
+    ]
+    for (const res of answers) {
+      const body = (await res.json()) as Record<string, unknown>
+      for (const key of keys) {
+        expect(Object.keys(body), `HTTP ${res.status} carries no \`${key}\``).toContain(key)
+      }
+    }
+  })
 })
 
 describe("slice5/ingest-requires-instance-credential", () => {
