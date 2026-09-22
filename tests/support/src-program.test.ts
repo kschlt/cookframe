@@ -44,6 +44,20 @@ describe("support/the-program-over-src-reads-what-the-compiler-compiles", () => 
     expect(program.getCompilerOptions()).toEqual(compiler.options)
   })
 
+  it("takes no directory, so a caller cannot read less of the tree", () => {
+    // What holds this is the compiler, not the runner: at run time an extra
+    // argument is ignored, and a guard narrowed this way stayed green under
+    // vitest. So the claim is written the one way the suite can state what
+    // `tsc` refuses. If `programOverTree` takes a directory again, even as a
+    // default, the call below compiles and the directive fails `tsc` as
+    // unused. That is the only `@ts-expect-error` in the repository, and this
+    // is why. It pins that the function takes no directory; that it reads all
+    // of `src/` is the case above.
+    // @ts-expect-error TS2554: Expected 0 arguments, but got 1.
+    const narrowed = (): ts.Program => programOverTree(join(repoRoot, "src", "pipeline"))
+    expect(narrowed).toBeTypeOf("function")
+  })
+
   // `src/` holds nothing but `.ts` today, so the case above cannot tell a
   // program that reads `.ts` alone from one that reads every source extension.
   // This tree can.

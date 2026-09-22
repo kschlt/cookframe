@@ -50,7 +50,12 @@
  * no directory, and a guard that narrows its reading does not compile.
  * Measured: `programOverTree(join(repoRoot, "src", "pipeline"))` in the seam
  * guard is `error TS2554: Expected 0 arguments, but got 1`. While the function
- * still took a directory, the same call left all three suites green.
+ * still took a directory, the same call left all three suites green. That the
+ * function takes no directory is held in turn by a `@ts-expect-error` in the
+ * proof: give it a directory back, even as a default, and `tsc` fails there.
+ * `programOverDir` is exported for the breadth proof alone. A guard that
+ * wants a program over some other directory builds its own, where the census
+ * names it, rather than calling this one.
  */
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
