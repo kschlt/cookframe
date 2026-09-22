@@ -31,6 +31,16 @@ import { ingestEntryPointsIn, namesCalledIn } from "./ingest-entry-points.js"
 // — exactly the shape that ADR is about. An earlier draft of this file walked
 // `.ts` only; a `.mts` entry point would have been invisible to it and the
 // guard would have reported all-clear.
+//
+// What that does NOT do, said plainly because the sentence above reads as if it
+// did: `tree.test.ts` holds the breadth of `filesUnder` and of
+// `SOURCE_EXTENSIONS`. It cannot hold a CALLER's choice to hand the walk
+// something narrower, and this file's review measured exactly that —
+// substituting `/\.ts$/` at both call sites below leaves the whole gate green.
+// Two things make that inert today rather than a hole: everything under `src/`
+// is `.ts`, and the non-empty expectation below fails first for any narrowing
+// that finds nothing at all. The one case left over is a future `.mts` entry
+// point, which is why the constant is used rather than a pattern spelled here.
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 /** Each entry says what it stops, so a deletion has to argue with a sentence. */
