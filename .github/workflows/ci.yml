@@ -322,6 +322,48 @@ jobs:
       - run: npm ci
       - run: npm run test:records
 
+  # CFV1-CCOM. Every commit a pull request brings, and its title, must be a
+  # Conventional Commit (CONTRIBUTING.md). The rule used to live only in the
+  # maintainer's private tooling, which a session has only when that tooling is
+  # mounted and which a plain `git commit` bypasses even then — so nothing
+  # refused a prose subject, and `main` collected dozens of them in a day.
+  #
+  # Pull requests only: on a push to `main` the commits have already landed, and
+  # there is no pull request range or title to read. The base is fetched at run
+  # time, as in `merge-gate`, because a base recorded when the pull request was
+  # last pushed can be older than the `main` it has since merged in, and the
+  # check would then blame the pull request for `main`'s own commits.
+  #
+  # The title reaches the shell only through `env:`. Interpolated into `run:`,
+  # a title is script text anyone who opens a pull request can write.
+  #
+  # Not re-run on a title edit: the `pull_request` trigger here does not list
+  # `edited`, and adding it would re-run every job in this file on every edit of
+  # a title or description. A corrected title is checked on the next push.
+  commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the range is walked whole, merges and second parents too.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - name: Fetch the current base tip
+        run: git fetch --no-tags origin "$BASE_REF"
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+      - name: Check every commit this pull request brings, and its title
+        run: npm run test:commits
+        env:
+          COMMITS_BASE: FETCH_HEAD
+          COMMITS_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+
   # CFV1-PROT. These proofs read documents and `.github/dependabot.yml`; they
   # reach no network and no platform API, deliberately — what a workflow token
   # can read of this repository's settings was measured and is nothing

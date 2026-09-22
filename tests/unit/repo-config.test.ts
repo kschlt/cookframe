@@ -834,6 +834,79 @@ describe("CI workflow (ci.yml)", () => {
     ).toBe(true)
   })
 
+  it("ci/commits-job-checks-the-pull-request — every commit and the title, against the live base", () => {
+    // CFV1-CCOM. What the rule refuses is proved in `tests/commits/`. This case
+    // guards the WIRING that makes those proofs run against a real pull request,
+    // which exercising the module cannot reach: the live case there skips when
+    // its environment is absent, and a skip reports success. Every assertion
+    // below is one way this job could keep passing while checking nothing.
+    type Job = {
+      if?: unknown
+      "continue-on-error"?: unknown
+      steps?: Array<Record<string, unknown>>
+    }
+    const runsCheck = (st: Record<string, unknown>) =>
+      typeof st.run === "string" && st.run.includes("npm run test:commits")
+    const entry = Object.entries(workflow.jobs).find(([, j]) => (j.steps ?? []).some(runsCheck))
+    expect(entry, "no CI job runs `npm run test:commits`").toBeTruthy()
+    const [jobName, job] = entry as [string, Job]
+    // Named, so the live case's own comment and this guard point at one job.
+    expect(jobName, "the commits job was renamed; tests/commits names it").toBe("commits")
+    const steps = job.steps ?? []
+    const check = steps.find(runsCheck) as Record<string, unknown> & {
+      env?: Record<string, unknown>
+    }
+
+    expect(job["continue-on-error"] ?? false, `\`${jobName}\` may fail without failing`).toBe(false)
+    expect(check["continue-on-error"] ?? false, "the check step may fail without failing").toBe(
+      false,
+    )
+    expect(check["if"], "the check step is conditional").toBeUndefined()
+    // Pinned to exactly the event guard, so `if: false` is red too.
+    expect(job["if"], `\`${jobName}\`'s condition is not the event guard`).toBe(
+      "github.event_name == 'pull_request'",
+    )
+
+    // The range is walked whole; a shallow clone has no range to walk.
+    const checkout = steps.find((st) => usesAction(st, CHECKOUT_ACTION)) as
+      | { with?: Record<string, unknown> }
+      | undefined
+    expect(checkout?.with?.["fetch-depth"], `\`${jobName}\` checks out without history`).toBe(0)
+
+    // The base is the tip fetched now, not the one recorded in the event: a
+    // stale base blames the pull request for `main`'s own commits, which
+    // `tests/commits` measures.
+    const fetchIndex = steps.findIndex(
+      (st) => typeof st.run === "string" && /git fetch .*origin/.test(st.run),
+    )
+    expect(fetchIndex, `\`${jobName}\` never fetches the current base tip`).toBeGreaterThanOrEqual(
+      0,
+    )
+    expect(fetchIndex, "the base is fetched after the check has run").toBeLessThan(
+      steps.indexOf(check),
+    )
+    expect(check.env?.COMMITS_BASE, "the range does not start at the fetched base").toBe(
+      "FETCH_HEAD",
+    )
+    expect(check.env?.COMMITS_HEAD, "the range does not end at the pull request's head").toBe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the workflow's own expression is the point
+      "${{ github.event.pull_request.head.sha }}",
+    )
+    expect(check.env?.PR_TITLE, "the title is not handed to the check").toBe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the workflow's own expression is the point
+      "${{ github.event.pull_request.title }}",
+    )
+
+    // A title is text anyone opening a pull request writes. Interpolated into a
+    // `run:` it is script; it reaches the shell only through `env:`.
+    for (const st of steps) {
+      expect(
+        typeof st.run === "string" && /github\.event\.pull_request\.title/.test(st.run),
+        `a \`run:\` in \`${jobName}\` interpolates the pull request title`,
+      ).toBe(false)
+    }
+  })
+
   it("slice0/secret-scan-accepts-only-pinned-findings", () => {
     // `.gitleaksignore` is where an accepted finding is recorded, and it is one
     // edit away from becoming an allowlist. A fingerprint names ONE finding in

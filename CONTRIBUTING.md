@@ -96,6 +96,25 @@ This is the light form on purpose. If the project ever becomes a real business i
 proper contributor agreement; until then, this sentence is what keeps the option from being lost by
 accident.
 
+## Commit messages
+
+Every commit a pull request brings, and the pull request's title, is a
+[Conventional Commit](https://www.conventionalcommits.org/): `type(scope): description`, with an
+optional `!` after the type or scope for a breaking change.
+
+- **Types:** `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`,
+  `style`, `test`. Nothing else — `spike`, `probe` and `review` appear in older history and are
+  refused now.
+- **The description** is at most 100 characters for the whole line, has no trailing period, and
+  may be written in English or German. There is no rule on its case.
+- **Merging `main` into your branch:** write the merge commit yourself, e.g.
+  `chore: merge main into my-branch`. git's own `Merge branch 'main' into …` is also accepted, as
+  the one exception, and only on a commit that really has two parents.
+
+The `commits` job checks this on every pull request, against the base as it stands when the job
+runs (`tests/commits/`, `ADR-0030`). Nothing checks history that is already on `main`, and it is
+not rewritten.
+
 ## Pull requests
 
 Keep a change to a single concern with its tests. Describe what a reader would see before
