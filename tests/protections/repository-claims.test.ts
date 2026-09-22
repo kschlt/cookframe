@@ -106,6 +106,12 @@ describe("protections/no-unbacked-claim-about-a-setting", () => {
     expect(claims("Branch protection has never been turned on.")).toBe(0)
     expect(claims("Branch protection cannot be read back, so it is not claimed here.")).toBe(0)
 
+    // Bullets. A markdown list is a run of claims with no full stop between
+    // them, so without the split on line ends this pair reads as one sentence
+    // and the denial on the first line silences the claim on the second.
+    // Mutation found it: removing the line split left every other case green.
+    expect(claims("- Secret scanning is not enabled\n- Branch protection is enabled")).toBe(1)
+
     // And a sentence about none of these subjects is not a claim about them,
     // however assertively it is phrased.
     expect(claims("The url-fetch-security job is enabled on every pull request.")).toBe(0)
@@ -179,6 +185,42 @@ describe("protections/no-unbacked-claim-about-a-setting", () => {
     // evidence from where the claim is made.
     expect(
       unbackedClaims([{ path: "FIXTURE.md", text: "Branch protection is enabled." }], record),
+    ).toHaveLength(1)
+
+    // A claim about a setting the record says is OFF, made by a document that
+    // DOES cite the record. This is the case the two above cannot reach between
+    // them: in both of those the citation is missing too, so every claim is
+    // rejected for that reason alone and the state of the entry never decides
+    // anything. Mutation found it — making a `not enabled` entry back a claim
+    // survived both of them.
+    expect(
+      unbackedClaims(
+        [
+          {
+            path: "FIXTURE.md",
+            text: `Secret scanning is enabled; see ${RECORD_PATH}.`,
+          },
+        ],
+        record,
+      ),
+    ).toHaveLength(1)
+
+    // And an entry that has been trimmed to its heading backs nothing, however
+    // enabled the one field it kept says it is. A record edited down to a title
+    // would otherwise go on satisfying every claim that rested on it — the
+    // failure mode of a parse that reads what is there and shrugs at what is
+    // not.
+    const trimmed = "## Branch protection on `main`\n\n- **State:** enabled\n"
+    expect(
+      unbackedClaims(
+        [
+          {
+            path: "FIXTURE.md",
+            text: `Branch protection is enabled; see ${RECORD_PATH}.`,
+          },
+        ],
+        trimmed,
+      ),
     ).toHaveLength(1)
 
     // The same claim, citing the record. This is the one shape that passes, and
