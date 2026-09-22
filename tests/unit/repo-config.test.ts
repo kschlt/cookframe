@@ -20,6 +20,7 @@ import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { parse as parseYaml } from "yaml"
+import { filesUnder } from "../support/tree.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const read = (...p: string[]) => readFileSync(join(repoRoot, ...p), "utf8")
@@ -972,6 +973,14 @@ describe("slice0/private-fixtures-ignored", () => {
   })
 })
 
+/**
+ * A file that declares a contract shape — a Zod object schema.
+ *
+ * Declared beside the scan so the precision table below runs the SAME predicate
+ * the enforcement scan runs, rather than a private copy of its pattern.
+ */
+const declaresAShape = (text: string): boolean => /\bz\s*\.\s*object\s*\(/.test(text)
+
 describe("slice0/schema-single-source-of-truth", () => {
   it("only schema/ declares the contract shape; no second copy in product code", () => {
     // The contract shape is declared with Zod object schemas. Assert no such
@@ -983,15 +992,51 @@ describe("slice0/schema-single-source-of-truth", () => {
       if (!existsSync(base)) continue
       for (const file of walk(base)) {
         if (!file.endsWith(".ts")) continue
-        if (/z\s*\.\s*object\s*\(/.test(readFileSync(file, "utf8"))) {
-          declarers.push(relative(repoRoot, file))
-        }
+        if (declaresAShape(readFileSync(file, "utf8"))) declarers.push(relative(repoRoot, file))
       }
     }
     expect(
       declarers,
       `contract shape declared outside schema/: ${declarers.join(", ")}`,
     ).toHaveLength(0)
+  })
+
+  it("slice0/the-shape-detector-is-precise — it catches a declaration however it is spelled", () => {
+    // The proof above asserts an EMPTY list, which a detector matching nothing
+    // satisfies just as well. Measured on `main` at `4cbf371`: narrowing this
+    // pattern to the literal `/z\.object\(/` left the whole gate green, 1011
+    // passed — so the whitespace tolerance the pattern advertises was held by
+    // nothing. ADR-0029 is the rule; these fixtures are what hold it.
+    for (const text of [
+      "const Recipe = z.object({ title: z.string() })",
+      "const Recipe = z .object( { } )",
+      "const Recipe = z\n  .object({\n    title: z.string(),\n  })",
+      "export default z.object({})",
+    ]) {
+      expect(declaresAShape(text), text).toBe(true)
+    }
+  })
+
+  it("slice0/the-shape-detector-is-precise — it spares what only looks like one", () => {
+    // Which entry dies if a condition is dropped? `fuzz.object(` and
+    // `topicz.object(` die with the word boundary on `z` — the pattern had no
+    // boundary before this change, so both were flagged. `z.objectId(` and the
+    // prose line both die with the `(` required straight after `object`; that
+    // is one condition holding two entries, kept deliberately because a table
+    // whose rows each matter exactly once stops discriminating the moment a
+    // sixth candidate is added (#75). The import line pins no condition at all:
+    // it is the permitted use, and it is here so that a later widening that
+    // starts flagging `import` lines is caught by this table rather than by
+    // whoever is next to touch `schema/`.
+    for (const text of [
+      'import { Recipe } from "../../schema/recipe.js"', // the permitted use
+      "const id = z.objectId(raw)", // a different member
+      "const parsed = fuzz.object(input)", // a receiver that ends in z
+      "const parsed = topicz.object(input)",
+      "// z.object is how the schema declares a shape", // prose about it
+    ]) {
+      expect(declaresAShape(text), text).toBe(false)
+    }
   })
 })
 
@@ -1118,12 +1163,5 @@ describe("slice0/container-builds-and-runs", () => {
   })
 })
 
-function walk(dir: string): string[] {
-  const out: string[] = []
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    if (statSync(full).isDirectory()) out.push(...walk(full))
-    else out.push(full)
-  }
-  return out
-}
+/** Every file under a directory — the shared walk, unfiltered (ADR-0029). */
+const walk = (dir: string): string[] => filesUnder(dir)
