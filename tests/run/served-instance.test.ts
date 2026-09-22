@@ -331,9 +331,9 @@ describe("run/a-stop-leaves-nothing-half-written", () => {
     // instance served nothing afterwards. It does NOT measure that a record
     // survives a restart — that is the store's property, not this seam's, and
     // it is measured at the store: `persistence/a-restart-keeps-the-library`
-    // (CFV1-PG, on `main`). What the entry point still constructs is the
-    // provisional in-memory store, which does not have that property; wiring the
-    // durable one in is CFV1-WIRE.
+    // (CFV1-PG), and — since CFV1-WIRE wired the durable store into the entry
+    // point — across two real processes at `wire/a-restart-keeps-the-library`.
+    // This suite injects its own store, so neither property is this seam's.
     const it_ = await instance()
     await fetch(`${it_.origin}/nothing-here`)
 
