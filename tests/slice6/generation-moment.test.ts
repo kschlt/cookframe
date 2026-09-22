@@ -20,7 +20,6 @@ import {
   PLAN_GENERATION_POLICY_ENV,
   readPlanGenerationPolicy,
 } from "../../src/cooking/index.js"
-import { createCookingApp } from "../../src/http/cooking-app.js"
 import type { IngestIdentity } from "../../src/http/ingest-app.js"
 import { createIngestApp } from "../../src/http/ingest-app.js"
 import { createInstanceCredential } from "../../src/http/instance-credential.js"
@@ -31,6 +30,7 @@ import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-p
 import { createFakeNormalizationProvider } from "../../src/pipeline/fake-providers.js"
 import type { CaptureProvider, CaptureResult } from "../../src/pipeline/providers.js"
 import { bellPepper } from "./fixtures.js"
+import { getPage, pagesApp } from "./pages.js"
 
 const CREDENTIAL = randomBytes(24).toString("base64url")
 const PAGE = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4])
@@ -178,9 +178,9 @@ describe("slice6/incomplete-generation-degrades-to-lazy", () => {
 
     expect(await h.repo.loadCookingPlan(recipeId, version)).toBeUndefined()
 
-    const cooking = createCookingApp({ repo: h.repo })
-    const recipe = await cooking.request(`/recipes/${recipeId}`)
-    const cook = await cooking.request(`/recipes/${recipeId}/cook`)
+    const cooking = pagesApp({ repo: h.repo })
+    const recipe = await getPage(cooking, `/recipes/${recipeId}`)
+    const cook = await getPage(cooking, `/recipes/${recipeId}/cook`)
 
     expect(recipe.status, "the recipe stopped being viewable").toBe(200)
     expect(cook.status, "the cooking view did not recover").toBe(200)

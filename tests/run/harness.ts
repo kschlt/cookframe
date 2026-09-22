@@ -136,6 +136,31 @@ export interface TestInstanceOptions {
  * chosen port is a flake waiting for a busy machine.
  */
 export async function startTestInstance(options: TestInstanceOptions = {}): Promise<TestInstance> {
+  const built = testInstanceDeps(options)
+  const running = await startInstance(built.deps, 0)
+  return {
+    ...running,
+    repo: built.repo,
+    capabilityStore: built.capabilityStore,
+    closed: built.closed,
+    origin: `http://127.0.0.1:${running.port}`,
+  }
+}
+
+/** What {@link testInstanceDeps} hands back: the deps, and the pieces to look into. */
+export interface TestInstanceParts {
+  readonly deps: InstanceDeps
+  readonly repo: ReturnType<typeof createProvisionalStore>
+  readonly capabilityStore: CapabilityStore
+  readonly closed: { count: number }
+}
+
+/**
+ * The same collaborators {@link startTestInstance} runs on, without binding a
+ * port — so a proof about the COMPOSITION rather than about the socket can call
+ * `composeInstance` directly and still be looking at what the process serves.
+ */
+export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanceParts {
   const repo = createProvisionalStore()
   const capabilityStore = createInMemoryCapabilityStore()
   const closed = { count: 0 }
@@ -162,14 +187,7 @@ export async function startTestInstance(options: TestInstanceOptions = {}): Prom
     },
   }
 
-  const running = await startInstance(deps, 0)
-  return {
-    ...running,
-    repo,
-    capabilityStore,
-    closed,
-    origin: `http://127.0.0.1:${running.port}`,
-  }
+  return { deps, repo, capabilityStore, closed }
 }
 
 /** The submission the ingest route accepts, as the fake capture provider reads it. */
