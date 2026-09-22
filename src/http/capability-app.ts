@@ -22,12 +22,14 @@
  *    that one recipe — which is also PDR-0001 invariant 11 (the private library is
  *    never made public to satisfy Bring).
  *  - **Every miss answers with the SAME 404.** An unknown token, a revoked token,
- *    and a valid token whose recipe is absent are indistinguishable to the caller:
+ *    and a valid token whose recipe is absent return one byte-identical response:
  *    identical status, body and content-type, routed through one `notFound` handler.
- *    Three distinguishable answers would be an oracle for someone trying tokens
- *    (ADR-0016 records the revoked-vs-never-issued half; ADR-0021 extends it to the
- *    serving surface, including the missing-recipe case). A hit is the one
- *    legitimate distinction — it returns the recipe the holder's token grants.
+ *    What is equalized is the response bytes, not the work behind them — a persisted
+ *    repository would add a timing side-channel, out of this route's scope to close
+ *    (see ADR-0021). Three distinguishable answers would be an oracle for someone
+ *    trying tokens (ADR-0016 records the revoked-vs-never-issued half; ADR-0021
+ *    extends it to the serving surface, including the missing-recipe case). A hit is
+ *    the one legitimate distinction — it returns the recipe the holder's token grants.
  *
  * The handler takes no network primitive (the fetch is Bring's, of this address),
  * so this module sits outside `src/security/`, and declares no contract shape (the
@@ -78,8 +80,13 @@ export function createCapabilityApp(deps: CapabilityAppDeps): Hono {
     if (version === undefined) return c.notFound()
 
     const mapped = mapCanonicalToSchemaOrg(version.recipe)
+    // `no-store` so no cache between the origin and the reader (browser, proxy,
+    // CDN) can keep serving this recipe after its token is revoked. Revocation is
+    // the grant's only end (ADR-0016) and the URL is designed to leave the device,
+    // so a heuristically-cached 200 would be a kill switch a cache outlives.
     return c.body(JSON.stringify(mapped.recipe), 200, {
       "content-type": "application/ld+json",
+      "cache-control": "no-store",
     })
   })
 

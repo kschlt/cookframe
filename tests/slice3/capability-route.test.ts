@@ -26,6 +26,7 @@ import { CanonicalRecipe, SCHEMA_VERSION } from "../../schema/index.js"
 import { createCapabilityApp } from "../../src/http/capability-app.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
 import {
+  type CapabilityStore,
   createInMemoryCapabilityStore,
   type TokenMinter,
 } from "../../src/shopping/capability-token.js"
@@ -131,6 +132,9 @@ describe("slice3/capability-url-single-recipe", () => {
     const res = await app.request(`/r/${grant.token}`)
     expect(res.status).toBe(200)
     expect(res.headers.get("content-type")).toBe("application/ld+json")
+    // `no-store` so no cache outlives a revocation and keeps serving the recipe
+    // (ADR-0021 §Decision-3). Dropping the header on the served 200 fails here.
+    expect(res.headers.get("cache-control")).toBe("no-store")
     // The served body is the deterministic mapping's output verbatim.
     expect(await res.text()).toBe(JSON.stringify(mapCanonicalToSchemaOrg(recipe).recipe))
   })
@@ -208,6 +212,37 @@ describe("slice3/capability-url-no-ambient-authority", () => {
     // guess reached the handler — it is the same 404 as any other miss.
     const unsafe = await shapeOf(await app.request("/r/has%20space"))
     expect(unsafe).toEqual(unknown)
+  })
+
+  it("short-circuits an unsafe token before it reaches the store", async () => {
+    // The path-safe guard is not just cosmetic: an unsafe token must never reach
+    // `store.resolve`, so a malformed guess does no store work at all. Deleting the
+    // `isPathSafeToken` check leaves the other tests green (an unsafe token still
+    // 404s, because resolve returns undefined for it) — this is the test that would
+    // go red, because resolve WOULD then be called. It is the discriminating proof
+    // that the guard guards.
+    const repo = createProvisionalStore()
+    let resolveCalls = 0
+    const spyStore: CapabilityStore = {
+      issue: () => {
+        throw new Error("issue not used in this test")
+      },
+      resolve: async (_token: string) => {
+        resolveCalls += 1
+        return undefined
+      },
+      revoke: async () => false,
+    }
+    const app = createCapabilityApp({ store: spyStore, repo })
+
+    // An unsafe token is refused before any store call.
+    expect((await app.request("/r/has%20space")).status).toBe(404)
+    expect(resolveCalls).toBe(0)
+
+    // A path-safe (but unknown) token DOES reach the store — proving the guard is
+    // discriminating, not a blanket refusal that never resolves anything.
+    expect((await app.request("/r/tok-well-formed")).status).toBe(404)
+    expect(resolveCalls).toBe(1)
   })
 
   it("exposes no listing or enumeration route", async () => {

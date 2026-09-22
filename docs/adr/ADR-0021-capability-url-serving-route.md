@@ -47,12 +47,23 @@ invent Schema.org mapping (ADR-0017), and nothing else.
 2. **Every miss is the same 404.** An unsafe token, an unknown token, a revoked token, a token whose
    recipe is absent, and any unmatched path all return one identical response — same status, same
    body, same content-type — routed through a single not-found handler. The three token-space misses
-   in particular (unknown / revoked / recipe-absent) are byte-identical, so no response distinguishes
-   a real token from a guessed one. This extends ADR-0016's revoked-vs-never-issued indistinguishability
-   to the serving surface and adds the recipe-absent case the store alone could not have. A hit is the
-   one legitimate distinction: it returns the recipe the token grants, as `application/ld+json`.
+   in particular (unknown / revoked / recipe-absent) are byte-identical, so no response's *bytes*
+   distinguish a real token from a guessed one. This extends ADR-0016's revoked-vs-never-issued
+   indistinguishability to the serving surface and adds the recipe-absent case the store alone could
+   not have. A hit is the one legitimate distinction: it returns the recipe the token grants, as
+   `application/ld+json`. What is equalized is the response bytes; equalizing the *work* behind them
+   (a timing side-channel a persisted repository would introduce) is out of this route's scope — see
+   the negative consequence below.
 
-3. **Origin-agnostic.** The app reads only the request path and returns a Web `Response`; it wires in
+3. **A served recipe carries `Cache-Control: no-store`.** The one legitimate 200 sets `no-store` so
+   no cache between the origin and the reader — a browser, a forward or reverse proxy, a CDN — may
+   keep serving the recipe after its token is revoked. Revocation is the grant's only end (ADR-0016)
+   and the URL is designed to leave the device, so a heuristically-cached 200 would be a kill switch a
+   cache outlives. The served document itself is the deterministic mapping's output verbatim and
+   carries no versioning of its own; the mapping version (`SCHEMA_ORG_MAPPING_VERSION`) is not
+   embedded in the response — see *Alternatives considered*.
+
+4. **Origin-agnostic.** The app reads only the request path and returns a Web `Response`; it wires in
    no base URL, domain or port and makes no assumption about its host. `app.fetch` is the whole
    surface (ADR-0007), so the route is exercised in-process without binding a socket, and the server
    entry point that gives it a public origin — the one place `@hono/node-server`, a port and a host
@@ -83,6 +94,13 @@ surface) are what it records.
   cost of denying the oracle.
 - The route depends on three modules (store, repository, mapping); a change to any of their contracts
   reaches it. This is composition working as intended (ADR-0004), but it is a real coupling.
+- The byte-identical 404 equalizes the *response*, not the *work*. A hit does more work than a miss
+  (a repository load, then a mapping), and a recipe-absent miss does more than an unknown one (a store
+  resolve that succeeds, then a load that returns nothing), so a persisted, latency-bearing repository
+  would leave a timing side-channel the equal bytes do not close. The in-memory store and provisional
+  repository the route is proven against have no such gap, but a production repository could; closing
+  it (constant-time work, or a response delay) is a hosting-layer concern deliberately left to the
+  unit that wires the real repository, not decided here.
 
 ### Neutral
 
@@ -108,3 +126,12 @@ is given the capability URL by the caller that issued it, not by the page.
 **Serving the recipe as `application/json` rather than `application/ld+json`.** Rejected: the payload
 is a JSON-LD document (`@context`/`@type`) whose consumer is a Schema.org parser; the `ld+json` media
 type is what names it correctly, and costs nothing.
+
+**Embedding the mapping version (`SCHEMA_ORG_MAPPING_VERSION`) in the served document** — as an extra
+field, or a response header. Rejected: the served body is the omit-never-invent mapping's output
+*verbatim* (ADR-0017), and a Schema.org/Recipe consumer (Bring) has no use for our internal mapping
+version — adding it would either pollute the Schema.org document with a non-Schema.org field or add a
+header no consumer reads. The mapping version is a producer-side contract, pinned by the
+`bring-fixtures-green` compatibility spike, not something the served page needs to announce. If a
+future consumer ever needs to negotiate mapping versions, that is a new decision with a real
+requirement behind it, not a field added speculatively now.

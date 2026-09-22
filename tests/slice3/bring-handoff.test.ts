@@ -177,13 +177,27 @@ describe("slice3/bring-integration-mechanism-recorded", () => {
     expect(adr).toMatch(/id:\s*"ADR-0017"/)
     expect(adr).toMatch(/status:\s*accepted/)
     expect(adr).toMatch(/decides:\s*\[\s*"OQ-18"\s*\]/)
+
+    // Anchor the mechanism assertions to the DECISION section, not to the whole
+    // record: the same words appear in Context and in Alternatives (a `verbatim`
+    // in the rejected alternatives, a `server-side` in Context), so matching the
+    // full text would pass even if the Decision itself said something else. What
+    // must be true is that the DECISION records these, so slice it out first.
+    const decisionStart = adr.indexOf("## Decision")
+    const decisionEnd = adr.indexOf("## Consequences")
+    expect(decisionStart).toBeGreaterThanOrEqual(0)
+    expect(decisionEnd).toBeGreaterThan(decisionStart)
+    const decision = adr.slice(decisionStart, decisionEnd)
+
     // The mechanism itself: a server-side pull of a page, no push/credential API.
-    expect(adr).toMatch(/server-side/)
-    expect(adr).toMatch(/pull/)
-    expect(adr).toMatch(/no Bring API, credential, or push/)
-    // What is served: the omit-never-invent mapping, verbatim, first yield as base.
-    expect(adr).toMatch(/verbatim/)
-    expect(adr).toMatch(/first `recipeYield`/)
+    expect(decision).toMatch(/server-side/)
+    expect(decision).toMatch(/\bpull\b/)
+    expect(decision).toMatch(/no Bring API, credential, or push/)
+    // What is served: the omit-never-invent mapping, verbatim and never reformatted.
+    expect(decision).toMatch(/verbatim/)
+    expect(decision).toMatch(/never reformatted/)
+    // The first yield is the base Bring keeps.
+    expect(decision).toMatch(/first `recipeYield`/)
   })
 
   it("the open-questions register marks OQ-18 closed by ADR-0017", () => {
