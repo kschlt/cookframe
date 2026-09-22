@@ -1,13 +1,12 @@
 ---
 id: "ADR-0011"
 title: "Reference deployment: a rented single-tenant cloud server with its own domain"
-status: superseded
+status: accepted
 date: 2026-09-18
 tags: ["hosting", "deployment", "bring"]
 constrained_by: ["PDR-0002"]
 related_to: ["ADR-0001", "ADR-0010"]
 decides: ["OQ-05"]
-superseded_by: ["ADR-0023"]
 ---
 
 ## Context

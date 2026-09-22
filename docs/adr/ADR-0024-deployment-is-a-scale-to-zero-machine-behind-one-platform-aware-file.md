@@ -1,7 +1,7 @@
 ---
-id: "ADR-0023"
+id: "ADR-0024"
 title: "Deployment: a scale-to-zero machine and a sleeping managed Postgres, behind one platform-aware file"
-status: accepted
+status: proposed
 date: 2026-09-22
 tags: ["hosting", "deployment", "persistence", "portability"]
 constrained_by: ["PDR-0002"]
@@ -98,10 +98,27 @@ a project of this shape normally acquires a vendor.
 4. **Exactly one place in the repository knows which platform this is.** The server entry point, its
    production container definition, and the platform's own configuration file are that place. **No
    module under `src/` may import a platform SDK or read a platform-specific environment variable**
-   (`FLY_*` and its equivalents), and this is enforced the way `ADR-0010`'s chokepoint is enforced —
-   by a test with a declared inventory, so that a file added later is not exempt by default. The
-   entry point reads the port from the environment, binds, and hands requests to `app.fetch`; that is
-   the whole of its platform knowledge.
+   (`FLY_*` and its equivalents). The entry point reads the port from the environment, binds, and
+   hands requests to `app.fetch`; that is the whole of its platform knowledge.
+
+### These cuts are owed a check, and do not have one yet
+
+A cut nobody can turn red is an intention, not portability, so each one is stated here as the
+assertion a test has to make — in the form `ADR-0010`'s chokepoint uses, a scan of `src/` with a
+declared inventory of what is exempt, so that a file added later is not exempt by default. **None of
+these tests exists today**, on this branch or on `main`; the entry-point unit owes all four, because
+it is the unit that first makes three of them breakable.
+
+| cut | what the test asserts over `src/` | true today |
+|---|---|---|
+| 1 | the only database package any module imports is `pg` — no provider-specific driver or HTTP transport | yes, vacuously: no module imports a database package at all, since `ADR-0015`'s store is unlanded and `pg` is still a devDependency |
+| 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own directory | yes: only `src/storage/filesystem-byte-store.ts` |
+| 3 + 4 | no module reads `process.env` or imports `node:process`; configuration is injected | yes: `process.env` appears nowhere under `src/` |
+| 4 | no module names a platform (`FLY_*`, a platform hostname, a platform SDK); the entry point is the declared exception | yes: the only packages `src/` imports are `hono`, `undici` and `ipaddr.js` |
+
+Each row was checked against the tree this record was written on and holds. That is what makes the
+tests worth writing now rather than a cleanup later: they start green, so the first thing any of them
+ever catches is a regression.
 
 Two further commitments, because leaving them implicit is how they get lost:
 
