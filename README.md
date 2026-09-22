@@ -62,6 +62,10 @@ Working today:
 - **Capture a page with your phone.** Photograph a cookbook page or a handwritten card with
   [the iOS Shortcut in this repository](shortcut/). It goes straight to your instance, which saves
   the recipe and tells you what it saved it as.
+- **Import a recipe from a link.** A URL goes to your instance on its own address, with the same
+  credential a photograph uses and through the same processing afterwards: the page's own
+  structured data is read first, and a model reads the page only when that data is missing or
+  unusable.
 - **One consistent recipe, whatever the source.** Title, yield, ingredients with their quantities,
   steps, times, temperatures, equipment — in the same shape every time, with what the source
   actually said kept alongside it.
@@ -74,7 +78,6 @@ Working today:
 Built and tested, but not reachable from a running instance yet — the section below says why each
 one is still here:
 
-- importing from a recipe URL, structured data first and a fallback after;
 - handing a shopping list to Bring, as a Schema.org page at a URL that grants one recipe;
 - keeping the photograph itself and showing it on the page;
 - re-converting a recipe you already have with a better model or a newer ontology.
@@ -95,10 +98,7 @@ says so and says why:
 
 Not there yet, stated as plainly as the rest:
 
-- **Importing from a URL is not reachable from a running instance.** The import path exists and is
-  tested, including the structured-data route and the refusal to fetch internal addresses, but
-  nothing exposes it over HTTP yet.
-- **The shopping handoff is not wired into the pages either.** The Schema.org document and the
+- **The shopping handoff is not wired into the pages.** The Schema.org document and the
   capability URL that serves it work and are tested; no page issues you such a URL, so today only a
   test harness can reach one.
 - **Capture quality has not passed its own gate.** The threshold run against real photographs
