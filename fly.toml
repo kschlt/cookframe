@@ -1,0 +1,124 @@
+# The one file that knows which platform this instance runs on (ADR-0026).
+#
+# ADR-0026's fourth portability cut says exactly one place may name the
+# platform: the server entry point, its production container definition, and
+# this file. Measured on this tree: nothing under `src/` names this platform,
+# reads a `FLY_*` variable or imports a platform SDK. That is MEASURED, not
+# guarded — the record's own table lists the scan that would keep it true as
+# owed, and this file does not close that row. So moving to another host is
+# replacing this file and setting the same values there, and the day that stops
+# being true no test will say so.
+#
+# What it configures is the operating model ADR-0026 decided on: one machine
+# that STOPS when nobody is using it and starts again on a request. The idle
+# cost is then the seconds the machine actually ran rather than a monthly fee.
+#
+# Secrets are NOT here. `[env]` below is plain text that lives in this
+# repository, which is public. The four values that must never appear in it are
+# listed in `[env]`'s own comment and set with `fly secrets set`, which stores
+# them encrypted and hands them to the process as environment variables at
+# start. `run/the-platform-file-carries-no-secret` fails if one is added here.
+
+app = "cookframe"
+
+# Frankfurt: the operator and the recipes are in Germany, and the managed
+# database (ADR-0026) is created in the same region. A machine in one region
+# reading a database in another pays that round trip on every request, and this
+# instance is read-heavy by design.
+primary_region = "fra"
+
+[build]
+  # `Dockerfile.runtime`, NOT `Dockerfile` — and this line is the whole reason
+  # `run/the-platform-file-builds-the-runtime-image` exists.
+  #
+  # This repository carries two Dockerfiles on purpose. `Dockerfile` is the
+  # development and CI container: its `CMD` is `npm run quality`, the test
+  # suite. `Dockerfile.runtime` is the image an operator runs, and its `CMD` is
+  # the declared start command. A platform that scans a repository and finds a
+  # Dockerfile takes `Dockerfile`, so LEAVING THIS LINE OUT deploys a machine
+  # whose default command runs the test suite instead of serving anything. That
+  # is not a hypothetical: it is what the platform's own repository scan
+  # proposed before this file existed.
+  dockerfile = "Dockerfile.runtime"
+
+[env]
+  # Configuration that is not secret, set here so it is reviewable in the diff
+  # rather than living only in one person's terminal history.
+  #
+  # These four must NEVER appear in this block, because it is plain text in a
+  # public repository — they are set with `fly secrets set`:
+  #
+  #   DATABASE_URL                     carries the database password
+  #   OPENAI_API_KEY                   PDR-0001 invariant 8: never leaves the server
+  #   COOKFRAME_INGEST_CREDENTIAL      the iOS Shortcut's secret (PDR-0003)
+  #   COOKFRAME_LIBRARY_CREDENTIAL     opens the library; a DIFFERENT value
+  #
+  # `src/server/config.ts` refuses an absent value by name and defaults nothing,
+  # so a missing secret is a machine that exits saying which one — not a machine
+  # that serves an empty library.
+
+  # The port the process binds. It has no default in the code on purpose, so
+  # choosing it is the operator's act and this line is where it happens. It must
+  # equal `internal_port` below or the platform routes to a port nothing is
+  # listening on, which is a machine that looks healthy and answers nothing;
+  # `run/the-platform-file-routes-to-the-bound-port` reads both and compares.
+  PORT = "8080"
+
+  # One provider is supported and an unrecognised name is refused rather than
+  # falling through to a default (`src/server/main.ts`).
+  MODEL_PROVIDER = "openai"
+
+  # The model a capture or normalization run is charged against. Not a secret —
+  # it is an identifier, and which model produced a recipe is something the
+  # operator should be able to read off the configuration rather than off a
+  # billing page.
+  #
+  # `gpt-5.4` rather than a guess: `spikes/s6-fidelity/FINDINGS.md` measured it
+  # at 27/27 on the fixture corpus against `gpt-5.4-mini`'s 24/27, and the three
+  # failures were contract failures. `.env.example` leaves this `replace-me`
+  # because it is configuration, not a decision the record system carries
+  # (`OQ-07`) — but a deployment has to name one, and this is the one with
+  # evidence behind it.
+  OPENAI_MODEL = "gpt-5.4"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # The scale-to-zero half of ADR-0026.
+  #
+  # `auto_stop_machines = "stop"` rather than `"suspend"`: suspend keeps the
+  # machine's memory resident and is billed for it, which is the cost this
+  # record exists to avoid. A stop is a real stop, and the process handles
+  # SIGTERM — `src/server/main.ts` drains the server and closes the database
+  # pool before exiting, and `run/a-stop-leaves-nothing-half-written` proves
+  # that order. The operating model this instance was built for is being
+  # stopped as soon as it is idle.
+  #
+  # The cost, stated rather than discovered: the first request after an idle
+  # period waits for a cold start, and that wait now also sits on the path of
+  # Bring's server-side fetch, whose timeout is unknown to us (`OQ-45`).
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  # 512 MiB is a starting point, not a measurement. `OQ-46` registers that the
+  # instance has never been deployed and that its memory, start-up time and real
+  # monthly cost are unmeasured; this is the number to revisit first, because the
+  # runtime image installs devDependencies (the start command runs the
+  # TypeScript sources through `tsx`, see `Dockerfile.runtime`).
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# No volume is mounted, and that is deliberate rather than forgotten.
+#
+# ADR-0026 puts captured images on a persistent volume attached to this machine.
+# Measured on this tree: `src/storage/filesystem-byte-store.ts` exists, and
+# NOTHING outside `src/storage/` imports it — the composition root
+# (`src/server/main.ts`) constructs no byte store, and `STORAGE_ROOT` is read
+# nowhere under `src/`. A `[mounts]` block here would declare durable storage
+# that no code writes to: configuration nobody can verify, and the kind that
+# reads as done. The volume goes in with the unit that wires the byte store into
+# the instance, and that unit is what makes this comment wrong.
