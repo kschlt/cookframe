@@ -1,6 +1,6 @@
 /**
- * The library and the recipe page, given addresses for the first time
- * (CFV1-RUN, ADR-0024).
+ * The library, the recipe page and the cooking page — every page of the
+ * operator's private library, behind one credential (CFV1-RUN, ADR-0024).
  *
  * Slice 2 rendered both of these nineteen pull requests ago, and until this file
  * existed they were reachable from no HTTP path at all: `renderLibraryPage` and
@@ -43,14 +43,27 @@
  * (`PDR-0002` keeps the instance single-user, and ADR-0011 left the multi-user
  * library open). Today the pages are reachable with a client that sets a header.
  *
+ * **4. The cooking page is one of these pages, not a surface of its own.**
+ * CFV1-SL6 built `GET /recipes/:id/cook` in a separate app, and the composition
+ * root never mounted it: a running instance answered the library and the recipe
+ * with `200` and the cook address with `404`, for a whole pull request, while
+ * every proof of the route passed. Both apps also declared `GET /recipes/:id`,
+ * so mounting the second one beside this app would have added a route that can
+ * never be reached, and it sent no `cache-control`, so the cook page of a
+ * private library would have been the one cacheable page on the instance. The
+ * route lives here instead, under the same credential, the same miss and the
+ * same headers as the pages it belongs with, and `src/http/cooking-app.ts` is
+ * gone rather than left as a second door nobody walks through.
+ *
  * It is a Hono app and nothing more — `app.fetch` is the whole surface
  * (ADR-0007), so it is exercised in process and binds no socket. It knows
  * nothing of its own origin.
  */
 import { Hono } from "hono"
 import type { CanonicalRecipe } from "../../schema/index.js"
+import { deriveCookingPlan } from "../cooking/index.js"
 import type { RecipeRepository } from "../persistence/index.js"
-import { renderLibraryPage, renderRecipePage } from "../render/index.js"
+import { renderCookingPage, renderLibraryPage, renderRecipePage } from "../render/index.js"
 import type { InstanceCredential } from "./instance-credential.js"
 import { bearerCredential } from "./instance-credential.js"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "./not-found.js"
@@ -64,6 +77,12 @@ export interface PagesAppDeps {
    */
   readonly credential: InstanceCredential
   readonly repo: RecipeRepository
+  /**
+   * Told when the cooking page could not show a plan and served the recipe page
+   * instead. Optional, and observation only — nothing about the response depends
+   * on it, so an instance that wires nothing here behaves identically.
+   */
+  readonly onDegraded?: (recipeId: string, reason: unknown) => void
 }
 
 /**
@@ -97,10 +116,11 @@ const PAGE_HEADERS = {
 const pageHeaders = (): Record<string, string> => ({ ...PAGE_HEADERS })
 
 /**
- * Build the pages app. `GET /` is the library, `GET /recipes/:id` is one recipe.
- * Both require the library credential as a bearer token; every other outcome —
- * no credential, a wrong credential, an unknown recipe id, an unknown path — is
- * the one shared not-found answer.
+ * Build the pages app. `GET /` is the library, `GET /recipes/:id` is one recipe,
+ * and `GET /recipes/:id/cook` is the plan derived from it. All three require the
+ * library credential as a bearer token; every other outcome — no credential, a
+ * wrong credential, an unknown recipe id, an unknown path — is the one shared
+ * not-found answer.
  */
 export function createPagesApp(deps: PagesAppDeps): Hono {
   const app = new Hono()
@@ -131,10 +151,11 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
     //
     // **That is an N+1 read and it is deliberate here, not overlooked.** The
     // alternative is a listing projection, which is a store decision and belongs
-    // to CFV1-PG, not to the unit that first gives the page an address. It is
+    // to the store, not to the unit that first gives the page an address. It is
     // registered rather than silently accepted: see the open question this unit
-    // filed. Against the provisional in-memory store the cost is not measurable;
-    // against a sleeping database it will be, and that is the moment to move it.
+    // filed (OQ-43). Since CFV1-WIRE these reads go to PostgreSQL, so the cost is
+    // now real rather than hypothetical — one round trip per recipe, measured
+    // against OQ-25a's unanswered threshold before anyone moves it.
     const entries = await deps.repo.listLibrary()
     const loaded = await Promise.all(entries.map((e) => deps.repo.loadLatestCanonical(e.recipeId)))
     // A row whose recipe vanished between the two reads is dropped rather than
@@ -153,6 +174,56 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
     if (version === undefined) return c.notFound()
 
     return c.body(renderRecipePage(version.recipe), 200, pageHeaders())
+  })
+
+  /**
+   * The cooking page (CFV1-SL6).
+   *
+   * **Degradation is to the recipe page, never to nothing.** Under `PDR-0004`'s
+   * `lazy` default that is not an error path but the ordinary state of every
+   * recipe nobody has cooked yet, so the cook address answers with a cooking
+   * view when it can and with the Slice 2 recipe page when it cannot. The only
+   * 404 is a recipe this instance does not hold — or a caller without the
+   * credential, which is the same answer for the reason decision 2 gives.
+   *
+   *  - **No stored plan** — derive one now and serve it. Deriving costs nothing
+   *    (`ADR-0023`: a pure function, no model call), which is what makes `lazy`
+   *    cheap enough to be the default.
+   *  - **Derivation fails** — serve the recipe page. A plan whose provenance has
+   *    a hole is refused at the source (`UntraceablePlanFactError`), and the cook
+   *    gets the recipe rather than an error: the Canonical Recipe is
+   *    authoritative and the plan is the replaceable layer, so losing the plan
+   *    must never take the recipe with it.
+   *  - **Rendering fails** — the same. A page that half-rendered is not
+   *    something to hand a person standing over a pan.
+   *
+   * It derives rather than storing what it derived. Writing on a GET would make
+   * a read path a write path, and `PDR-0004` already names the two moments a
+   * plan is generated: `lazy`, which is this derivation, and `background`, which
+   * is the import's (`ADR-0008`). A caching write here would be a third, decided
+   * in passing.
+   */
+  app.get("/recipes/:id/cook", async (c) => {
+    if (!admitted(c.req.header("authorization"))) return c.notFound()
+
+    const recipeId = c.req.param("id")
+    const version = await deps.repo.loadLatestCanonical(recipeId)
+    if (version === undefined) return c.notFound()
+
+    // Keyed by version, so a recipe re-normalized since the plan was stored gets
+    // a fresh derivation rather than the previous version's plan.
+    const stored = await deps.repo.loadCookingPlan(recipeId, version.version)
+
+    try {
+      const plan =
+        stored ?? deriveCookingPlan(version.recipe, { canonicalVersion: version.version })
+      return c.body(renderCookingPage(plan), 200, pageHeaders())
+    } catch (error) {
+      // The recipe is authoritative and the plan is derived; whatever went wrong
+      // with the plan, the recipe is still readable, so that is what is served.
+      deps.onDegraded?.(recipeId, error)
+      return c.body(renderRecipePage(version.recipe), 200, pageHeaders())
+    }
   })
 
   return app
