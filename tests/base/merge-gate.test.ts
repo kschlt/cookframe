@@ -59,8 +59,10 @@ function fixture(options: {
     }
   }
   run(dir, "git", "init", "-q", "-b", "main")
-  // The fixture needs an identity to build its own history. `withoutIdentity`
-  // removes it again at the end, to model a CI checkout.
+  // An identity, because the fixture has to build its own history. It is not
+  // modelling anything about a CI checkout: the committer-identity failure this
+  // once claimed to cover was never reproducible, and the test that claimed it
+  // was deleted for passing with and without its own fix.
   run(dir, "git", "config", "user.email", "fixture@example.invalid")
   run(dir, "git", "config", "user.name", "Fixture")
   writeFileSync(
