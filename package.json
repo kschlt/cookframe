@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Convert heterogeneous recipe sources into a durable, provider-independent Canonical Recipe.",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "engines": {
     "node": ">=26"
