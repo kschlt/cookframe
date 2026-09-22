@@ -270,6 +270,22 @@ jobs:
       - run: npm ci
       - run: npm run test:slice6
 
+  # CFV1-RUN. The unit that gave the instance a process and the library an
+  # address. Its proofs spawn the declared start command and bind real sockets,
+  # so they are slower than an in-process suite and belong in a job whose name
+  # says what failed — the same reasoning that gave `slice3`/`slice4`/`slice5`
+  # their own jobs.
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:run
+
   slice1:
     runs-on: ubuntu-latest
     steps:
@@ -306,6 +322,65 @@ jobs:
         run: docker build -t cookframe:ci .
       - name: Run the quality gate inside the container
         run: docker run --rm cookframe:ci npm run quality
+
+      # CFV1-RUN's runtime image. `tests/run/containment.test.ts` compares the
+      # two Dockerfiles' commands, which is a reading of text and cannot show
+      # that an image boots. This is the half that can: build the runtime image
+      # and start the process inside it, against a real published port.
+      - name: Build the runtime image
+        run: docker build -f Dockerfile.runtime -t cookframe:runtime .
+
+      - name: Start the process in the runtime image and talk to it
+        run: |
+          set -euo pipefail
+          # Minted here rather than written down. A credential-shaped literal in
+          # a public workflow file is one a scanner cannot tell from a real
+          # secret, and these live for the length of this step.
+          #
+          # No pipeline into `head`/`grep -q` anywhere in this step: those exit
+          # as soon as they have what they need, the writer upstream takes
+          # SIGPIPE, and `pipefail` then fails a command that actually succeeded.
+          # It happens to work while the data is small enough to be written in
+          # one go, which is the worst kind of passing.
+          ingest="run-ci-$(openssl rand -hex 16)"
+          library="run-ci-$(openssl rand -hex 16)"
+
+          docker run -d --name cookframe-runtime -p 8080:8080 \
+            -e PORT=8080 \
+            -e MODEL_PROVIDER=openai \
+            -e OPENAI_API_KEY=not-a-real-key \
+            -e OPENAI_MODEL=not-a-real-model \
+            -e COOKFRAME_INGEST_CREDENTIAL="$ingest" \
+            -e COOKFRAME_LIBRARY_CREDENTIAL="$library" \
+            cookframe:runtime
+          for _ in $(seq 1 60); do
+            logs="$(docker logs cookframe-runtime 2>&1 || true)"
+            case "$logs" in *"cookframe listening on port"*) break ;; esac
+            sleep 2
+          done
+          docker logs cookframe-runtime
+          # Without the credential the library is the shared miss; with it, the
+          # page. Both from a container whose only command is the process.
+          missed="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)"
+          served="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $library" http://127.0.0.1:8080/)"
+          echo "no credential -> $missed; with credential -> $served"
+          test "$missed" = "404"
+          test "$served" = "200"
+          # And it stops on the signal a container runtime sends — reaching the
+          # process's own handler, not merely killing PID 1. `CMD ["npm",
+          # "start"]` failed exactly here: every request above passed and the
+          # shutdown never ran, because npm was PID 1 and the process that
+          # installed the handler never saw SIGTERM.
+          docker stop -t 20 cookframe-runtime
+          logs="$(docker logs cookframe-runtime 2>&1 || true)"
+          case "$logs" in
+            *"cookframe stopping on SIGTERM"*) echo "shutdown handler ran" ;;
+            *) echo "the process never ran its shutdown handler. Logs:"; echo "$logs"; exit 1 ;;
+          esac
+
+      - name: Remove the runtime container
+        if: always()
+        run: docker rm -f cookframe-runtime || true
 
   # CFV1-BASE. Every other job here measures this pull request's head against
   # the base it was BRANCHED from. Twice in one night that was not enough: two

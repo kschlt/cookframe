@@ -59,13 +59,19 @@ a figure being exact. What the two researches agree on is the shape: an applicat
 stops when idle, a managed Postgres that sleeps when idle, and a persistent volume for the images.
 
 Also relevant to the timing: the Postgres persistence of `ADR-0015` and a real server entry point
-were both in flight while this record was drafted. `CFV1-PG` merged as `8241ef1` and the library is
-now in PostgreSQL, reached through a `DATABASE_URL` that `resolveDatabaseUrl` refuses to default —
-which is cut 1 already holding in practice. `CFV1-RUN` is still open: on `main` there is no `listen`,
-no `serve` and no `start` script, and the `Dockerfile` is a CI container, but that PR carries a
-runtime image, a composition root and a start command. This record therefore decides the target those
-units aim at, and must not pre-empt their internal design; where it describes the entry point it is
-describing what that unit is building, not proposing a second one.
+were both in flight while this record was drafted, and both have since landed. `CFV1-PG` merged as
+`8241ef1`, so the library is in PostgreSQL, reached through a `DATABASE_URL` that
+`resolveDatabaseUrl` refuses to default. `CFV1-RUN` merged as `35a2c9f`, so `npm start` brings up a
+process that binds a port and serves, and a runtime image separate from the CI one runs it. What
+this record decided in the abstract is therefore now decidable against real code, and the section
+below re-measures it there.
+
+One gap between those two is worth stating here rather than leaving to be discovered at the first
+import: the entry point does not yet use the Postgres store. `src/server/main.ts` composes
+`createProvisionalStore()`, which is in memory and survives nothing. A deployment made today would
+run, and would be empty after every idle stop — which on a scale-to-zero machine is every idle
+period, not every reboot. The wiring is its own unit, and until it lands nothing real should be
+imported into a deployed instance.
 
 ## Decision
 
@@ -111,41 +117,53 @@ A cut nobody can turn red is an intention, not portability, so each one is state
 assertion a test has to make — in the form `ADR-0010`'s chokepoint uses, a scan of `src/` with a
 declared inventory of what is exempt, so that a file added later is not exempt by default.
 
-One of them already exists, and in a better form than this record would have asked for.
+Two of them already exist, and both in a better form than this record would have asked for.
+
 `CFV1-RUN` ships `run/only-the-entry-point-binds`, which refuses the server adapter, a socket
 module, `createServer` and `.listen` anywhere under `src/` except the one named entry-point file.
 It is anchored on module specifiers rather than on the words a file contains, which a first attempt
 got wrong: two modules explain the adapter's content-length defect in prose, and a substring match
-reported them as offenders.
+reported them as offenders. That scan cannot stand alone, and this record does not let it. Its
+companion case, that the entry point *is* the file that binds, reads the entry point's text for
+`@hono/node-server` and `serve(`, so it rules out the rule passing trivially the day nothing binds
+at all — but it is satisfied by a file that contains those tokens without ever reaching them. What
+makes the binding real is `run/the-process-serves-and-stops`, which spawns the declared start
+command and talks to it over a socket. Cut 4's binding half is the two together.
 
-That scan cannot stand alone, and this record does not let it. Its companion case, that the entry
-point *is* the file that binds, reads the entry point's text for `@hono/node-server` and `serve(`,
-so it rules out the rule passing trivially the day nothing binds at all — but it is satisfied by a
-file that contains those tokens without ever reaching them. What makes the binding real is
-`run/the-process-serves-and-stops`, which spawns the declared start command and talks to it over a
-socket. Cut 4's binding half is covered by the two together, and the row below names both.
+`slice1/storage-identity-confinement` carries cut 2, and it is worth reading for how it took its
+one exemption. `CFV1-RUN`'s composition root reads the prompt files and the `schema/` source it
+hands the model, so `node:fs` outside `src/storage/` stopped being an absolute rule. The exemption
+names `src/server/main.ts` as a single path rather than a directory, so a second module beside it
+is still caught; the rule that forbids minting a `StorageIdentity` outside the store keeps **no**
+exemption, so the entry point still cannot resolve one to a path; and a further case pins what the
+exemption may do — every read in the exempted file is rooted at `import.meta.url`, so none of them
+can be handed a path that came from configuration or from a request. Reading a constant path is
+exempted; deriving one is not. That is the distinction cut 2 is actually about, and it is a better
+rule than the file count this record first wrote down.
 
 | cut | what a test must assert over `src/` | state |
 |---|---|---|
 | 1 | the only database package any module imports is `pg` — no provider-specific driver, no HTTP-over-`fetch` transport | owed, and no longer vacuous: `CFV1-PG` landed the store, and `pg` is the only database package under `src/`, imported in exactly one module (`src/persistence/postgres-store.ts`). That is the state the assertion demands, and nothing yet keeps a second module or a provider driver from joining it |
-| 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own file | owed. True on the merge result: only `src/storage/filesystem-byte-store.ts` |
-| 3 + 4 | no module takes its configuration from the environment except through a declared seam: a parameter every caller can inject, pre-filled from `process.env` at exactly one point in the signature — never a read inside a function body, and never a module-level constant. The inventory of such seams is declared with the test | owed. Two exist on the merge result, both in the declared shape: `readPlanGenerationPolicy` (`src/cooking/policy.ts`) and `resolveDatabaseUrl` (`src/persistence/configuration.ts`, landed by `CFV1-PG`). `CFV1-RUN`'s composition root will be the third. Each is an injection seam rather than a hidden read — which is why the assertion is about the shape, not about the count |
+| 2 | no module outside the byte store derives a byte location, and the filesystem is reached only there — save for reading fixed repository assets from a named, pinned exemption | **done**, by `slice1/storage-identity-confinement` (`CFV1-SL1`, exemption added by `CFV1-RUN`) |
+| 3 + 4 | no module takes its configuration from the environment except through a declared seam: a parameter, either defaulted from `process.env` at one point in the signature or supplied by the composition root at the call site — never a read inside a function body, and never a module-level constant. The inventory of such seams is declared with the test | owed. Three exist on the merge result, all in the declared shape: `readPlanGenerationPolicy` (`src/cooking/policy.ts`) and `resolveDatabaseUrl` (`src/persistence/configuration.ts`) default the parameter; `readConfiguration` (`src/server/config.ts`) takes it as a required parameter and `src/server/main.ts:52` is the one place that passes the real `process.env`. The third is the strictest of the three, and it is the shape the test should prefer |
 | 4 (binding) | nothing outside the entry point names the server adapter, a socket module, `createServer` or `.listen`, and the entry point really does bind | **done**, by `run/only-the-entry-point-binds` together with `run/the-process-serves-and-stops` (`CFV1-RUN`). The first without the second is green on a file that names the adapter but never starts it |
-| 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on the merge result: no platform name appears under `src/`, and the only third-party packages it imports are `hono`, `undici`, `ipaddr.js` and `pg` |
+| 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on the merge result: no platform name appears under `src/`, and the only third-party packages it imports are `hono`, `@hono/node-server`, `undici`, `ipaddr.js` and `pg` |
 
 Every "true" above was measured on the merge result of this branch against `main`, not on the tree
-this record was first drafted on. That distinction cost two rounds. The cut-3 row first read
-"`process.env` appears nowhere under `src/`", which was true when it was written and false by the
-time it was read, because `CFV1-SL6` landed a configuration seam in between; then it named two seams
-while only one had landed. Both failures were the same one — a count written in the tense of a tree
-that did not exist yet. The row is now about the *shape* a seam must have rather than about how many
-there are, which is the form that survives the next unit adding one, and the counts beside it are
-re-measured whenever `main` moves. `CFV1-PG` merged as `8241ef1` while this record was open and
-moved three of these rows; they were re-measured rather than left standing.
+this record was first drafted on. That distinction has now cost four rounds, and each one was the
+same mistake: a claim written in the tense of a tree that did not exist yet. The cut-3 row first
+read "`process.env` appears nowhere under `src/`", true when written and false when read, because
+`CFV1-SL6` landed a seam in between; then it named two seams while one had landed; then `CFV1-PG`
+landed the second; then `CFV1-RUN` landed a third in a *different* shape, a required parameter
+filled at the call site, which the row as written would have called a violation. So the row now
+describes both admissible shapes and says which is stricter, rather than counting. The counts beside
+it are re-measured whenever `main` moves, and they moved three times while this record was open:
+`CFV1-PG` at `8241ef1`, `CFV1-SGD` at `2dea86f`, `CFV1-RUN` at `35a2c9f`.
 
-The owed tests belong with `CFV1-RUN`, and with a follow-up to `CFV1-PG` now that it has merged
-without them, because those units are what first make three of these rows breakable. Each has to
-start green on the tree it lands in, so the first thing any of them ever catches is a regression.
+Three rows are still owed, and both units that were going to carry them have now merged without
+them. That is a debt this record names rather than a plan it proposes: cuts 1, 3 + 4 and 4
+(platform) hold on the tree today and nothing keeps them holding. Each test has to start green on
+the tree it lands in, so the first thing any of them ever catches is a regression.
 
 Two further commitments, because leaving them implicit is how they get lost:
 
@@ -163,9 +181,9 @@ Two further commitments, because leaving them implicit is how they get lost:
 ### What is deliberately not decided here
 
 The production container definition, the entry point's internal design, the machine size, the
-connection-pool shape and whether a `start` script or a process manager runs it. Those belong to the
-entry-point unit, and to `CFV1-PG`, which has since merged. This record names their target and their
-constraints; it does not design them.
+connection-pool shape and whether a `start` script or a process manager runs it. Those belonged to
+`CFV1-PG` and `CFV1-RUN`, which have both since merged and answered them. This record named their
+target and their constraints; it did not design them, and it does not revise them now.
 
 ## Consequences
 
@@ -200,11 +218,11 @@ constraints; it does not design them.
   architectural one, has to come first.
 - **A cold start is now on the path of a third party's fetch.** Bring fetches the capability URL
   server-side and its timeout is unknown to us. If a cold start exceeds it, a shopping handoff fails
-  in a way no code change can see. Registered as `OQ-43`.
+  in a way no code change can see. Registered as `OQ-45`.
 - **The safe-fetch guard's behaviour on the chosen runtime is asserted, not measured.** A container
   on a Linux machine is the environment `ADR-0010` was written for, so the expectation is that it is
   intact — but `ADR-0010` calls this module the codebase's one non-portable place, and an expectation
-  is not the evidence that record's other claims rest on. Registered as `OQ-42`.
+  is not the evidence that record's other claims rest on. Registered as `OQ-44`.
 - **Auto-stop can kill the in-process background generation of `ADR-0008` mid-flight.** This is
   survivable exactly as `ADR-0008` says — the plan is derived data and the next cooking view
   regenerates it, degrading to the shipped `lazy` default — but a machine that stops on idle makes the
@@ -220,7 +238,7 @@ constraints; it does not design them.
 
 ### Neutral
 
-- Which machine size, and whether 512 MiB is enough, is unmeasured. Registered as `OQ-44`.
+- Which machine size, and whether 512 MiB is enough, is unmeasured. Registered as `OQ-46`.
 - This record says nothing about authentication for the private library. The capability route stays
   the only unauthenticated public surface (`ADR-0021`), and the ingest route stays credential-gated
   (`CFV1-SL5`); anything beyond that is the later product decision `ADR-0011` already left open.
@@ -256,10 +274,10 @@ a later move at the cost of a URL.
 
 ## What would falsify this decision
 
-- **A cold start that Bring will not wait for** (`OQ-43`), which would force either a minimum running
+- **A cold start that Bring will not wait for** (`OQ-45`), which would force either a minimum running
   instance — removing the idle saving that is this record's whole point — or a different serving path
   for capability URLs.
-- **The safe-fetch connector behaving differently on the platform** (`OQ-42`). The URL import is not
+- **The safe-fetch connector behaving differently on the platform** (`OQ-44`). The URL import is not
   optional and the guard is not negotiable, so a runtime that will not carry it is not a candidate
   whatever it costs.
 - **The free tiers changing.** Both providers' free allowances are policy, not contract. If the
