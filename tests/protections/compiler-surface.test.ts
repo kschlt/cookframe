@@ -172,8 +172,17 @@ const options = (() => {
  */
 const scanned = sourcesUnder(repoRoot)
 
+/**
+ * The table proof builds a typed program over the whole repository. Measured:
+ * about 2.2 s alone, 5.2 s in CI's protections job with thirteen suites running
+ * beside it, which is past vitest's default of 5 s. Six times the worst seen.
+ */
+const WHOLE_REPOSITORY_PROGRAM_MS = 30_000
+
 describe("protections/the-typescript-pin-names-what-hangs-on-it", () => {
-  it("names every file that calls the compiler API and everything each one calls", () => {
+  it("names every file that calls the compiler API and everything each one calls", {
+    timeout: WHOLE_REPOSITORY_PROGRAM_MS,
+  }, () => {
     const found = compilerSurfaceIn(programOver(scanned, options), repoRoot)
     const declared = Object.fromEntries(
       Object.entries(COMPILER_API_IN_USE).map(([file, uses]) => [file, [...new Set(uses)].sort()]),
