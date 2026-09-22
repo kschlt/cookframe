@@ -225,6 +225,17 @@ const MUST_FLAG: readonly Case[] = [
     ],
   },
   {
+    // DELIBERATELY NOT SPARED, and pinned so that the sentence in ADR-0030
+    // saying so is not quietly contradicted. The rule reads link syntax and
+    // knows nothing about code spans; teaching it would be a markdown parser for
+    // a failure that is already loud. If a later change spares code spans ON
+    // PURPOSE, this row and that sentence change together.
+    name: "an example link quoted inside backticks is still read as a link",
+    path: "CONTRIBUTING.md",
+    text: "write it as `[MIT License](LICENSE)` rather than in bold\n",
+    expected: [{ path: "CONTRIBUTING.md", declared: "MIT", spdx: null }],
+  },
+  {
     name: "a licence this rule has never heard of is reported, not dropped",
     path: "README.md",
     text: "licensed under the [Blue Oak Model License 1.0.0](LICENSE).\n",
@@ -450,6 +461,8 @@ describe("protections/the-licence-is-stated-in-one-voice", () => {
 const MENTIONS_ONLY: Readonly<Record<string, string>> = {
   "docs/adr/ADR-0010-safe-url-fetch-is-guarded-at-the-connector.md":
     "names the licence of `ipaddr.js`, not this project's",
+  "docs/adr/ADR-0030-a-licence-declaration-is-a-link-to-the-licence-file.md":
+    "the record of this rule, which discusses the licences it has to tell apart",
   "docs/archive/discovery-decision-log.md":
     "the archived founding decision; a record is never rewritten",
   "docs/product-decisions/PDR-0006-the-project-is-licensed-under-the-agpl.md":

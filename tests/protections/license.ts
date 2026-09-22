@@ -32,7 +32,7 @@
  *    `LICENSE`, taking the link's own text as the licence it names. Today that
  *    is `README.md`; after `PDR-0006` it is `README.md` and `CONTRIBUTING.md`.
  *
- * Rule 4 is a link and not a phrase on purpose. This repository's prose names
+ * Rule 4 is the convention `ADR-0030` records. It is a link and not a phrase on purpose. This repository's prose names
  * MIT in four places that are not declarations and must never be forced to
  * change: `docs/adr/ADR-0010` and `src/security/address-policy.ts` name the
  * licence of `ipaddr.js`, `docs/archive/discovery-decision-log.md` is an
@@ -73,6 +73,29 @@
  * the tree that names any licence at all and requires each to be classified by
  * name. A new declaration in an unrecognised shape arrives there as a file to
  * classify, not as silence.
+ *
+ * ## Two judgements a reader should not have to reconstruct
+ *
+ * **The release checklist is counted as a declaration, and that is a choice.**
+ * `docs/validation-and-evaluation.md` line 181 reads "license present
+ * ([AGPL-3.0-or-later](../LICENSE), see `PDR-0006`);" — a line in a
+ * release-readiness list saying *check before publishing that a licence is
+ * there*, with the identifier as a precision rather than as an assertion. Read
+ * strictly it is a checklist item and not a statement of what the licence is,
+ * and counting it here treats a list of things to verify like a thing verified.
+ * It is counted anyway, for one reason: the line names the identifier, so the
+ * next licence change has to move it, and a place that has to move with the
+ * licence is a place that can drift from it. The alternative — leaving it out —
+ * buys a tidier definition and loses the only thing this guard is for.
+ *
+ * **GitHub's own licence detection is out of reach, deliberately.** The
+ * repository's `license.spdx_id`, which the API reports and which is what an
+ * outsider actually sees on the repository page, is derived by GitHub from
+ * `LICENSE` and lives nowhere in the tree. It followed the AGPL change on its
+ * own and needed nothing. No guard in this repository can read it back, and
+ * this one does not pretend to: it is a NON-GOAL, written down here so that the
+ * next person looking for the check that covers it learns in one place that
+ * there is none and why, rather than searching for it.
  */
 import { posix } from "node:path"
 
