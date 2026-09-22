@@ -1,10 +1,11 @@
 ---
 id: "ADR-0028"
 title: "TypeScript stays on 5.x until there is a stable public compiler API"
-status: accepted
+status: superseded
 date: 2026-09-22
 tags: ["dependencies", "tooling", "guards"]
 related_to: ["ADR-0002", "ADR-0012"]
+superseded_by: ["ADR-0034"]
 ---
 
 ## Context

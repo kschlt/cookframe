@@ -115,6 +115,11 @@ The `commits` job checks this on every pull request, against the base as it stan
 runs (`tests/commits/`, `ADR-0031`). Nothing checks history that is already on `main`, and it is
 not rewritten.
 
+`npm install` and `npm ci` also install a `commit-msg` hook (`.githooks/`, through
+`core.hooksPath`) that applies the same rule before a commit exists, because a commit that has
+been pushed can only be repaired by rewriting the branch. It takes the place of anything in
+`.git/hooks/`, `git commit --no-verify` skips it, and the `commits` job still holds either way.
+
 ## Pull requests
 
 Keep a change to a single concern with its tests. Describe what a reader would see before
