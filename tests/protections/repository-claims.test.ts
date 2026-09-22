@@ -210,6 +210,20 @@ describe("protections/no-unbacked-claim-about-a-setting", () => {
     expect(claims("Is branch protection enabled on this repository?")).toBe(0)
     expect(claims("## Is secret scanning enabled?")).toBe(0)
 
+    // ...and a question mark that is not the END of the unit does not make one.
+    // This pair is the fixture that should have existed before the anchor on
+    // `ASKS` was deleted for want of it: the sentence splitter is
+    // `(?<=[.!?;])\s+`, so a `?` with no whitespace after it — inside a command,
+    // a query string, a filename — never ends a unit, and an unanchored filter
+    // swallows the whole claim around it. Measured in review on the head that
+    // had no anchor: spared, while `main` caught it.
+    expect(
+      claims(
+        "Secret scanning with push protection is enabled on this repository (`gh api repos/:o/:r?foo=1`).",
+      ),
+    ).toBe(1)
+    expect(claims("Branch protection is enabled; see the settings page (`?tab=security`).")).toBe(1)
+
     // A CONDITION describes what would follow, not what is.
     expect(claims("If secret scanning is enabled, the job fails on a detected credential.")).toBe(0)
     expect(claims("This test fails unless push protection is enabled.")).toBe(0)

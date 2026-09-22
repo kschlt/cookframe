@@ -696,11 +696,13 @@ describe("http/shared-header-detector-is-precise", () => {
     ).toHaveLength(9)
   })
 
-  it("no record that is genuinely fresh is lost to the wider chain", () => {
-    // The other side of the inversion, and the one that decides whether this
-    // guard survives contact with a later author: failing closed by default can
-    // only be shipped if the sparing half is executed too. MUST_NOT_FLAG above
-    // is that half; this line states the claim the file makes about it.
+  it("the sparing table is not quietly gutted to make a later change pass", () => {
+    // An ANTI-SHRINK guard, and nothing more than that — review corrected the
+    // comment that stood here. What executes the sparing half is the test
+    // above, which runs every MUST_NOT_FLAG entry through the real detector;
+    // this line only stops that table from being emptied later, which is how a
+    // fail-closed default quietly becomes unshippable without anything going
+    // red.
     expect(MUST_NOT_FLAG.length).toBeGreaterThan(MUST_FLAG.length / 2)
   })
 })

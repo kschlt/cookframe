@@ -188,14 +188,28 @@ const NEGATED = /\b(?:not|never|no longer|cannot|can't|isn't|aren't|without)\b/i
  * and denies nothing — so every filter above lets it through, and the record is
  * then required to back a question. Measured before this existed: it fired.
  *
- * Unanchored on purpose. It read `/\?\s*$/` first, and no fixture could kill the
- * anchor: {@link sentences} already ends a unit at `?`, so requiring the mark to
- * sit last was a condition doing no work that could be observed. A condition
- * whose removal kills no fixture is a condition with nothing behind it, which is
- * the question `CFV1-BRDTH` taught to ask of every entry — asked here of the
- * detector instead, and answered by deleting rather than by inventing a case.
+ * **Anchored to the end of the unit, and that anchor was briefly deleted on the
+ * grounds that no fixture could kill it.** The grounds were wrong. The claim was
+ * that {@link sentences} always ends a unit at `?`, so the anchor did no work —
+ * but that splitter is `(?<=[.!?;])\s+`, and a question mark NOT followed by
+ * whitespace never ends anything. Review measured it: with the anchor gone,
+ *
+ *   Secret scanning with push protection is enabled on this repository
+ *   (`gh api repos/:o/:r?foo=1`).
+ *
+ * is silently spared, because the `?` inside the command makes the whole
+ * sentence read as a question. That is a false statement about this
+ * repository's security posture that nobody has to back.
+ *
+ * Two lessons, and the second is the one worth keeping. **"A condition whose
+ * removal kills no fixture has nothing behind it" is a good question with a
+ * second possible answer: the fixture has not been written yet.** And faced
+ * with that ambiguity, the change took the WIDER spare — in a file whose whole
+ * thesis is that what cannot be shown is shared. Fail closed applies to the
+ * detector's own conditions too. The fixture exists now, one line below the
+ * question it is paired with.
  */
-const ASKS = /\?/
+const ASKS = /\?\s*$/
 
 /**
  * Markers that make what follows hypothetical: "if secret scanning is enabled,
