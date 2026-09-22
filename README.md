@@ -1,13 +1,14 @@
 # Cookframe
 
-> Every recipe you keep, in one shape you can actually cook from.
+> Any recipe source — a cookbook photo, a handwritten card, a website — turned into one consistent
+> recipe you can shop from and cook from.
 
-Cookframe is a recipe system. You point it at a recipe — a photograph of a cookbook page, a
-handwritten card, a recipe website — and it converts that source into one consistent recipe, then
-shows you the part of it you need for what you are doing right now: deciding, shopping, getting
-ready, or standing at the stove with your hands full.
+Your recipes come from books, screenshots and websites, and every one of them is laid out
+differently. Cookframe converts any of them into one consistent recipe, then shows you the part of
+it you need for what you are doing right now: deciding, shopping, getting ready, or standing at the
+stove with your hands full.
 
-**This is work in progress, built in the open.** See [Status](#status) before you try to use it.
+**This is work in progress.** See [Status](#status) before you try to use it.
 
 ## The problem
 
@@ -54,15 +55,37 @@ a library you already have — without you photographing anything twice.
 recipe. Cookframe derives each of them from the one canonical recipe, rather than handing you a
 single page and letting you read it four ways.
 
+## What you can do with it
+
+Working today:
+
+- **Capture a page with your phone.** Photograph a cookbook page or a handwritten card with
+  [the iOS Shortcut in this repository](shortcut/). It goes straight to your instance, which saves
+  the recipe and tells you what it saved it as.
+- **One consistent recipe, whatever the source.** Title, yield, ingredients with their quantities,
+  steps, times, temperatures, equipment — in the same shape every time, with what the source
+  actually said kept alongside it.
+- **Your library on one page**, and each recipe on its own.
+- **A cooking view derived from the recipe**, not a rewrite of it: what to get out first, what has
+  to start early, and the step you are on.
+- **A refusal instead of a guess.** A photograph holding four recipes is refused and says so; a
+  field the source never gave stays empty and says so.
+
+Built and tested, but not reachable from a running instance yet — the section below says why each
+one is still here:
+
+- importing from a recipe URL, structured data first and a fallback after;
+- handing a shopping list to Bring, as a Schema.org page at a URL that grants one recipe;
+- keeping the photograph itself and showing it on the page;
+- re-converting a recipe you already have with a better model or a newer ontology.
+
 ## Status
 
 **In development. Nothing here is released or versioned, and nothing about it is supported.** What
 follows is where it stood on 2026-09-22.
 
-An instance runs as a process, keeps its library in PostgreSQL across a restart, and serves three
-pages behind a credential: the library, a recipe, and a cooking view derived from that recipe. You
-capture into it by photographing a page with [the iOS Shortcut in this repository](shortcut/),
-which posts the image to your instance and gets back its title and where to find it.
+An instance runs as a process, keeps its library in PostgreSQL across a restart, and serves its
+three pages behind a credential.
 
 The scan-to-shop path has been measured end to end against real photographs rather than estimated —
 eleven pages through a real model, a median of about 20 seconds from submission to a shopping

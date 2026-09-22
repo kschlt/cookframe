@@ -52,12 +52,14 @@ You do not apply the migration yourself for the tests — they apply
 `migrations/0001-the-recipe-store.sql` into each throwaway schema, which is also how that file
 stays the only declaration of the store's shape.
 
-In CI these are split differently, so do not read the table above as a list of jobs. Each test
-directory gets its own job (`unit`, `slice1`, `persistence`, `protections`, and a dozen more), with
-`typecheck` its own job and `lint` running `npm run check`. `npm run eval` rides inside
-`schema-contract`, and `npm run quality` runs inside the container image and again in `merge-gate`
-(below). There is also a secret scan. Read the job list in `.github/workflows/ci.yml` rather than
-from a copy here — it grows with the test directories. A failure in any one fails the build.
+In CI these are split differently, so do not read the table above as a list of jobs. Most test
+directories have a job of their own, a few have none and run only inside the whole-suite
+`npm run quality` that `container` and `merge-gate` each execute, and the job list in
+`.github/workflows/ci.yml` is the only current answer. A failure in any one fails the build.
+
+Do not keep a second copy of that list here. This paragraph has already been wrong twice in one
+day — once by going stale, once by generalizing without counting — and both times a contributor
+would have believed it.
 
 One job is not like the others: `merge-gate` runs the full gate against the *result* of merging
 your branch into `main`, not against your branch (`ADR-0022`). Two pull requests that are each
