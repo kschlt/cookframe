@@ -223,6 +223,58 @@ describe("CI workflow (ci.yml)", () => {
     ).toMatch(/_MUTANT_MUST_FAIL/)
   })
 
+  it("ci/integration-selftest-enforces-discrimination — `--selftest` gates on the format-gate proofs too", () => {
+    // The format gate (a `*_label` key in `times` blocks a PASS) is proved by two
+    // mechanisms beyond the pure-helper checks: an integration self-test through
+    // the real `score()` (`--selftest-integration`) and mutation proofs that plant
+    // the three ways the gate can be defeated. Like the narrowing proof above,
+    // those are worth nothing unless `--selftest` GATES on them — otherwise
+    // rewriting the gate to `return 0 if ok else 1` drops them while they visibly
+    // print FAIL, the one advisory the #49 review left open. A guard that is not
+    // itself guarded is this project's most common defect, so it is pinned here.
+    // This reads the source and runs in every environment, Python present or not.
+    const source = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "score.py"), "utf8")
+
+    // `selftest()`'s gating return must depend on BOTH new proofs. Removing either
+    // name from the conjunction — the exact regression this pins — turns the
+    // matching assertion red (verified by planting both deletions).
+    const gate = source.match(/\n {4}return 0 if \(([^)]*)\) else 1\n/)?.[1]
+    expect(gate, "`selftest()` no longer gates its return on a conjunction").toBeTruthy()
+    expect(gate, "`--selftest` does not gate on the integration self-test result").toContain(
+      "integ_ok",
+    )
+    expect(gate, "`--selftest` does not gate on the mutation proofs result").toContain("mut_ok")
+
+    // …and each name must be BOUND to the proof it claims to run, not to a
+    // constant that is always truthy.
+    expect(source, "`integ_ok` is not the integration self-test's own result").toMatch(
+      /integ_ok\s*=\s*selftest_integration\(\)\s*==\s*0/,
+    )
+    expect(source, "`mut_ok` is not the mutation proofs' own result").toMatch(
+      /mut_ok\s*=\s*_integration_mutation_proofs\(source\)/,
+    )
+
+    // The integration self-test must be a real entry point `--selftest` can drive.
+    expect(source, "score.py exposes no --selftest-integration entry point").toMatch(
+      /args\.selftest_integration/,
+    )
+
+    // The mutation proofs must require each mutant CAUGHT — run to the end and
+    // failed at its named assertion — not merely fatal, the same bar the
+    // narrowing proof holds one level up.
+    expect(source, "the mutation proofs do not gate on the mutant's exit code").toMatch(
+      /returncode\s*!=\s*0/,
+    )
+    expect(
+      source,
+      "the mutation proofs do not require the mutant to have run its checks to the end",
+    ).toContain("integration self-test: FAIL")
+    expect(
+      source,
+      "the mutation proofs do not require the mutant to fail at its named assertion",
+    ).toContain("must_fail in failed")
+  })
+
   const python3 = spawnSync("python3", ["--version"], { encoding: "utf8" })
   const hasPython3 = python3.error === undefined && python3.status === 0
 
