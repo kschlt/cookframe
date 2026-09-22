@@ -26,6 +26,7 @@ const complete: Environment = {
   OPENAI_MODEL: "not-a-real-model",
   COOKFRAME_INGEST_CREDENTIAL: INGEST_CREDENTIAL,
   COOKFRAME_LIBRARY_CREDENTIAL: LIBRARY_CREDENTIAL,
+  PUBLIC_BASE_URL: "https://cookframe.test",
 }
 
 /** `complete` without one variable. */
@@ -118,6 +119,39 @@ describe("run/absent-configuration-refuses-by-name", () => {
         COOKFRAME_LIBRARY_CREDENTIAL: shared,
       }),
     ).toThrow(/same value as COOKFRAME_INGEST_CREDENTIAL/)
+  })
+
+  it.each([
+    ["cookframe.test", /is not an absolute URL/],
+    ["/cookframe", /is not an absolute URL/],
+    ["", /is not set/],
+    ["ftp://cookframe.test", /is not an http or https URL/],
+    ["file:///srv/cookframe", /is not an http or https URL/],
+    ["https://someone:pw@cookframe.test", /carries a credential/],
+    ["https://cookframe.test/?utm=1", /carries a query or fragment/],
+    ["https://cookframe.test/#top", /carries a query or fragment/],
+  ])("refuses PUBLIC_BASE_URL %j, and says which fault it is", (value, fault) => {
+    // Each case is a DIFFERENT sentence, not one "looks wrong" for all of them.
+    // A refusal that named no fault would leave the operator guessing which half
+    // of their value is the problem, and the three faults below are three
+    // different fixes: write the scheme, drop the password, drop the query.
+    expect(() => readConfiguration({ ...complete, PUBLIC_BASE_URL: value })).toThrow(fault)
+  })
+
+  it.each([
+    ["https://cookframe.test", "https://cookframe.test"],
+    // A trailing slash survives here and is collapsed where a URL is built, so
+    // both spellings of the same address configure the same instance.
+    ["https://cookframe.test/", "https://cookframe.test/"],
+    // A path prefix is kept: an instance behind a reverse proxy lives under one.
+    ["https://example.test/cookframe", "https://example.test/cookframe"],
+    // `http` is accepted deliberately — a TLS-terminating proxy is the ordinary
+    // deployment, and the proofs that serve a real instance use it.
+    ["http://127.0.0.1:8080", "http://127.0.0.1:8080"],
+    // Trimmed like PORT: a trailing newline in an environment file is a typo.
+    ["  https://cookframe.test  ", "https://cookframe.test"],
+  ])("accepts PUBLIC_BASE_URL %j", (value, expected) => {
+    expect(readConfiguration({ ...complete, PUBLIC_BASE_URL: value }).publicBaseUrl).toBe(expected)
   })
 
   it("never returns a default for anything it could not read", () => {

@@ -150,6 +150,7 @@ async function main(): Promise<void> {
         newCaptureRunId: () => randomUUID(),
         newNormalizationRunId: () => randomUUID(),
       },
+      publicBaseUrl: config.publicBaseUrl,
       targetOntologyVersion: TARGET_ONTOLOGY_VERSION,
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
