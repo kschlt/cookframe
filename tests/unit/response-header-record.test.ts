@@ -76,10 +76,28 @@
  *    init's `headers` and never writes back into the caller's record. So it is left
  *    alone on purpose — flagging a form that cannot break would be the over-claim
  *    this repository keeps deleting.
- *  - Aliasing established by a later ASSIGNMENT rather than the declaration's
- *    initializer (`let h = fresh(); h = SHARED`) is not followed. No code here uses
- *    it and its behaviour was not measured; the chain resolves declaration
- *    initializers only, matching what round two proved.
+ *
+ * ## Round three: the chain follows later assignments too, and the tables prove it
+ *
+ * The version above resolved declaration initializers ONLY, and said so — which
+ * is the honest form of a gap and still a gap. `let h = fresh(); h = SHARED;
+ * c.body(body, 404, h)` binds a per-request record and then overwrites it with the
+ * shared one, so the chain ended at `fresh()` and the call was spared. Measured on
+ * the one-key 404 path over a real socket: `[404, 500, 500]` — the original defect,
+ * through the one spelling the guard was not reading. {@link aliasTargets} now
+ * collects every source of a name, the declaration's initializer and every later
+ * `name = …`, and a name is fresh only if ALL of them are.
+ *
+ * That widening is the smaller half of this round. The larger half is that
+ * **nothing in the tree executed the detector's breadth.** The tables below were
+ * read by two tests that ran the detector as it stood; narrowing the chain back to
+ * declaration initializers ran green, because every fixture that needed the wider
+ * chain was the one being added. `a narrower alias chain misses what this detector
+ * catches` holds the narrow version against the same table and requires it to lose
+ * exactly the cases that are there for it — so the table pins the BREADTH and not
+ * only the aim. The `{ headers: H }` neighbour above is the same measurement from
+ * the other side: it is the case a detector widened for the wrong reason would
+ * flag, and its `[404, 404, 404]` is why sparing it is a decision.
  *
  * It scans all of `src/`, so it is the guard the coordinator meant when it said a
  * cooking page reintroducing the constant would trip here: this file has no
@@ -185,17 +203,49 @@ function localBindings(fn: ts.Node): Set<string> {
 }
 
 /**
- * If `name` is bound in `fn`'s own scope by a `const`/`let`/`var` whose initializer
- * is itself a bare identifier (`const h = SHARED`), the name that initializer
- * refers to; otherwise `undefined`. Only the declaration's initializer is followed
- * — a parameter, an object literal, a factory call, a spread, or a later
- * assignment all return `undefined`, ending the chain at a per-request value.
+ * Every name `name` can be an alias OF inside `fn` — the declaration's
+ * initializer, and, when `followAssignments`, every later `name = …` too.
+ *
+ * A source that is not a bare identifier ends the chain there: an object
+ * literal, a factory call and a spread each construct a value of their own, so
+ * that path is fresh. A name with no source at all (a parameter) is fresh.
+ *
+ * **Later assignments are followed, and that is round three's finding.**
+ * `let h = fresh(); h = SHARED; c.body(body, 404, h)` binds `h` to a
+ * per-request record and then overwrites it with the shared one, and the
+ * version before this followed declaration initializers only — so the chain
+ * ended at `fresh()` and the call was spared. Served over a real socket on the
+ * one-key 404 path it answers `[404, 500, 500]`: the original defect, reached
+ * by the one spelling the guard was not reading. A name is fresh only if EVERY
+ * source of it is, which is why this returns all of them rather than the last.
+ *
+ * Deliberately not flow-sensitive, and deliberately not scoped to the function
+ * the assignment sits in: an assignment AFTER the call cannot poison that call,
+ * and a nested function that shadows the name assigns a different variable, yet
+ * both are treated as sources here. Both errors point at flagging correct code
+ * rather than sparing the defect, and neither form appears in `src/`.
+ *
+ * **What it still does not read**, stated rather than left to be assumed: a
+ * source that is a property access (`const h = HEADERS.page`) is treated like
+ * any other non-identifier and ends the chain as fresh, though a property
+ * access cannot construct an object and so is always a shared reference. That
+ * form is not measured and nothing in `src/` uses it; it is an open gap, not a
+ * covered one.
  */
-function aliasTarget(fn: ts.Node, name: string): string | undefined {
+function aliasTargets(fn: ts.Node, name: string, followAssignments: boolean): string[] {
   const body = (fn as ts.FunctionLikeDeclaration).body
-  if (body === undefined) return undefined
-  let target: string | undefined
-  const walk = (node: ts.Node): void => {
+  if (body === undefined) return []
+  const targets: string[] = []
+
+  const consider = (expression: ts.Expression): void => {
+    let e: ts.Expression = expression
+    while (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression
+    if (ts.isIdentifier(e)) targets.push(e.text)
+  }
+
+  // Declarations: this function's own scope only. A nested function's `const h`
+  // is its own variable, not this one.
+  const declarations = (node: ts.Node): void => {
     if (node !== body && isFunctionLike(node)) return
     if (
       ts.isVariableDeclaration(node) &&
@@ -203,37 +253,52 @@ function aliasTarget(fn: ts.Node, name: string): string | undefined {
       node.name.text === name &&
       node.initializer !== undefined
     ) {
-      let init: ts.Expression = node.initializer
-      while (ts.isAsExpression(init) || ts.isParenthesizedExpression(init)) init = init.expression
-      target = ts.isIdentifier(init) ? init.text : undefined
+      consider(node.initializer)
     }
-    ts.forEachChild(node, walk)
+    ts.forEachChild(node, declarations)
   }
-  walk(body)
-  return target
+  declarations(body)
+  if (!followAssignments) return targets
+
+  // Assignments: the whole subtree, nested functions included, because an inner
+  // closure assigning `h = SHARED` poisons the outer handler's record.
+  const assignments = (node: ts.Node): void => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      node.left.text === name
+    ) {
+      consider(node.right)
+    }
+    ts.forEachChild(node, assignments)
+  }
+  assignments(body)
+  return targets
 }
 
 /**
  * Whether `name`, used as a header record inside `fn`, is genuinely fresh for each
  * response — following the alias chain to a fixpoint. A name is fresh only if it is
- * bound in `fn`'s own scope AND the chain of `const x = y` aliases starting from it
- * terminates at a per-request construction (a non-identifier initializer or a
- * parameter). It is NOT fresh — and so the record is shared — the moment the chain
- * reaches a name not bound in `fn` (a module const/`let`, an import, or a
- * factory-scoped binding). A cycle fails closed (not fresh).
+ * bound in `fn`'s own scope AND every source of it (see {@link aliasTargets})
+ * is itself fresh. It is NOT fresh — and so the record is shared — the moment
+ * the chain reaches a name not bound in `fn` (a module const/`let`, an import,
+ * or a factory-scoped binding).
+ *
+ * The visited set is scoped to the PATH rather than to the whole walk, so a
+ * chain that closes on itself still fails closed while a name reached twice by
+ * two different sources (`let h = a; h = a`) is decided on its merits. A single
+ * shared set would have called that second one a cycle and flagged correct code.
  */
-function bindsFreshly(fn: ts.Node, name: string): boolean {
+function bindsFreshly(fn: ts.Node, name: string, followAssignments = true): boolean {
   const local = localBindings(fn)
-  const seen = new Set<string>()
-  let current = name
-  while (!seen.has(current)) {
-    seen.add(current)
+  const fresh = (current: string, path: ReadonlySet<string>): boolean => {
+    if (path.has(current)) return false
     if (!local.has(current)) return false
-    const next = aliasTarget(fn, current)
-    if (next === undefined) return true
-    current = next
+    const deeper = new Set(path).add(current)
+    return aliasTargets(fn, current, followAssignments).every((next) => fresh(next, deeper))
   }
-  return false
+  return fresh(name, new Set())
 }
 
 /**
@@ -248,7 +313,11 @@ function bindsFreshly(fn: ts.Node, name: string): boolean {
  * `src/http/ingest-app.ts`, which shares `TOO_LARGE_BODY` as a body). Only the
  * third argument is the record the adapter writes `Content-Length` back into.
  */
-function sharedHeaderFindings(source: string, fileName = "in-memory.ts"): Finding[] {
+function sharedHeaderFindings(
+  source: string,
+  fileName = "in-memory.ts",
+  followAssignments = true,
+): Finding[] {
   const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true)
   const out: Finding[] = []
 
@@ -261,7 +330,7 @@ function sharedHeaderFindings(source: string, fileName = "in-memory.ts"): Findin
       const headers = node.arguments[2]
       if (headers !== undefined && ts.isIdentifier(headers)) {
         const fn = nearestFunction(headers)
-        const fresh = fn !== undefined && bindsFreshly(fn, headers.text)
+        const fresh = fn !== undefined && bindsFreshly(fn, headers.text, followAssignments)
         if (!fresh) {
           const { line } = sf.getLineAndCharacterOfPosition(headers.getStart(sf))
           out.push({ name: headers.text, line: line + 1 })
@@ -299,65 +368,116 @@ describe("http/response-headers-are-fresh-per-response", () => {
   })
 })
 
+/**
+ * Records the detector MUST flag. Hoisted out of the test that reads them so the
+ * narrowing proof below can run the SAME table through a deliberately narrower
+ * detector — a table only one detector ever sees pins that detector's aim and
+ * nothing about its breadth.
+ */
+const MUST_FLAG = [
+  // the exact regression: the module const `pages-app.ts` replaced with a factory
+  'const PAGE_HEADERS = { "content-type": "text/html", "cache-control": "no-store" } as const\napp.get("/", (c) => c.body(page, 200, PAGE_HEADERS))',
+  // one key — the shape that actually 500s at runtime
+  'const H = { "content-type": "text/plain" }\napp.get("/", (c) => c.body(NOT_FOUND_BODY, 404, H))',
+  // other response builders poison the same way
+  'const H = { a: 1 }\napp.get("/", (c) => c.json(data, 200, H))',
+  // a renamed context still builds a poisonable response
+  'const H = { "content-type": "text/plain" }\napp.get("/", (ctx) => ctx.newResponse(body, 200, H))',
+  // FACTORY-LOCAL: declared in the factory, closed over by an inner handler —
+  // built once when the factory runs, shared across every request
+  'function createApp() {\n  const H = { "content-type": "text/plain" }\n  app.get("/", (c) => c.body(x, 200, H))\n}',
+  // IMPORTED (or otherwise never bound locally): one misuse poisons process-wide
+  'app.get("/", (c) => c.body(x, 200, IMPORTED_HEADERS))',
+  // a `let` binding the const-only scan never looked at
+  'let H = { a: 1 }\napp.get("/", (c) => c.body(x, 200, H))',
+  // a record built in an OUTER handler is not fresh for an inner handler's call
+  'app.get("/", (outer) => {\n  const H = { a: 1 }\n  app.get("/x", (inner) => inner.body(x, 200, H))\n})',
+  // ALIAS: a shared module const aliased to a per-request local is not fresh —
+  // round two's blocking finding, the original defect on the 404 path
+  'const SHARED_404 = { "content-type": "text/plain" }\napp.get("/", (c) => {\n  const h = SHARED_404\n  return c.body(NOT_FOUND_BODY, 404, h)\n})',
+  // ALIAS CHAIN: follow x -> a -> SHARED to the end; still shared
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const a = SHARED\n  const h = a\n  return c.body(x, 200, h)\n})',
+  // ASSIGNMENT ALIAS: fresh at the declaration, overwritten with the shared record
+  // afterwards — round three's finding, [404, 500, 500] over a real socket
+  'const SHARED_404 = { "content-type": "text/plain" }\napp.get("/", (c) => {\n  let h = notFoundHeaders()\n  h = SHARED_404\n  return c.body(NOT_FOUND_BODY, 404, h)\n})',
+  // the same, one local further out: the assigned name is itself an alias
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const a = SHARED\n  let h = { b: 2 }\n  h = a\n  return c.body(x, 200, h)\n})',
+  // assigned from inside a nested closure — a different scope, the same variable,
+  // which is why the assignment walk does not stop at a function boundary
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  let h = { b: 2 }\n  register(() => {\n    h = SHARED\n  })\n  return c.body(x, 200, h)\n})',
+  // A CHAIN THAT CLOSES ON ITSELF. The code is degenerate — `h` is never a record
+  // at all — and it is here because the guard's stance on a chain it cannot
+  // resolve is to refuse rather than to assume, and a stance that lives only in a
+  // comment is one a later reader flips without noticing. Measured: turning the
+  // cycle branch into `return true` passes every other fixture in this file.
+  'app.get("/", (c) => {\n  let h = k\n  let k = h\n  return c.body(x, 200, h)\n})',
+]
+
+/**
+ * Records the detector MUST spare. Each sits one property away from an entry
+ * above: a negative fixture spared for an unrelated reason reads as precision
+ * and measures nothing.
+ */
+const MUST_NOT_FLAG = [
+  // the shipped fix: a nullary factory returns a fresh object each call
+  'const H = { a: 1 }\nconst fresh = () => ({ ...H })\napp.get("/", (c) => c.body(x, 404, fresh()))',
+  // an inline literal is fresh by construction
+  'app.get("/", (c) => c.body(x, 200, { "content-type": "text/html; charset=utf-8" }))',
+  // a spread INTO a new literal is a new object, not the shared reference
+  'const H = { a: 1 }\napp.get("/", (c) => c.body(x, 200, { ...H }))',
+  // a PER-REQUEST LOCAL declared inside the handler is rebuilt every response
+  'app.get("/", (c) => {\n  const h = { "content-type": "text/plain" }\n  return c.body(x, 200, h)\n})',
+  // a string-valued and a number-valued constant are immutable — the adapter
+  // cannot write a key into them, so a body constant and a status constant are
+  // not the defect and must not be flagged (they are args 0 and 1, not 2)
+  'const BODY = "Not Found"\nconst STATUS = 404\napp.get("/", (c) => c.body(BODY, STATUS, notFoundHeaders()))',
+  // a shared object handed as the JSON BODY (arg 0) is serialized, not mutated
+  // — the ingest app does exactly this and it is correct
+  'const TOO_LARGE_BODY = { error: "too_large" } as const\napp.get("/", (c) => c.json(TOO_LARGE_BODY, 413))',
+  // the object constant exists but is never handed to a response builder
+  "const H = { a: 1 }\nconst other = H\nreturn other",
+  // an ALIAS of a per-request local is still fresh: the chain ends at a literal
+  // built inside the handler, so aliasing it changes nothing
+  'app.get("/", (c) => {\n  const a = { "content-type": "text/plain" }\n  const h = a\n  return c.body(x, 200, h)\n})',
+  // the { headers: H } response-INIT form cannot carry the defect — Hono builds
+  // a Headers object from it and never writes back (measured [404, 404, 404]).
+  // The load-bearing negative: a detector widened by pattern rather than by
+  // mechanism flags this, and flagging a form that cannot break is the over-claim
+  // this repository keeps deleting.
+  'const SHARED = { "content-type": "text/plain" }\napp.get("/", (c) => c.body(x, { status: 404, headers: SHARED }))',
+  // ASSIGNED, but to a freshly constructed record: following assignments must not
+  // mean assuming the worst of every one of them
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  let h = { b: 2 }\n  h = { ...SHARED }\n  return c.body(x, 200, h)\n})',
+  // the same per-request local reached by TWO sources is a diamond, not a cycle;
+  // the path-scoped visited set is what keeps correct code spared here
+  'app.get("/", (c) => {\n  const a = { "content-type": "text/plain" }\n  let h = a\n  h = a\n  return c.body(x, 200, h)\n})',
+]
+
 describe("http/shared-header-detector-is-precise", () => {
   it("flags every record that is not fresh per response", () => {
-    const mustFlag = [
-      // the exact regression: the module const `pages-app.ts` replaced with a factory
-      'const PAGE_HEADERS = { "content-type": "text/html", "cache-control": "no-store" } as const\napp.get("/", (c) => c.body(page, 200, PAGE_HEADERS))',
-      // one key — the shape that actually 500s at runtime
-      'const H = { "content-type": "text/plain" }\napp.get("/", (c) => c.body(NOT_FOUND_BODY, 404, H))',
-      // other response builders poison the same way
-      'const H = { a: 1 }\napp.get("/", (c) => c.json(data, 200, H))',
-      // a renamed context still builds a poisonable response
-      'const H = { "content-type": "text/plain" }\napp.get("/", (ctx) => ctx.newResponse(body, 200, H))',
-      // FACTORY-LOCAL: declared in the factory, closed over by an inner handler —
-      // built once when the factory runs, shared across every request
-      'function createApp() {\n  const H = { "content-type": "text/plain" }\n  app.get("/", (c) => c.body(x, 200, H))\n}',
-      // IMPORTED (or otherwise never bound locally): one misuse poisons process-wide
-      'app.get("/", (c) => c.body(x, 200, IMPORTED_HEADERS))',
-      // a `let` binding the const-only scan never looked at
-      'let H = { a: 1 }\napp.get("/", (c) => c.body(x, 200, H))',
-      // a record built in an OUTER handler is not fresh for an inner handler's call
-      'app.get("/", (outer) => {\n  const H = { a: 1 }\n  app.get("/x", (inner) => inner.body(x, 200, H))\n})',
-      // ALIAS: a shared module const aliased to a per-request local is not fresh —
-      // round two's blocking finding, the original defect on the 404 path
-      'const SHARED_404 = { "content-type": "text/plain" }\napp.get("/", (c) => {\n  const h = SHARED_404\n  return c.body(NOT_FOUND_BODY, 404, h)\n})',
-      // ALIAS CHAIN: follow x -> a -> SHARED to the end; still shared
-      'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const a = SHARED\n  const h = a\n  return c.body(x, 200, h)\n})',
-    ]
-    for (const s of mustFlag) {
+    for (const s of MUST_FLAG) {
       expect(sharedHeaderFindings(s).length, s).toBeGreaterThan(0)
     }
   })
 
   it("spares a record that is fresh per response", () => {
-    const mustNotFlag = [
-      // the shipped fix: a nullary factory returns a fresh object each call
-      'const H = { a: 1 }\nconst fresh = () => ({ ...H })\napp.get("/", (c) => c.body(x, 404, fresh()))',
-      // an inline literal is fresh by construction
-      'app.get("/", (c) => c.body(x, 200, { "content-type": "text/html; charset=utf-8" }))',
-      // a spread INTO a new literal is a new object, not the shared reference
-      'const H = { a: 1 }\napp.get("/", (c) => c.body(x, 200, { ...H }))',
-      // a PER-REQUEST LOCAL declared inside the handler is rebuilt every response
-      'app.get("/", (c) => {\n  const h = { "content-type": "text/plain" }\n  return c.body(x, 200, h)\n})',
-      // a string-valued and a number-valued constant are immutable — the adapter
-      // cannot write a key into them, so a body constant and a status constant are
-      // not the defect and must not be flagged (they are args 0 and 1, not 2)
-      'const BODY = "Not Found"\nconst STATUS = 404\napp.get("/", (c) => c.body(BODY, STATUS, notFoundHeaders()))',
-      // a shared object handed as the JSON BODY (arg 0) is serialized, not mutated
-      // — the ingest app does exactly this and it is correct
-      'const TOO_LARGE_BODY = { error: "too_large" } as const\napp.get("/", (c) => c.json(TOO_LARGE_BODY, 413))',
-      // the object constant exists but is never handed to a response builder
-      "const H = { a: 1 }\nconst other = H\nreturn other",
-      // an ALIAS of a per-request local is still fresh: the chain ends at a literal
-      // built inside the handler, so aliasing it changes nothing
-      'app.get("/", (c) => {\n  const a = { "content-type": "text/plain" }\n  const h = a\n  return c.body(x, 200, h)\n})',
-      // the { headers: H } response-INIT form cannot carry the defect — Hono builds
-      // a Headers object from it and never writes back (measured [404, 404, 404])
-      'const SHARED = { "content-type": "text/plain" }\napp.get("/", (c) => c.body(x, { status: 404, headers: SHARED }))',
-    ]
-    for (const s of mustNotFlag) {
+    for (const s of MUST_NOT_FLAG) {
       expect(sharedHeaderFindings(s), s).toEqual([])
     }
+  })
+
+  it("a narrower alias chain misses what this detector catches", () => {
+    // The chain as it shipped in round two: declaration initializers only. It is
+    // the same detector with one switch thrown, so what separates the two is the
+    // widening itself and nothing else.
+    const declarationInitializersOnly = (source: string): Finding[] =>
+      sharedHeaderFindings(source, "in-memory.ts", /* followAssignments */ false)
+    const missed = MUST_FLAG.filter((s) => declarationInitializersOnly(s).length === 0)
+    expect(
+      missed,
+      "the narrow chain passes the whole table, so the table pins no breadth",
+    ).toHaveLength(3)
+    // And the widening is not a blunt one: every record that is genuinely fresh
+    // stays spared under the wider chain, which is what the table above requires.
   })
 })
