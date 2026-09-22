@@ -15,7 +15,12 @@
  */
 import { describe, expect, it } from "vitest"
 import { SHAPES, type Shape } from "../../spikes/dbq/db.js"
-import { QUERY_LABELS, renderPerQueryPerShape, type ShapeReading } from "../../spikes/dbq/report.js"
+import {
+  QUERY_LABELS,
+  renderPerQueryPerShape,
+  runOutcome,
+  type ShapeReading,
+} from "../../spikes/dbq/report.js"
 
 /** Readings that differ in every field, so nothing can be collapsed unnoticed. */
 const readings = (): Partial<Record<Shape, ShapeReading>> => {
@@ -24,9 +29,11 @@ const readings = (): Partial<Record<Shape, ShapeReading>> => {
     const n = i + 1
     out[shape] = {
       libraryRows: 10 * n,
+      libraryStatements: 20 + n,
       libraryMs: 0.11 * n,
       librarySqlChars: 100 * n,
       shoppingLines: 70 + n,
+      shoppingStatements: 30 + n,
       shoppingMs: 1.01 * n,
       shoppingSqlChars: 500 + n,
       comparisonDifferences: 400 + n,
@@ -68,20 +75,61 @@ describe("dbq/results-reported-per-query-and-shape", () => {
     }
   })
 
-  it("carries each shape's own numbers rather than one number per query", () => {
-    // The failure this guards is a report that averages the shapes, or quotes
-    // only the best one. Every reading differs, so any collapse loses a value
-    // that is asserted here to be present.
-    const rendered = renderPerQueryPerShape(SHAPES, readings()).join("\n")
+  it("binds each shape's numbers to that shape's own row", () => {
+    // The criterion's WORST failure, and the one the first version of this proof
+    // missed: labels all correct, numbers belonging to a different shape. A
+    // decision record quotes this table, so a misattributed cell is a wrong
+    // conclusion wearing a correct-looking source.
+    //
+    // Checking that every value appears SOMEWHERE in the rendered table cannot
+    // catch that — rotating each shape's reading onto the next shape's rows
+    // leaves every value present and every label right. So each row is pinned
+    // WHOLE, cell for cell, which also pins the column order and the units.
+    // Mutation-checked: the rotation turns this case red and no other.
     const r = readings()
+    const rows = bodyRows(renderPerQueryPerShape(SHAPES, r))
+    const rowFor = (query: string, shape: Shape): string => {
+      const found = rows.filter((l) => l.startsWith(`| ${query} | ${shape} |`))
+      expect(found, `exactly one row for ${query} on ${shape}`).toHaveLength(1)
+      return found[0] as string
+    }
     for (const shape of SHAPES) {
-      const reading = r[shape]
-      if (reading === undefined) throw new Error(`no reading for ${shape}`)
-      expect(rendered, `${shape}'s library timing`).toContain(reading.libraryMs.toFixed(2))
-      expect(rendered, `${shape}'s shopping timing`).toContain(reading.shoppingMs.toFixed(2))
-      expect(rendered, `${shape}'s comparison timing`).toContain(reading.comparisonMs.toFixed(2))
-      expect(rendered, `${shape}'s differing-leaf count`).toContain(
-        String(reading.comparisonDifferences),
+      const mine = r[shape]
+      if (mine === undefined) throw new Error(`no reading for ${shape}`)
+      expect(rowFor(QUERY_LABELS[0], shape), `${shape} library row`).toBe(
+        `| ${QUERY_LABELS[0]} | ${shape} | ${mine.libraryRows} rows | ${mine.libraryStatements} | ${mine.libraryMs.toFixed(2)} | ${mine.librarySqlChars} |`,
+      )
+      expect(rowFor(QUERY_LABELS[1], shape), `${shape} shopping row`).toBe(
+        `| ${QUERY_LABELS[1]} | ${shape} | ${mine.shoppingLines} lines | ${mine.shoppingStatements} | ${mine.shoppingMs.toFixed(2)} | ${mine.shoppingSqlChars} |`,
+      )
+      expect(rowFor(QUERY_LABELS[2], shape), `${shape} comparison row`).toBe(
+        `| ${QUERY_LABELS[2]} | ${shape} | ${mine.comparisonDifferences} differing leaves | ${mine.comparisonStatements} | ${mine.comparisonMs.toFixed(2)} | — |`,
+      )
+    }
+  })
+
+  it("states a statement count it was given rather than one of its own", () => {
+    // `statements per call` was the literal 1 for queries 1 and 2 while both
+    // functions issue `set search_path` before their select, so the table
+    // asserted a cost nobody measured. The renderer must carry the reading's
+    // number, whatever it is.
+    const r = readings()
+    const rows = bodyRows(renderPerQueryPerShape(SHAPES, r))
+    for (const shape of SHAPES) {
+      const mine = r[shape]
+      if (mine === undefined) throw new Error(`no reading for ${shape}`)
+      const cell = (query: string): string =>
+        (rows.find((l) => l.startsWith(`| ${query} | ${shape} |`)) as string).split(
+          " | ",
+        )[3] as string
+      expect(cell(QUERY_LABELS[0]), `${shape} library statements`).toBe(
+        String(mine.libraryStatements),
+      )
+      expect(cell(QUERY_LABELS[1]), `${shape} shopping statements`).toBe(
+        String(mine.shoppingStatements),
+      )
+      expect(cell(QUERY_LABELS[2]), `${shape} comparison statements`).toBe(
+        String(mine.comparisonStatements),
       )
     }
   })
@@ -89,5 +137,43 @@ describe("dbq/results-reported-per-query-and-shape", () => {
   it("names every shape it was given, so a dropped shape cannot pass silently", () => {
     const rendered = renderPerQueryPerShape(SHAPES, readings()).join("\n")
     for (const shape of SHAPES) expect(rendered).toContain(`| ${shape} |`)
+  })
+})
+
+describe("dbq/disagreeing-run-does-not-look-successful", () => {
+  // A run whose shapes disagree is comparing answers that are not the same
+  // answer, so its timings do not measure the shapes and must not be quoted.
+  // The rule lived inside `evaluate.ts`'s `main()`, behind a live PostgreSQL
+  // connection, so nothing under `tests/` could reach it — a review correctly
+  // called the acceptance claim for it a code reference rather than a proof.
+  // `evaluate.ts` is not even in the typecheck program (`tsconfig.json` includes
+  // schema, src, evals and tests), so it was unguarded twice over. The decision
+  // is now a pure function, and this is the proof.
+  const allAgree = Object.fromEntries(QUERY_LABELS.map((q) => [q, true]))
+
+  it("exits 0 and names nothing when every query agrees", () => {
+    expect(runOutcome(allAgree)).toEqual({ exitCode: 0, disagreeing: [] })
+  })
+
+  it("exits 3 and names the query that disagreed", () => {
+    const out = runOutcome({ ...allAgree, [QUERY_LABELS[1]]: false })
+    expect(out.exitCode, "a disagreeing run must not exit 0").toBe(3)
+    expect(out.disagreeing).toEqual([QUERY_LABELS[1]])
+  })
+
+  it("names every disagreeing query, in the order the record lists them", () => {
+    const out = runOutcome({ ...allAgree, [QUERY_LABELS[0]]: false, [QUERY_LABELS[2]]: false })
+    expect(out.exitCode).toBe(3)
+    expect(out.disagreeing).toEqual([QUERY_LABELS[0], QUERY_LABELS[2]])
+  })
+
+  it("fails closed when a query's agreement was never recorded", () => {
+    // A reporting path that forgets to set one must not produce a
+    // successful-looking run: unknown is treated as disagreement, not as assent.
+    const missing = { ...allAgree } as Record<string, boolean>
+    delete missing[QUERY_LABELS[2] as string]
+    const out = runOutcome(missing)
+    expect(out.exitCode, "an unrecorded query must not pass as agreement").toBe(3)
+    expect(out.disagreeing).toEqual([QUERY_LABELS[2]])
   })
 })

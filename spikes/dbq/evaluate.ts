@@ -26,7 +26,7 @@ import type { Client } from "pg"
 import type { SourceSnapshot } from "../../schema/index.js"
 import type { CanonicalVersion } from "../../src/persistence/repository.js"
 import { connect, resetShape, type Shape, SHAPES, useShape } from "./db.js"
-import { renderPerQueryPerShape, type ShapeReading } from "./report.js"
+import { QUERY_LABELS, renderPerQueryPerShape, runOutcome, type ShapeReading } from "./report.js"
 import { loadDocument } from "./document-shape.js"
 import { loadHybrid } from "./hybrid-shape.js"
 import { compareRuns, SHOPPING_SQL, shoppingRequirements } from "./queries.js"
@@ -156,22 +156,27 @@ async function main(): Promise<void> {
 
   // --- query 1 ------------------------------------------------------------
   const library: Record<string, unknown> = {}
-  const q1: Record<string, { rows: number; ms: number }> = {}
+  const q1: Record<string, { rows: number; ms: number; statements: number }> = {}
   for (const shape of SHAPES) {
-    await useShape(client, shape)
-    const { result, ms } = await timed(repeat, () => listLibrary(client, shape))
+    // No `useShape` first: `listLibrary` applies the schema itself now, so a
+    // second one here would be a redundant round-trip INSIDE the timed region.
+    // The statement count is measured, not assumed — it is 2 (the `set
+    // search_path` and the select), and the column used to state 1.
+    counter.reset()
+    const { result, ms } = await timed(repeat, () => listLibrary(counter.client, shape))
     library[shape] = result
-    q1[shape] = { rows: result.length, ms }
+    q1[shape] = { rows: result.length, ms, statements: Math.round(counter.count() / (repeat + 1)) }
   }
   const q1Agrees = agree(library)
 
   // --- query 2 ------------------------------------------------------------
   const shopping: Record<string, unknown> = {}
-  const q2: Record<string, { rows: number; ms: number }> = {}
+  const q2: Record<string, { rows: number; ms: number; statements: number }> = {}
   for (const shape of SHAPES) {
-    const { result, ms } = await timed(repeat, () => shoppingRequirements(client, shape))
+    counter.reset()
+    const { result, ms } = await timed(repeat, () => shoppingRequirements(counter.client, shape))
     shopping[shape] = result
-    q2[shape] = { rows: result.length, ms }
+    q2[shape] = { rows: result.length, ms, statements: Math.round(counter.count() / (repeat + 1)) }
   }
   const q2Agrees = agree(shopping)
 
@@ -210,9 +215,11 @@ async function main(): Promise<void> {
   for (const shape of SHAPES) {
     readings[shape] = {
       libraryRows: q1[shape]?.rows ?? 0,
+      libraryStatements: q1[shape]?.statements ?? 0,
       libraryMs: q1[shape]?.ms ?? 0,
       librarySqlChars: LIBRARY_SQL[shape]?.trim().length ?? 0,
       shoppingLines: q2[shape]?.rows ?? 0,
+      shoppingStatements: q2[shape]?.statements ?? 0,
       shoppingMs: q2[shape]?.ms ?? 0,
       shoppingSqlChars: SHOPPING_SQL[shape]?.trim().length ?? 0,
       comparisonDifferences: q3[shape]?.differences ?? 0,
@@ -287,18 +294,18 @@ async function main(): Promise<void> {
   // thing you most need to read; what must not happen is the run LOOKING
   // successful, because that is how timings from an invalid run get quoted
   // into a decision record.
-  if (!q1Agrees || !q2Agrees || !q3Agrees) {
-    const disagreeing = [
-      q1Agrees ? undefined : "1 library list",
-      q2Agrees ? undefined : "2 shopping",
-      q3Agrees ? undefined : "3 run comparison",
-    ].filter((q): q is string => q !== undefined)
+  const outcome = runOutcome({
+    [QUERY_LABELS[0]]: q1Agrees,
+    [QUERY_LABELS[1]]: q2Agrees,
+    [QUERY_LABELS[2]]: q3Agrees,
+  })
+  if (outcome.exitCode !== 0) {
     console.error(
-      `\nSHAPES DISAGREE on: ${disagreeing.join(", ")}. ` +
+      `\nSHAPES DISAGREE on: ${outcome.disagreeing.join(", ")}. ` +
         `The timings above compare answers that are not the same answer, so they ` +
         `do not measure the shapes and must not be quoted. Report written for diagnosis.`,
     )
-    process.exit(3)
+    process.exit(outcome.exitCode)
   }
 }
 

@@ -12,15 +12,31 @@
  * That is the second time on this item that a proof did not guard the rule it
  * was named for. The fix is the same one: move the thing that actually carries
  * the rule somewhere a test can call it.
+ *
+ * Moving it was not sufficient on its own. The first version of the proof here
+ * checked the row COUNT, that every value appeared somewhere, and that every
+ * shape was named — all of which a renderer passes while carrying one shape's
+ * measurements on another shape's row. That misattribution is the criterion's
+ * own failure mode, and the worst one, because a decision record quotes this
+ * table and a wrong number under a correct label reads as evidence. The proof
+ * now pins each row WHOLE, so a value can only appear where it belongs.
+ *
+ * `statements per call` is carried per shape rather than written here. It was
+ * literal `1` for queries 1 and 2, which was false: both `listLibrary` and
+ * `shoppingRequirements` issue `set search_path` before their select. A
+ * renderer that states a cost it did not measure is the same defect one level
+ * down.
  */
 import type { Shape } from "./db.js"
 
 /** What one shape cost on each of the three queries. */
 export interface ShapeReading {
   readonly libraryRows: number
+  readonly libraryStatements: number
   readonly libraryMs: number
   readonly librarySqlChars: number
   readonly shoppingLines: number
+  readonly shoppingStatements: number
   readonly shoppingMs: number
   readonly shoppingSqlChars: number
   readonly comparisonDifferences: number
@@ -52,12 +68,26 @@ export function renderPerQueryPerShape(
   for (const shape of shapes) {
     const r = readings[shape]
     if (r === undefined) continue
-    out.push(row(QUERY_LABELS[0], shape, [`${r.libraryRows} rows`, 1, r.libraryMs.toFixed(2), r.librarySqlChars]))
+    out.push(
+      row(QUERY_LABELS[0], shape, [
+        `${r.libraryRows} rows`,
+        r.libraryStatements,
+        r.libraryMs.toFixed(2),
+        r.librarySqlChars,
+      ]),
+    )
   }
   for (const shape of shapes) {
     const r = readings[shape]
     if (r === undefined) continue
-    out.push(row(QUERY_LABELS[1], shape, [`${r.shoppingLines} lines`, 1, r.shoppingMs.toFixed(2), r.shoppingSqlChars]))
+    out.push(
+      row(QUERY_LABELS[1], shape, [
+        `${r.shoppingLines} lines`,
+        r.shoppingStatements,
+        r.shoppingMs.toFixed(2),
+        r.shoppingSqlChars,
+      ]),
+    )
   }
   for (const shape of shapes) {
     const r = readings[shape]
@@ -73,4 +103,29 @@ export function renderPerQueryPerShape(
   }
   out.push("")
   return out
+}
+
+/** A finished run's verdict: what to exit with, and which queries disagreed. */
+export interface RunOutcome {
+  readonly exitCode: number
+  readonly disagreeing: readonly string[]
+}
+
+/**
+ * The verdict, given whether each query's shapes agreed.
+ *
+ * Pure, and here rather than in `main()`, for the same reason the table is: the
+ * rule — a run whose shapes disagree must not LOOK successful, because that is
+ * how timings from an invalid run get quoted into a decision record — lived
+ * inside `main()` behind a live PostgreSQL connection. Nothing under `tests/`
+ * could reach it, so the acceptance claim rested on reading the code, which a
+ * review rightly called a gap rather than a met criterion.
+ *
+ * Fails CLOSED: a query whose agreement was never recorded counts as a
+ * disagreement, so a reporting path that forgets to set one cannot produce a
+ * successful-looking run.
+ */
+export function runOutcome(agreement: Readonly<Record<string, boolean>>): RunOutcome {
+  const disagreeing = QUERY_LABELS.filter((q) => agreement[q] !== true)
+  return { exitCode: disagreeing.length === 0 ? 0 : 3, disagreeing }
 }
