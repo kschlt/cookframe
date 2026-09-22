@@ -170,7 +170,90 @@ const CLAIM_VERBS = new RegExp(
  */
 const NOT_A_CLAIM =
   /\b(?:should|must|shall|will|would|could|worth|needs? to|intends? to|plans? to)\b/i
+
+/**
+ * Words that make a statement a WISH rather than a report.
+ *
+ * "We want branch protection enabled before the first external contributor"
+ * carries the participle, mentions a setting, and states nothing about today.
+ * `NOT_A_CLAIM` above is the modal list and does not reach these, so it fired.
+ */
+const A_WISH = /\b(?:wants? to|wants?|hopes? to|hopes?|prefers?|aims? to|would like)\b/i
 const NEGATED = /\b(?:not|never|no longer|cannot|can't|isn't|aren't|without)\b/i
+
+/**
+ * A unit that ASKS rather than states.
+ *
+ * "Is branch protection enabled?" carries the verb shape, mentions a setting,
+ * and denies nothing — so every filter above lets it through, and the record is
+ * then required to back a question. Measured before this existed: it fired.
+ *
+ * Unanchored on purpose. It read `/\?\s*$/` first, and no fixture could kill the
+ * anchor: {@link sentences} already ends a unit at `?`, so requiring the mark to
+ * sit last was a condition doing no work that could be observed. A condition
+ * whose removal kills no fixture is a condition with nothing behind it, which is
+ * the question `CFV1-BRDTH` taught to ask of every entry — asked here of the
+ * detector instead, and answered by deleting rather than by inventing a case.
+ */
+const ASKS = /\?/
+
+/**
+ * Markers that make what follows hypothetical: "if secret scanning is enabled,
+ * the job fails", "unless push protection is enabled", "whether branch
+ * protection is enabled is recorded elsewhere". None of the three asserts that
+ * the setting is on, and all three fired.
+ *
+ * **The marker has to come BEFORE the verb**, which is the whole precision of
+ * this filter rather than a detail. "Secret scanning is enabled, if you check
+ * the settings page" is a claim with an aside, and a filter that only asked
+ * whether the word appears anywhere would silence it — the same borrowing
+ * mistake the bullet split and the clause split exist to prevent, one word class
+ * further out.
+ *
+ * `when` and `once` are deliberately NOT here. They read as conditional in
+ * isolation and as plain narration inside a real sentence, and the cost of
+ * getting that wrong is a claim nobody has to back.
+ */
+const HYPOTHETICAL = /\b(?:if|unless|whether)\b/i
+
+/**
+ * Is the claim verb inside a hypothetical clause that opens the unit?
+ *
+ * This is the one filter here that cannot be a bare test, because its answer
+ * depends on where the two matches sit relative to each other.
+ */
+function conditional(unit: string): boolean {
+  const marker = unit.match(HYPOTHETICAL)
+  const verb = unit.match(CLAIM_VERBS)
+  return marker?.index !== undefined && verb?.index !== undefined && marker.index < verb.index
+}
+
+/**
+ * Which of the three round-four filters a reference applies.
+ *
+ * Production always uses {@link THIS_GUARD}. The narrower references exist so a
+ * proof can hold the SAME detector, one filter dropped, against the same
+ * fixtures — a must-spare table that only one detector ever sees pins that
+ * detector's aim and nothing about how wide it reaches.
+ */
+export interface ClaimFilters {
+  readonly skipsQuestions: boolean
+  readonly skipsHypotheticals: boolean
+  readonly skipsWishes: boolean
+}
+
+export const THIS_GUARD: ClaimFilters = {
+  skipsQuestions: true,
+  skipsHypotheticals: true,
+  skipsWishes: true,
+}
+
+/** The detector as `CFV1-PROT` shipped it: none of the three filters. */
+export const BEFORE_ROUND_FOUR: ClaimFilters = {
+  skipsQuestions: false,
+  skipsHypotheticals: false,
+  skipsWishes: false,
+}
 
 export interface Claim {
   readonly heading: string
@@ -248,13 +331,16 @@ function clauses(sentence: string): string[] {
  * both match the same setting, so each setting is reported at most once per
  * sentence.
  */
-export function findClaims(text: string): Claim[] {
+export function findClaims(text: string, filters: ClaimFilters = THIS_GUARD): Claim[] {
   const found: Claim[] = []
   for (const sentence of sentences(text)) {
     const claimed = new Set<string>()
     for (const unit of clauses(sentence)) {
       if (!CLAIM_VERBS.test(unit)) continue
       if (NOT_A_CLAIM.test(unit) || NEGATED.test(unit)) continue
+      if (filters.skipsWishes && A_WISH.test(unit)) continue
+      if (filters.skipsQuestions && ASKS.test(unit)) continue
+      if (filters.skipsHypotheticals && conditional(unit)) continue
       for (const setting of PLATFORM_SETTINGS) {
         if (!setting.mentions.test(unit)) continue
         if (claimed.has(setting.heading)) continue

@@ -69,13 +69,21 @@
  * const h = a` stays spared (the chain ends at a per-request literal); `const h =
  * SHARED` is flagged.
  *
- * Two neighbours are deliberately NOT flagged, and this is measured, not assumed:
- *  - The `{ headers: H }` response-INIT form (`c.body(body, { status, headers: H })`)
- *    cannot carry the defect. Planted on the same one-key 404 record over a real
- *    socket it answers `[404, 404, 404]`: Hono builds a `Headers` object from the
- *    init's `headers` and never writes back into the caller's record. So it is left
- *    alone on purpose — flagging a form that cannot break would be the over-claim
- *    this repository keeps deleting.
+ * One neighbour is deliberately NOT flagged, and it is measured rather than
+ * assumed: the `{ headers: H }` response-INIT form
+ * (`c.body(body, { status, headers: H })`) **cannot carry the defect**. Planted on
+ * the same one-key 404 record over a real socket it answers `[404, 404, 404]`:
+ * Hono builds a `Headers` object from the init's `headers` and never writes back
+ * into the caller's record. So it is left alone on purpose — flagging a form that
+ * cannot break would be the over-claim this repository keeps deleting.
+ *
+ * The round-three version of this paragraph listed a SECOND neighbour beside it,
+ * the property-access source, as though the two were the same kind of thing. They
+ * were not: one is impossible and the other was live, measured at
+ * `[404, 500, 500]` in review. Two gaps declared side by side, one impossible and
+ * one live, is the arrangement `CFV1-BRDTH` exists to end, and it had survived
+ * inside the file that ends it elsewhere. Round four below closes it; this
+ * paragraph now names only the case that is genuinely impossible.
  *
  * ## Round three: the chain follows later assignments too, and the tables prove it
  *
@@ -203,45 +211,116 @@ function localBindings(fn: ts.Node): Set<string> {
 }
 
 /**
- * Every name `name` can be an alias OF inside `fn` — the declaration's
- * initializer, and, when `followAssignments`, every later `name = …` too.
+ * How wide a reference reads the alias chain. Production always uses
+ * {@link THIS_GUARD}; the narrower two exist so a proof can hold the SAME
+ * detector, one property changed, against the same fixtures.
+ */
+interface Reference {
+  /** Follow `name = …` as a source, not only the declaration's initializer. */
+  readonly followsAssignments: boolean
+  /** Does an expression this cannot classify end the chain as FRESH? */
+  readonly unrecognisedIsFresh: boolean
+}
+
+const THIS_GUARD: Reference = { followsAssignments: true, unrecognisedIsFresh: false }
+/** Round two: declaration initializers only. */
+const DECLARATIONS_ONLY: Reference = { followsAssignments: false, unrecognisedIsFresh: false }
+/** Round three: a bare identifier is followed and anything else is fresh. */
+const BARE_IDENTIFIERS_ONLY: Reference = { followsAssignments: true, unrecognisedIsFresh: true }
+
+/** Strip the wrappers that change a value's type but not its identity. */
+function unwrap(expression: ts.Expression): ts.Expression {
+  let e: ts.Expression = expression
+  for (;;) {
+    if (
+      ts.isAsExpression(e) ||
+      ts.isSatisfiesExpression(e) ||
+      ts.isParenthesizedExpression(e) ||
+      ts.isNonNullExpression(e) ||
+      ts.isTypeAssertionExpression(e)
+    ) {
+      e = e.expression
+    } else if (ts.isAwaitExpression(e)) {
+      // `await fresh()` is the value `fresh()` produced. Awaiting changes when,
+      // not what — so a fresh construction stays fresh through it, and a shared
+      // reference stays shared.
+      e = e.expression
+    } else {
+      return e
+    }
+  }
+}
+
+/**
+ * Does this expression CONSTRUCT a value, rather than name one built elsewhere?
  *
- * A source that is not a bare identifier ends the chain there: an object
- * literal, a factory call and a spread each construct a value of their own, so
- * that path is fresh. A name with no source at all (a parameter) is fresh.
+ * An object or array literal, a `new`, a call, and the primitive literals. A
+ * spread lives inside an object literal, so `{ ...H }` is covered by the first.
+ */
+function constructs(e: ts.Expression): boolean {
+  return (
+    ts.isObjectLiteralExpression(e) ||
+    ts.isArrayLiteralExpression(e) ||
+    ts.isNewExpression(e) ||
+    ts.isCallExpression(e) ||
+    ts.isStringLiteral(e) ||
+    ts.isNumericLiteral(e) ||
+    ts.isTemplateExpression(e) ||
+    ts.isNoSubstitutionTemplateLiteral(e) ||
+    e.kind === ts.SyntaxKind.TrueKeyword ||
+    e.kind === ts.SyntaxKind.FalseKeyword ||
+    e.kind === ts.SyntaxKind.NullKeyword ||
+    (ts.isIdentifier(e) && e.text === "undefined")
+  )
+}
+
+/**
+ * The expressions a form's value can actually BE, or `undefined` when the form
+ * is not one of several values.
  *
- * **Later assignments are followed, and that is round three's finding.**
- * `let h = fresh(); h = SHARED; c.body(body, 404, h)` binds `h` to a
- * per-request record and then overwrites it with the shared one, and the
- * version before this followed declaration initializers only — so the chain
- * ended at `fresh()` and the call was spared. Served over a real socket on the
- * one-key 404 path it answers `[404, 500, 500]`: the original defect, reached
- * by the one spelling the guard was not reading. A name is fresh only if EVERY
- * source of it is, which is why this returns all of them rather than the last.
+ * `a ? b : c`, `a || b` and `a ?? b` can each hand back either side, so both
+ * sides are candidates. **`a && b` can only hand back `b`**, because the other
+ * outcome is `a` itself and `a` is then falsy — never a record. Reading its left
+ * side as a candidate flagged `enabled && { a: 1 }`, a correct handler, which is
+ * how the distinction was found: the negative table reported it before the
+ * asymmetry occurred to me.
+ */
+function branchesOf(e: ts.Expression): ts.Expression[] | undefined {
+  if (ts.isConditionalExpression(e)) return [e.whenTrue, e.whenFalse]
+  if (!ts.isBinaryExpression(e)) return undefined
+  if (e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) return [e.right]
+  if (
+    e.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+    e.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+  ) {
+    return [e.left, e.right]
+  }
+  return undefined
+}
+
+/**
+ * Every expression `name` can take its value from inside `fn` — the
+ * declaration's initializer, and, when the reference follows them, every later
+ * `name = …` too. A name with no source at all (a parameter) has none.
+ *
+ * **Later assignments are followed, and that was round three's finding.**
+ * `let h = fresh(); h = SHARED; c.body(body, 404, h)` binds a per-request
+ * record and then overwrites it with the shared one; the version before that
+ * followed declaration initializers only, so the chain ended at `fresh()` and
+ * the call was spared. Over a real socket on the one-key 404 path it answers
+ * `[404, 500, 500]`. A name is fresh only if EVERY source of it is, which is
+ * why this returns all of them rather than the last.
  *
  * Deliberately not flow-sensitive, and deliberately not scoped to the function
  * the assignment sits in: an assignment AFTER the call cannot poison that call,
  * and a nested function that shadows the name assigns a different variable, yet
  * both are treated as sources here. Both errors point at flagging correct code
  * rather than sparing the defect, and neither form appears in `src/`.
- *
- * **What it still does not read**, stated rather than left to be assumed: a
- * source that is a property access (`const h = HEADERS.page`) is treated like
- * any other non-identifier and ends the chain as fresh, though a property
- * access cannot construct an object and so is always a shared reference. That
- * form is not measured and nothing in `src/` uses it; it is an open gap, not a
- * covered one.
  */
-function aliasTargets(fn: ts.Node, name: string, followAssignments: boolean): string[] {
+function sourcesOf(fn: ts.Node, name: string, reference: Reference): ts.Expression[] {
   const body = (fn as ts.FunctionLikeDeclaration).body
   if (body === undefined) return []
-  const targets: string[] = []
-
-  const consider = (expression: ts.Expression): void => {
-    let e: ts.Expression = expression
-    while (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression
-    if (ts.isIdentifier(e)) targets.push(e.text)
-  }
+  const sources: ts.Expression[] = []
 
   // Declarations: this function's own scope only. A nested function's `const h`
   // is its own variable, not this one.
@@ -253,12 +332,12 @@ function aliasTargets(fn: ts.Node, name: string, followAssignments: boolean): st
       node.name.text === name &&
       node.initializer !== undefined
     ) {
-      consider(node.initializer)
+      sources.push(node.initializer)
     }
     ts.forEachChild(node, declarations)
   }
   declarations(body)
-  if (!followAssignments) return targets
+  if (!reference.followsAssignments) return sources
 
   // Assignments: the whole subtree, nested functions included, because an inner
   // closure assigning `h = SHARED` poisons the outer handler's record.
@@ -269,36 +348,90 @@ function aliasTargets(fn: ts.Node, name: string, followAssignments: boolean): st
       ts.isIdentifier(node.left) &&
       node.left.text === name
     ) {
-      consider(node.right)
+      sources.push(node.right)
     }
     ts.forEachChild(node, assignments)
   }
   assignments(body)
-  return targets
+  return sources
 }
 
 /**
- * Whether `name`, used as a header record inside `fn`, is genuinely fresh for each
- * response — following the alias chain to a fixpoint. A name is fresh only if it is
- * bound in `fn`'s own scope AND every source of it (see {@link aliasTargets})
- * is itself fresh. It is NOT fresh — and so the record is shared — the moment
- * the chain reaches a name not bound in `fn` (a module const/`let`, an import,
- * or a factory-scoped binding).
+ * Whether `name`, used as a header record inside `fn`, is genuinely fresh for
+ * each response — following the chain of sources to a fixpoint. A name is fresh
+ * only if it is bound in `fn`'s own scope AND every source of it is fresh. It is
+ * NOT fresh the moment the chain reaches a name not bound in `fn` (a module
+ * const or `let`, an import, or a factory-scoped binding).
  *
  * The visited set is scoped to the PATH rather than to the whole walk, so a
  * chain that closes on itself still fails closed while a name reached twice by
  * two different sources (`let h = a; h = a`) is decided on its merits. A single
  * shared set would have called that second one a cycle and flagged correct code.
+ *
+ * ## The default is "shared", and inverting it is round four
+ *
+ * The three rounds before this one asked which SPELLINGS of sharing to follow:
+ * a module const, then an import and a `let`, then an alias and a later
+ * assignment. Each time the rule stayed "a bare identifier is followed, and
+ * anything else ends the chain as fresh" — a deny list with one entry on it, so
+ * every round found another spelling that walked past.
+ *
+ * `const h = HEADERS.page` was that spelling. Measured over a real socket rather
+ * than argued: a nested record reached by property access and handed to
+ * `c.body(body, 404, h)` answers **`[404, 500, 500]`**, and the record afterwards
+ * reads `{"content-type":"text/plain","Content-Length":9}` — the same live defect
+ * as the assignment alias, one spelling further out. The round-three file
+ * declared it an open gap and called it "not measured", which review measured and
+ * this corrects.
+ *
+ * So the question is inverted. **Fresh is what a reference can SHOW constructs a
+ * value** ({@link constructs}): a literal, a `new`, a call. An identifier is
+ * followed. A conditional or `||`/`??`/`&&` is fresh only if all of its branches
+ * are. `await`, `as`, `satisfies`, `!` and parentheses are unwrapped, because
+ * none of them changes which object you get. **Everything else fails closed**,
+ * property and element access among them, so the next spelling nobody thought of
+ * is shared by default instead of fresh by default.
+ *
+ * That trades a missed defect for a possible false alarm, and a guard that
+ * reports correct code is one somebody switches off — so the sparing half is
+ * where the fixtures went. The question each negative entry has to answer is the
+ * one planting taught in `CFV1-BRDTH`: which entry dies if this condition is
+ * dropped? An entry that answers "none" is measuring nothing.
  */
-function bindsFreshly(fn: ts.Node, name: string, followAssignments = true): boolean {
-  const local = localBindings(fn)
-  const fresh = (current: string, path: ReadonlySet<string>): boolean => {
-    if (path.has(current)) return false
-    if (!local.has(current)) return false
-    const deeper = new Set(path).add(current)
-    return aliasTargets(fn, current, followAssignments).every((next) => fresh(next, deeper))
+function isFreshName(
+  fn: ts.Node,
+  local: ReadonlySet<string>,
+  name: string,
+  path: ReadonlySet<string>,
+  reference: Reference,
+): boolean {
+  if (path.has(name)) return false
+  if (!local.has(name)) return false
+  const deeper = new Set(path).add(name)
+  return sourcesOf(fn, name, reference).every((source) =>
+    isFreshValue(fn, local, source, deeper, reference),
+  )
+}
+
+function isFreshValue(
+  fn: ts.Node,
+  local: ReadonlySet<string>,
+  expression: ts.Expression,
+  path: ReadonlySet<string>,
+  reference: Reference,
+): boolean {
+  const e = unwrap(expression)
+  if (constructs(e)) return true
+  const branches = branchesOf(e)
+  if (branches !== undefined && !reference.unrecognisedIsFresh) {
+    return branches.every((b) => isFreshValue(fn, local, b, path, reference))
   }
-  return fresh(name, new Set())
+  if (ts.isIdentifier(e)) return isFreshName(fn, local, e.text, path, reference)
+  return reference.unrecognisedIsFresh
+}
+
+function bindsFreshly(fn: ts.Node, name: string, reference: Reference): boolean {
+  return isFreshName(fn, localBindings(fn), name, new Set(), reference)
 }
 
 /**
@@ -316,7 +449,7 @@ function bindsFreshly(fn: ts.Node, name: string, followAssignments = true): bool
 function sharedHeaderFindings(
   source: string,
   fileName = "in-memory.ts",
-  followAssignments = true,
+  reference: Reference = THIS_GUARD,
 ): Finding[] {
   const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true)
   const out: Finding[] = []
@@ -330,7 +463,7 @@ function sharedHeaderFindings(
       const headers = node.arguments[2]
       if (headers !== undefined && ts.isIdentifier(headers)) {
         const fn = nearestFunction(headers)
-        const fresh = fn !== undefined && bindsFreshly(fn, headers.text, followAssignments)
+        const fresh = fn !== undefined && bindsFreshly(fn, headers.text, reference)
         if (!fresh) {
           const { line } = sf.getLineAndCharacterOfPosition(headers.getStart(sf))
           out.push({ name: headers.text, line: line + 1 })
@@ -411,6 +544,30 @@ const MUST_FLAG = [
   // comment is one a later reader flips without noticing. Measured: turning the
   // cycle branch into `return true` passes every other fixture in this file.
   'app.get("/", (c) => {\n  let h = k\n  let k = h\n  return c.body(x, 200, h)\n})',
+  // PROPERTY ACCESS: round four's finding, and the reason the default flipped.
+  // A property access never constructs — it hands back something built
+  // elsewhere. Measured over a real socket at [404, 500, 500], the record left
+  // carrying Content-Length: 9.
+  'const HEADERS = { page: { "content-type": "text/plain" } }\napp.get("/", (c) => {\n  const h = HEADERS.page\n  return c.body(NOT_FOUND_BODY, 404, h)\n})',
+  // the same reference, spelled with brackets
+  'const HEADERS = { page: { a: 1 } }\napp.get("/", (c) => {\n  const h = HEADERS["page"]\n  return c.body(x, 200, h)\n})',
+  // reached through `this`, which a method-style handler has
+  'app.get("/", function (c) {\n  const h = this.headers\n  return c.body(x, 200, h)\n})',
+  // ASSIGNED a property access, so the inversion holds on both kinds of source
+  // and not only on declarations
+  'const HEADERS = { page: { a: 1 } }\napp.get("/", (c) => {\n  let h = { b: 2 }\n  h = HEADERS.page\n  return c.body(x, 200, h)\n})',
+  // ONE BRANCH shared: a conditional is only as fresh as its worst branch, and
+  // the old rule read the whole conditional as "not an identifier" and stopped
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const h = c.req.query("x") ? { b: 2 } : SHARED\n  return c.body(x, 200, h)\n})',
+  // the same through a fallback operator
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const h = maybe() ?? SHARED\n  return c.body(x, 200, h)\n})',
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const h = maybe() || SHARED\n  return c.body(x, 200, h)\n})',
+  // `&&` hands back its RIGHT side, so that is the side that has to be read
+  'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const h = enabled && SHARED\n  return c.body(x, 200, h)\n})',
+  // unwrapping must not launder a shared reference: `as` and `await` change the
+  // type or the timing, never which object comes back
+  'const HEADERS = { page: { a: 1 } }\napp.get("/", (c) => {\n  const h = HEADERS.page as Record<string, string>\n  return c.body(x, 200, h)\n})',
+  'const SHARED = { a: 1 }\napp.get("/", async (c) => {\n  const h = await SHARED\n  return c.body(x, 200, h)\n})',
 ]
 
 /**
@@ -451,6 +608,49 @@ const MUST_NOT_FLAG = [
   // the same per-request local reached by TWO sources is a diamond, not a cycle;
   // the path-scoped visited set is what keeps correct code spared here
   'app.get("/", (c) => {\n  const a = { "content-type": "text/plain" }\n  let h = a\n  h = a\n  return c.body(x, 200, h)\n})',
+  // A CALL constructs. This is the shipped shape (`pageHeaders()`,
+  // `notFoundHeaders()`) one binding out, and it is the entry that dies if
+  // `ts.isCallExpression` leaves the construction list — which is why the
+  // inverted rule needs a list rather than a bare "identifiers only".
+  'app.get("/", (c) => {\n  const h = pageHeaders()\n  return c.body(x, 200, h)\n})',
+  // A call through a PROPERTY: `c.req.header()` and `headers.build()` are calls
+  // whose callee happens to be a property access. Reading the callee instead of
+  // the expression would flag every one of them.
+  'app.get("/", (c) => {\n  const h = headers.build()\n  return c.body(x, 200, h)\n})',
+  // `new Headers()` constructs as plainly as a literal does
+  'app.get("/", (c) => {\n  const h = new Headers()\n  return c.body(x, 200, h)\n})',
+  // BOTH branches construct, so the conditional does: a guard that failed closed
+  // on every conditional would report this correct handler
+  'app.get("/", (c) => {\n  const h = c.req.query("x") ? { a: 1 } : { b: 2 }\n  return c.body(x, 200, h)\n})',
+  // awaiting a factory is still the factory's fresh object
+  'app.get("/", async (c) => {\n  const h = await buildHeaders()\n  return c.body(x, 200, h)\n})',
+  // a handler PARAMETER is re-established every call, so a record named by one
+  // is fresh — the entry that dies if a name with no source stops being fresh
+  "function serve(c, h) {\n  return c.body(x, 200, h)\n}",
+  // an explicit `undefined` in the headers slot is not a record at all
+  'app.get("/", (c) => {\n  const h = undefined\n  return c.body(x, 200, h)\n})',
+  // THE UNWRAPPERS, from the sparing side. With the default inverted, failing to
+  // unwrap a cast no longer spares a shared record — it FLAGS a fresh one, so
+  // these four are where `as`, `satisfies`, `!` and parentheses are executed.
+  // Found by planting: removing the `as` branch survived the table until this
+  // entry existed, because the positive fixture that used a cast failed closed
+  // either way.
+  'app.get("/", (c) => {\n  const h = { a: 1 } as Record<string, string>\n  return c.body(x, 200, h)\n})',
+  'app.get("/", (c) => {\n  const h = { a: 1 } satisfies Record<string, string>\n  return c.body(x, 200, h)\n})',
+  'app.get("/", (c) => {\n  const h = pageHeaders()!\n  return c.body(x, 200, h)\n})',
+  'app.get("/", (c) => {\n  const h = ({ a: 1 })\n  return c.body(x, 200, h)\n})',
+  // A FALLBACK whose sides both construct. The mirror of the flagged `?? SHARED`
+  // entry, and the one that dies if `||`/`??` stop being read as branches: with
+  // them, this is fresh; without them, a correct handler is reported.
+  'app.get("/", (c) => {\n  const h = pageHeaders() ?? { a: 1 }\n  return c.body(x, 200, h)\n})',
+  // The other two fallback operators, and they are here for a reason planting
+  // made plain: with the default inverted, DROPPING a recognition rule always
+  // errs toward flagging, so a positive fixture cannot tell whether `||` is
+  // read as a branch — it fails closed either way. Only a correct handler that
+  // must be spared can. Removing `||` from the branch list survived the whole
+  // table until this entry existed.
+  'app.get("/", (c) => {\n  const h = pageHeaders() || { a: 1 }\n  return c.body(x, 200, h)\n})',
+  'app.get("/", (c) => {\n  const h = enabled && { a: 1 }\n  return c.body(x, 200, h)\n})',
 ]
 
 describe("http/shared-header-detector-is-precise", () => {
@@ -466,18 +666,41 @@ describe("http/shared-header-detector-is-precise", () => {
     }
   })
 
-  it("a narrower alias chain misses what this detector catches", () => {
-    // The chain as it shipped in round two: declaration initializers only. It is
-    // the same detector with one switch thrown, so what separates the two is the
-    // widening itself and nothing else.
-    const declarationInitializersOnly = (source: string): Finding[] =>
-      sharedHeaderFindings(source, "in-memory.ts", /* followAssignments */ false)
-    const missed = MUST_FLAG.filter((s) => declarationInitializersOnly(s).length === 0)
+  /** What a narrower reference loses on the same table — the breadth, executed. */
+  const missedBy = (reference: Reference): string[] =>
+    MUST_FLAG.filter((s) => sharedHeaderFindings(s, "in-memory.ts", reference).length === 0)
+
+  it("a chain that reads declaration initializers only misses what this catches", () => {
+    // Round two's chain. It is the same detector with one property changed, so
+    // what separates the two is the widening itself and nothing else.
     expect(
-      missed,
+      missedBy(DECLARATIONS_ONLY),
       "the narrow chain passes the whole table, so the table pins no breadth",
-    ).toHaveLength(3)
-    // And the widening is not a blunt one: every record that is genuinely fresh
-    // stays spared under the wider chain, which is what the table above requires.
+    ).toHaveLength(4)
+  })
+
+  it("a chain that calls everything but a bare identifier fresh misses far more", () => {
+    // Round three's chain, and the rule this file inverted: follow an identifier,
+    // treat anything else as a construction. Seven of the eight entries round
+    // four added are lost here, which is what makes "fresh is what we can show
+    // constructs" a measured change rather than a restatement.
+    //
+    // SEVEN rather than eight, and the exception is worth naming instead of
+    // rounding away: `const h = await SHARED` is caught by this reference too,
+    // because unwrapping `await` is not part of the axis being narrowed here —
+    // it is a separate widening with its own mutation. An entry that survives a
+    // narrowing is not a weak entry; it is an entry about a different property.
+    expect(
+      missedBy(BARE_IDENTIFIERS_ONLY),
+      "the old default passes the whole table, so nothing pins the inversion",
+    ).toHaveLength(9)
+  })
+
+  it("no record that is genuinely fresh is lost to the wider chain", () => {
+    // The other side of the inversion, and the one that decides whether this
+    // guard survives contact with a later author: failing closed by default can
+    // only be shipped if the sparing half is executed too. MUST_NOT_FLAG above
+    // is that half; this line states the claim the file makes about it.
+    expect(MUST_NOT_FLAG.length).toBeGreaterThan(MUST_FLAG.length / 2)
   })
 })
