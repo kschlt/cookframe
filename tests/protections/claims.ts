@@ -59,12 +59,45 @@ export const PLATFORM_SETTINGS: readonly PlatformSetting[] = [
  * could not tell the difference would either fire on both — pushing someone to
  * weaken it until it fired on nothing — or be tuned until it fired on nothing at
  * all. `findClaims` below is proved to discriminate rather than assumed to.
+ *
+ * **Four shapes, because one was not enough, and that was a real defect.** The
+ * first version recognised a copula followed by a predicate, and was named for
+ * the whole class of claims. Review put fourteen phrasings through it and ten
+ * were missed — five of them false statements about the one setting this
+ * repository's own record says is OFF: "We have enabled secret scanning", "Secret
+ * scanning with push protection: enabled", a table row reading
+ * `| Secret scanning | enabled |`. A guard named for a class that recognises one
+ * form of it is this project's recurring defect, met here from the inside.
+ *
+ * Every alternative below is bounded, and each was measured against every
+ * markdown document in the tree before it was added: together they fire zero
+ * times on the repository as it stands. That matters as much as the coverage —
+ * a guard that cries wolf on honest prose gets weakened until it matches
+ * nothing.
  */
-const CLAIM_VERBS =
-  /\b(?:is|are|be|been|was|were)\b[^.;:!?]{0,40}?\b(?:enabled|configured|turned on|switched on|set up|active|in place)\b/i
+const PREDICATES = "enabled|configured|turned on|switched on|set up|active|in place"
 
 /**
- * Words that turn a sentence into a requirement rather than a claim, and words
+ * Bare `on` is accepted only at the end of a clause — "secret scanning is on",
+ * never "Dependabot is on the roadmap". Unbounded it reads every mention of a
+ * setting being on *something* as a claim that it is switched on, which is how
+ * this predicate got dropped from the list the first time.
+ */
+const CLAIM_VERBS = new RegExp(
+  [
+    // "is enabled", "remains configured", "is currently in place"
+    `\\b(?:is|are|be|been|was|were|remains?|stays?)\\b[^.;:!?]{0,40}?\\b(?:${PREDICATES})\\b`,
+    `\\b(?:is|are|remains?|stays?)\\b[^.;:!?]{0,20}?\\bon(?=\\s*(?:[.,;:!?)\\]|]|$))`,
+    // "we have enabled it", "GitHub has secret scanning enabled"
+    `\\b(?:have|has|had)\\b[^.;:!?]{0,40}?\\b(?:${PREDICATES})\\b`,
+    // a table cell or a label: "| Secret scanning | enabled |", "Push protection: enabled"
+    `[:|]\\s*(?:enabled|configured|active|on)\\b`,
+  ].join("|"),
+  "i",
+)
+
+/**
+ * Words that turn a statement into a requirement rather than a claim, and words
  * that turn it into a denial.
  *
  * Both filters are load-bearing ONLY because `CLAIM_VERBS` above tolerates a gap
@@ -87,29 +120,90 @@ export interface Claim {
   readonly sentence: string
 }
 
-/**
- * Split on sentence ends AND on line ends.
- *
- * The line split matters more than the sentence split here, because the documents
- * this reads are markdown: a bullet list is a run of claims with no full stops
- * between them, and joining two bullets into one "sentence" would let a claim
- * borrow the negation from its neighbour and disappear.
- */
-function sentences(text: string): string[] {
-  return text
-    .split(/(?<=[.!?:;])\s+|\r?\n/)
-    .map((s) => s.trim())
-    .filter((s) => s !== "")
+/** Does this line open a new markdown block rather than continue the last one? */
+function blockOpener(line: string): boolean {
+  return /^\s*$|^\s*(?:[-*+]\s|\d+[.)]\s|#{1,6}\s|>|\||```|~~~)/.test(line)
 }
 
-/** Every claim-shaped statement about a platform setting in `text`. */
+/**
+ * Split into the units a claim can occupy.
+ *
+ * Two rules pull against each other here, and getting either one alone wrong was
+ * a measured miss.
+ *
+ * **Line ends split**, because these documents are markdown: a bullet list is a
+ * run of claims with no full stops between them, and joining two bullets into
+ * one sentence lets a claim borrow the negation from its neighbour and vanish.
+ *
+ * **But a soft wrap is not a line end.** This repository wraps prose at 100
+ * columns, which puts a copula on one line and its predicate on the next —
+ * splitting there made `"Secret scanning is\nenabled."` invisible to a detector
+ * whose whole job is to see it. So a line is joined to the one before unless it
+ * opens a new block: a bullet, a numbered item, a heading, a quote, a table row
+ * or a fence.
+ */
+function sentences(text: string): string[] {
+  const unwrapped: string[] = []
+  for (const line of text.split(/\r?\n/)) {
+    const previous = unwrapped.at(-1)
+    if (previous === undefined || previous === "" || blockOpener(previous) || blockOpener(line)) {
+      unwrapped.push(line)
+    } else {
+      unwrapped[unwrapped.length - 1] = `${previous} ${line.trim()}`
+    }
+  }
+  return (
+    unwrapped
+      .join("\n")
+      // A colon ends a sentence EXCEPT where it introduces a bare state word:
+      // "Push protection: enabled" is one claim, and splitting it hands the label
+      // to one fragment and the state to another, so the shape that reads a table
+      // cell or a label never sees both halves. Measured — it was the last of the
+      // reported phrasings still missed after the verb shapes were widened.
+      .split(/(?<=[.!?;])\s+|(?<=:)\s+(?!(?:enabled|configured|active|on)\b)|\r?\n/)
+      .map((s) => s.trim())
+      .filter((s) => s !== "")
+  )
+}
+
+/**
+ * A sentence, then each of its comma-separated clauses.
+ *
+ * "Branch protection is enabled, but secret scanning is not" is one sentence
+ * holding a claim beside a denial, and testing the whole sentence lets the claim
+ * borrow that `not` and disappear. This is the bullet-list failure one level
+ * down; only the bullet half was closed the first time.
+ *
+ * The whole sentence stays in the list as well, because a claim can straddle a
+ * comma ("Secret scanning, which we switched on last week, is enabled") and no
+ * single clause would then carry both the mention and the predicate.
+ */
+function clauses(sentence: string): string[] {
+  const parts = sentence.split(/,\s+(?=\w)/).map((c) => c.trim())
+  return parts.length > 1 ? [sentence, ...parts] : [sentence]
+}
+
+/**
+ * Every claim-shaped statement about a platform setting in `text`.
+ *
+ * A unit counts when it carries one of the verb shapes, mentions a setting, and
+ * is neither a requirement nor a denial. A sentence and one of its clauses can
+ * both match the same setting, so each setting is reported at most once per
+ * sentence.
+ */
 export function findClaims(text: string): Claim[] {
   const found: Claim[] = []
   for (const sentence of sentences(text)) {
-    if (!CLAIM_VERBS.test(sentence)) continue
-    if (NOT_A_CLAIM.test(sentence) || NEGATED.test(sentence)) continue
-    for (const setting of PLATFORM_SETTINGS) {
-      if (setting.mentions.test(sentence)) found.push({ heading: setting.heading, sentence })
+    const claimed = new Set<string>()
+    for (const unit of clauses(sentence)) {
+      if (!CLAIM_VERBS.test(unit)) continue
+      if (NOT_A_CLAIM.test(unit) || NEGATED.test(unit)) continue
+      for (const setting of PLATFORM_SETTINGS) {
+        if (!setting.mentions.test(unit)) continue
+        if (claimed.has(setting.heading)) continue
+        claimed.add(setting.heading)
+        found.push({ heading: setting.heading, sentence: unit })
+      }
     }
   }
   return found

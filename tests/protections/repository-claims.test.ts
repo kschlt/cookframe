@@ -32,7 +32,7 @@
  *
  * The rule itself is in `./claims.ts`; this file is only its proof.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
@@ -46,6 +46,9 @@ import {
 } from "./claims.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
+
+/** The automation itself — a file, which is the whole point of the re-cut. */
+const DEPENDABOT_PATH = ".github/dependabot.yml"
 
 /** Every markdown document in the repository, except the record and the archive. */
 function documents(): string[] {
@@ -111,6 +114,44 @@ describe("protections/no-unbacked-claim-about-a-setting", () => {
     // and the denial on the first line silences the claim on the second.
     // Mutation found it: removing the line split left every other case green.
     expect(claims("- Secret scanning is not enabled\n- Branch protection is enabled")).toBe(1)
+
+    // THE FOUR SHAPES, one case each. Review measured fourteen phrasings through
+    // the first version of this detector and ten were missed — five of them
+    // false statements about the one setting the record says is OFF. A guard
+    // named for a class of claims that recognises one grammatical form of it is
+    // this project's recurring defect, and it was in here.
+
+    // Active voice. Nothing is "is"-shaped about this and it is a plain claim.
+    expect(claims("We have enabled secret scanning with push protection.")).toBe(1)
+    expect(claims("GitHub has secret scanning enabled for this repository.")).toBe(1)
+
+    // A state verb that is not a copula.
+    expect(claims("Branch protection remains enabled.")).toBe(1)
+    expect(claims("Branch protection stays configured on main.")).toBe(1)
+
+    // A table cell and a label. Documentation states things this way constantly,
+    // and a status table is exactly where a stale claim survives longest.
+    expect(claims("| Secret scanning | enabled | 2026-09-22 |")).toBe(1)
+    expect(claims("Secret scanning with push protection: enabled.")).toBe(1)
+
+    // Bare `on`, which is a claim at a clause end...
+    expect(claims("Secret scanning is on.")).toBe(1)
+    // ...and not one anywhere else. This is why the predicate was dropped from
+    // the list the first time round; it is back under a bound rather than
+    // unbounded.
+    expect(claims("Dependabot is on the roadmap.")).toBe(0)
+
+    // A comma is a boundary too. A true claim sitting beside a denial borrows
+    // the `not` and disappears if the filters read the whole sentence — the
+    // bullet-list failure one level down, and only the bullet half was closed
+    // the first time.
+    expect(claims("Branch protection is enabled, but secret scanning is not.")).toBe(1)
+
+    // But a soft line wrap is NOT a boundary. This repository wraps prose at 100
+    // columns, so a copula lands on one line and its predicate on the next;
+    // splitting there made this invisible to a detector whose entire job is to
+    // see it.
+    expect(claims("Secret scanning is\nenabled.")).toBe(1)
 
     // And a sentence about none of these subjects is not a claim about them,
     // however assertively it is phrased.
@@ -252,7 +293,16 @@ describe("protections/dependency-automation-is-in-the-tree", () => {
   it("is a file this test reads, not a setting it takes someone's word for", () => {
     // The point of the whole re-cut, in one case. A toggle would be unreadable
     // here; a file is not.
-    const config = parseYaml(read(".github/dependabot.yml")) as {
+    //
+    // Read for existence first. `readFileSync` inside the assertion throws a raw
+    // `ENOENT` before any message can attach, so the one failure this proof most
+    // needs to explain — the automation is gone — reported as a stack trace
+    // naming a path and nothing about what it meant.
+    expect(
+      existsSync(join(repoRoot, DEPENDABOT_PATH)),
+      `${DEPENDABOT_PATH} is missing, so this repository has no dependency update automation`,
+    ).toBe(true)
+    const config = parseYaml(read(DEPENDABOT_PATH)) as {
       version?: number
       updates?: {
         "package-ecosystem"?: string
