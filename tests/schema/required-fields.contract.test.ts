@@ -26,24 +26,38 @@ import { CanonicalRecipe, SourceRef } from "../../schema/index.js"
 // --- a walker over the contract's own definitions ---------------------------
 
 /**
- * The Zod v3 internals this reads, named once.
+ * The Zod v4 internals this reads, named once.
  *
  * Reaching into `_def` is deliberate: the alternative is a second, hand-written
  * list of the contract's fields, and a second list is exactly what goes stale
  * without anyone noticing — the thing ADR-0020 had to add a drift check for.
- * `zod` is a pinned dependency, so this breaks loudly on an upgrade rather than
- * quietly reporting nothing.
+ *
+ * What v4 changed, measured rather than looked up, because the shape of this
+ * interface IS the port: `_def` survives as an alias of `_zod.def`, so the
+ * access path still reads; `typeName` and its `"ZodUnion"` constants are gone,
+ * replaced by a lowercase `type`; `shape` is a plain object where it used to be
+ * a function; an array's element moved from `type` to `element`; a literal
+ * carries `values` rather than `value`; and a discriminated union is a plain
+ * `"union"` that happens to carry a `discriminator`, so the two constants this
+ * walk used to distinguish collapse into one test.
+ *
+ * "It breaks loudly on an upgrade" was the old comment's claim here, and it was
+ * half right: this walk did break loudly, with a `TypeError`. Two files away it
+ * broke SILENTLY, recognising nothing and reporting success. A loud break is an
+ * accident of which key disappeared first, never a property, which is why every
+ * walk in this repository now carries a bound that fails on an empty result —
+ * here the exact list below, and the positive control above it.
  */
 interface ZodInternals {
   readonly _def: {
-    readonly typeName: string
-    readonly shape?: () => Record<string, ZodInternals>
-    readonly type?: ZodInternals
+    readonly type: string
+    readonly shape?: Record<string, ZodInternals>
+    readonly element?: ZodInternals
     readonly innerType?: ZodInternals
-    readonly schema?: ZodInternals
+    readonly in?: ZodInternals
     readonly options?: readonly ZodInternals[]
     readonly discriminator?: string
-    readonly value?: unknown
+    readonly values?: readonly unknown[]
   }
 }
 
@@ -56,22 +70,23 @@ interface RequiredField {
 }
 
 const isOptional = (node: ZodInternals): boolean =>
-  node._def.typeName === "ZodOptional" || node._def.typeName === "ZodNullable"
+  node._def.type === "optional" || node._def.type === "nullable"
 
 /** Strip the wrappers that do not change which object a value ultimately is. */
+const WRAPS_ONE_TYPE = new Set(["optional", "nullable", "default", "readonly", "nonoptional"])
+
 function unwrap(node: ZodInternals): ZodInternals {
   let current = node
   for (;;) {
-    const { typeName, schema, innerType, type } = current._def
-    if (typeName === "ZodEffects" && schema !== undefined) current = schema
-    else if (
-      (typeName === "ZodOptional" || typeName === "ZodNullable") &&
-      innerType !== undefined
-    ) {
-      current = innerType
-    } else if (typeName === "ZodDefault" && innerType !== undefined) current = innerType
-    else if (typeName === "ZodReadonly" && innerType !== undefined) current = innerType
-    else if (typeName === "ZodArray" && type !== undefined) current = type
+    const { type, innerType, element, in: input } = current._def
+    if (WRAPS_ONE_TYPE.has(type) && innerType !== undefined) current = innerType
+    else if (type === "array" && element !== undefined) current = element
+    // v4 has no `ZodEffects`: `.refine` leaves the node's own type alone and
+    // only adds checks, so nothing needs unwrapping for it. `.transform` does
+    // wrap, as a `pipe` whose `in` is the schema that was transformed. The
+    // contract uses only `refine` today; this arm is here so that adding a
+    // transform later cannot make the walk quietly shallower.
+    else if (type === "pipe" && input !== undefined) current = input
     else return current
   }
 }
@@ -86,9 +101,7 @@ function unwrap(node: ZodInternals): ZodInternals {
  * value sits and became a place a declaration sits.
  */
 const isLeaf = (node: ZodInternals): boolean =>
-  node._def.shape === undefined &&
-  node._def.typeName !== "ZodUnion" &&
-  node._def.typeName !== "ZodDiscriminatedUnion"
+  node._def.shape === undefined && node._def.type !== "union"
 
 /**
  * Every required LEAF field of every object reachable from `root`, paired with
@@ -104,19 +117,21 @@ function ungroundedRequiredFields(root: z.ZodTypeAny, rootPath: string): Require
     if (seen.has(path)) return
     seen.add(path)
     const current = unwrap(node)
-    if (current._def.typeName === "ZodUnion" || current._def.typeName === "ZodDiscriminatedUnion") {
+    if (current._def.type === "union") {
+      // A discriminated union is a union that carries a discriminator, so one
+      // test covers both kinds and the branch names each option by the literal
+      // its discriminant holds — `[not_in_source]` rather than `[1]`.
       const discriminator = current._def.discriminator
       for (const [index, option] of (current._def.options ?? []).entries()) {
-        const shape = unwrap(option)._def.shape?.()
+        const shape = unwrap(option)._def.shape
+        const discriminant = discriminator === undefined ? undefined : shape?.[discriminator]
         const literal =
-          discriminator !== undefined && shape !== undefined
-            ? unwrap(shape[discriminator] as ZodInternals)._def.value
-            : undefined
-        visit(option, `${path}[${literal ?? index}]`)
+          discriminant === undefined ? undefined : unwrap(discriminant)._def.values?.[0]
+        visit(option, `${path}[${String(literal ?? index)}]`)
       }
       return
     }
-    const shape = current._def.shape?.()
+    const shape = current._def.shape
     if (shape === undefined) return
     const keys = Object.keys(shape)
     const grounded = keys.includes("sourceText") || keys.includes("sourceRefs")
