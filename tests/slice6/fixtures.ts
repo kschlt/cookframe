@@ -16,6 +16,7 @@ import {
   CanonicalRecipe,
   type CookingPlan,
   type PlanAmount,
+  type SourceRef,
 } from "../../schema/index.js"
 
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -149,3 +150,120 @@ export const canonicalTemperatures = (recipe: CanonicalRecipe): ReadonlySet<stri
       section.steps.flatMap((step) => step.temperatures.map((t) => t.sourceText)),
     ),
   )
+
+/**
+ * Every origin a plan carries, paired with the source references the Canonical
+ * states at the place that fact was read.
+ *
+ * `element` and `id` say WHICH canonical object gives a fact; `sourceRefs` is
+ * the half that points back into the source document, and it was the half no
+ * proof touched — emptying it anywhere left the whole suite green. This walk
+ * exists so the pairing can be asserted rather than assumed.
+ *
+ * The expectation is the canonical's own array, never "not empty": an element
+ * whose refs are genuinely empty must stay empty. An empty `sourceRefs` on a
+ * use means refs are inherited from the element it names (`schema/canonical-
+ * recipe.ts`), so a use that states none is expected to carry its target's —
+ * which is a rule of its own, and wrong in both directions if the deriver
+ * either drops it or applies it when the use has refs of its own.
+ */
+export function everyOriginAgainstItsSource(
+  recipe: CanonicalRecipe,
+  plan: CookingPlan,
+): readonly { where: string; actual: readonly SourceRef[]; expected: readonly SourceRef[] }[] {
+  const pairs: { where: string; actual: readonly SourceRef[]; expected: readonly SourceRef[] }[] =
+    []
+  const add = (where: string, actual: CanonicalOrigin, expected: readonly SourceRef[]): void => {
+    pairs.push({ where, actual: actual.sourceRefs, expected })
+  }
+
+  if (plan.title.state === "from_source" && recipe.title.state === "from_source") {
+    add("title", plan.title.origin, recipe.title.sourceRefs)
+  }
+
+  const equipment = recipe.equipment ?? []
+  for (const [index, item] of plan.setUp.entries()) {
+    add(`setUp ${item.text}`, item.origin, equipment[index]?.sourceRefs ?? [])
+  }
+
+  const ingredients = recipe.ingredientGroups.flatMap((group) => group.ingredients)
+  const byIngredientId = new Map(ingredients.map((i) => [i.id, i] as const))
+  const byComponentId = new Map((recipe.preparedComponents ?? []).map((c) => [c.id, c] as const))
+  for (const item of plan.fetchPrepare) {
+    const stated = byIngredientId.get(item.origin.id)?.sourceRefs ?? []
+    add(`fetchPrepare ${item.text}`, item.origin, stated)
+    add(`fetchPrepare ${item.text} amount`, item.amount.origin, stated)
+  }
+
+  const steps = recipe.instructionSections.flatMap((section) => section.steps)
+  for (const item of plan.startNow) {
+    const cue = steps.find((s) => s.id === item.origin.id)?.prerequisiteCues[
+      item.origin.index ?? -1
+    ]
+    add(`startNow ${item.text}`, item.origin, cue?.sourceRefs ?? [])
+  }
+
+  for (const unit of plan.units) {
+    const step = steps[unit.n - 1]
+    if (step === undefined) continue
+    add(`unit ${unit.n}`, unit.origin, step.sourceRefs)
+
+    // Replayed in the deriver's own order — ingredient uses then component uses,
+    // each routed by its usage kind — so a use is paired with the amount it
+    // produced rather than matched by id, which two uses of one ingredient
+    // (Nerano's Provolone) would make ambiguous.
+    const uses: { refs: readonly SourceRef[]; target: readonly SourceRef[]; usage: string }[] = [
+      ...step.ingredientUses.map((use) => ({
+        refs: use.sourceRefs,
+        target: byIngredientId.get(use.ingredientId)?.sourceRefs ?? [],
+        usage: use.usage as string,
+      })),
+      ...step.componentUses.map((use) => ({
+        refs: use.sourceRefs,
+        target: byComponentId.get(use.componentId)?.sourceRefs ?? [],
+        usage: use.usage as string,
+      })),
+    ]
+    const inherited = (u: (typeof uses)[number]): readonly SourceRef[] =>
+      u.refs.length > 0 ? u.refs : u.target
+    const ordinary = uses.filter((u) => u.usage === "use_now" || u.usage === "use_all")
+    const splitting = uses.filter(
+      (u) => u.usage === "use_partial_unspecified" || u.usage === "use_remaining",
+    )
+    const reserving = uses.filter((u) => u.usage === "reserve_for_later")
+
+    for (const [i, amount] of unit.amounts.entries()) {
+      add(
+        `unit ${unit.n} amount ${i}`,
+        amount.origin,
+        inherited(ordinary[i] as (typeof uses)[number]),
+      )
+    }
+    for (const [i, split] of unit.splits.entries()) {
+      add(
+        `unit ${unit.n} split ${i}`,
+        split.amount.origin,
+        inherited(splitting[i] as (typeof uses)[number]),
+      )
+    }
+    for (const [i, held] of unit.reserved.entries()) {
+      add(
+        `unit ${unit.n} reserved ${i}`,
+        held.amount.origin,
+        inherited(reserving[i] as (typeof uses)[number]),
+      )
+    }
+
+    const critical = [
+      ...step.durations.map((d) => d.sourceRefs),
+      ...step.temperatures.map((t) => t.sourceRefs),
+      ...step.donenessCues.map((c) => c.sourceRefs),
+      ...step.waitCues.map((c) => c.sourceRefs),
+    ]
+    for (const [i, parameter] of unit.critical.entries()) {
+      add(`unit ${unit.n} ${parameter.kind} ${i}`, parameter.origin, critical[i] ?? [])
+    }
+  }
+
+  return pairs
+}

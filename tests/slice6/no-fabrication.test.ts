@@ -20,6 +20,7 @@ import {
   canonicalWordings,
   everyAmount,
   everyOrigin,
+  everyOriginAgainstItsSource,
   nerano,
   resolvesInCanonical,
 } from "./fixtures.js"
@@ -151,6 +152,54 @@ describe("slice6/every-fact-traces-to-canonical", () => {
     expect(plan.title).toEqual({ state: "not_in_source" })
     expect(JSON.stringify(plan.title)).not.toContain(untitled.id)
     expect(JSON.stringify(plan.title)).not.toContain(plan.units[0]?.actionText)
+  })
+
+  it("carries the canonical's own source references, wherever the fact came from", () => {
+    // `element` and `id` say which canonical object gives a fact, and a use
+    // naming nothing already fails the derivation. `sourceRefs` is the other
+    // half — the one that points back into the source document — and until this
+    // check existed it could be emptied at any of eight places with the whole
+    // suite green. The expectation is the canonical's own array rather than
+    // "not empty", so an element whose refs are genuinely empty stays empty and
+    // gains no invented ones.
+    let checked = 0
+    for (const recipe of allRecipes) {
+      for (const { where, actual, expected } of everyOriginAgainstItsSource(
+        recipe,
+        deriveCookingPlan(recipe),
+      )) {
+        checked++
+        expect(actual, `${recipe.id} ${where}`).toEqual(expected)
+      }
+    }
+    expect(checked, "no source reference is under test").toBeGreaterThan(80)
+  })
+
+  it("resolves a use's inherited references, and does not override the ones it states", () => {
+    // An empty `sourceRefs` on a use means "inherit from the element I name"
+    // (`schema/canonical-recipe.ts`), so this rule is wrong in both directions:
+    // dropping it leaves an amount pointing at nothing, and applying it when
+    // the use has refs of its own throws away the more specific location.
+    const recipe: CanonicalRecipe = structuredClone(nerano)
+    const step = recipe.instructionSections[0]?.steps[3]
+    const use = step?.ingredientUses[0]
+    const ingredient = recipe.ingredientGroups
+      .flatMap((g) => g.ingredients)
+      .find((i) => i.id === use?.ingredientId)
+    if (!use || !ingredient) throw new Error("the fixture's fourth step uses no ingredient")
+
+    use.sourceRefs = []
+    const inheriting = deriveCookingPlan(recipe).units[3]?.amounts[0]
+    expect(inheriting?.origin.sourceRefs, "an inherited reference was dropped").toEqual(
+      ingredient.sourceRefs,
+    )
+
+    use.sourceRefs = [{ blockId: "b-the-use-says-so" }]
+    const stating = deriveCookingPlan(recipe).units[3]?.amounts[0]
+    expect(stating?.origin.sourceRefs, "the use's own reference was overridden").toEqual([
+      { blockId: "b-the-use-says-so" },
+    ])
+    expect(stating?.origin.sourceRefs).not.toEqual(ingredient.sourceRefs)
   })
 
   it("fails derivation rather than rendering when a use names nothing", () => {
