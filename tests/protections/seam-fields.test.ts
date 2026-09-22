@@ -29,6 +29,12 @@ import { blindSpotsIn, fakeFilesIn, programFromSources, programOver } from "./se
  * Each blind spot in the tree, and the proof that answers it by running the
  * callers over the shipped implementation. Named by `describe` title and file,
  * so the entry points at a proof that exists rather than at a sentence.
+ *
+ * That an entry's proof answers its field is a human claim, and review is what
+ * holds it. The only part a machine checks here is that the proof exists: an
+ * entry naming a real proof that never touches the field stays green. To show
+ * that the proof goes red when a caller leaves the field out, remove the field
+ * at the caller with `mutation.ts`, as ADR-0033's evidence does.
  */
 const CALLERS_PROVED_OVER_THE_SHIPPED_IMPLEMENTATION: Readonly<
   Record<string, { readonly proof: string; readonly file: string }>

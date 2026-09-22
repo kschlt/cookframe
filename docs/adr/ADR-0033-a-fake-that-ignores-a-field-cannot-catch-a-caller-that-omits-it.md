@@ -136,7 +136,11 @@ that a seam interface declare a method, and that the interfaces and files it rea
   implements is its contextual type, and nothing in the literal's text says so. ADR-0028 pins
   TypeScript to `5.x` until a stable public compiler API exists, and lists the parser, visitor,
   preprocessor, position lookup and node predicates as the surface its guards use. This guard adds
-  `createProgram` and the checker to that surface. The revisit condition there has to include them.
+  `createProgram` and the checker to that surface. ADR-0028 is accepted and is not rewritten, so its
+  revisit condition still names five surfaces and five guards. Read from there alone, the pin could
+  be lifted for a stable API that covers only what it lists, while this guard needs two more. This
+  record states the gap. It does not close it: only a guard that compares the surface the pin
+  declares with what the guards use can do that.
 - It builds a program over `src/` on every run, which costs about 0.7 s.
 - The table moves with the seams, which is its purpose. A red here is a question to answer, not a
   number to update.
