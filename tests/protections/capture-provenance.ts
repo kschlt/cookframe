@@ -42,12 +42,15 @@
  * over. The caller pins the full set of places, so an unreadable one turns red
  * instead of being trusted.
  *
- * Detection is pure over TEXT, as in `ingest-entry-points.ts`, so the proof can
- * plant violations into sources written for it instead of depending on whatever
- * the tree happens to contain today.
+ * The tree is read through `programOverTree` in `src-program.ts`, the one
+ * program the guards that type-check `src/` share. The proof also plants
+ * violations into sources written for it, through `programOverText`, typed with
+ * the same options, instead of depending on whatever the tree happens to
+ * contain today.
  */
 import { relative } from "node:path"
 import ts from "typescript"
+import { repositoryCompilerOptions } from "../support/src-program.js"
 
 /** The type whose literals this reads. */
 const CAPTURE_CONTEXT = "CaptureContext"
@@ -67,17 +70,6 @@ export interface Construction {
    * construction this cannot see into, and `undefined` when it is not stated.
    */
   readonly provenance: string | undefined
-}
-
-const OPTIONS: ts.CompilerOptions = {
-  target: ts.ScriptTarget.ES2023,
-  module: ts.ModuleKind.NodeNext,
-  moduleResolution: ts.ModuleResolutionKind.NodeNext,
-  strict: true,
-  exactOptionalPropertyTypes: true,
-  noEmit: true,
-  skipLibCheck: true,
-  types: [],
 }
 
 function isCaptureContext(type: ts.Type | undefined): boolean {
@@ -158,18 +150,14 @@ function consumerOf(node: ts.Node): string {
 }
 
 /**
- * Every capture context `files` build, in the order they are reached: a
- * context built in a `const` is reached where it is handed over.
- *
- * `files` maps absolute paths to source text; a path not in the map is read
- * from disk, which is how the tree's own imports resolve. `root` is what the
- * reported paths are relative to.
+ * A program over sources held in memory, typed the way the tree is, so the
+ * reader is held against sources written for it on the options it reads `src/`
+ * with. `files` maps absolute paths to source text; a path not in the map is
+ * read from disk, which is how their imports resolve.
  */
-export function captureContextsIn(
-  files: ReadonlyMap<string, string>,
-  root: string,
-): Construction[] {
-  const base = ts.createCompilerHost(OPTIONS, true)
+export function programOverText(files: ReadonlyMap<string, string>): ts.Program {
+  const options = repositoryCompilerOptions()
+  const base = ts.createCompilerHost(options, true)
   const host: ts.CompilerHost = {
     ...base,
     fileExists: (path) => files.has(path) || base.fileExists(path),
@@ -186,14 +174,22 @@ export function captureContextsIn(
         : ts.createSourceFile(path, text, language, true)
     },
   }
-  const program = ts.createProgram([...files.keys()], OPTIONS, host)
+  return ts.createProgram([...files.keys()], options, host)
+}
+
+/**
+ * Every capture context the root files of `program` build, in the order they
+ * are reached: a context built in a `const` is reached where it is handed over.
+ * `root` is what the reported paths are relative to.
+ */
+export function captureContextsIn(program: ts.Program, root: string): Construction[] {
   const checker = program.getTypeChecker()
   // A literal reached twice, once where it is written and once through a name
   // for it, is one construction.
   const seen = new Set<ts.Node>()
   const found: Construction[] = []
 
-  for (const path of files.keys()) {
+  for (const path of program.getRootFileNames()) {
     const sf = program.getSourceFile(path)
     if (sf === undefined) continue
     const file = relative(root, path).split("\\").join("/")
