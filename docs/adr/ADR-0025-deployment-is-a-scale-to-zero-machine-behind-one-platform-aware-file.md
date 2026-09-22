@@ -1,5 +1,5 @@
 ---
-id: "ADR-0024"
+id: "ADR-0025"
 title: "Deployment: a scale-to-zero machine and a sleeping managed Postgres, behind one platform-aware file"
 status: proposed
 date: 2026-09-22
