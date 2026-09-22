@@ -15,8 +15,7 @@
  * primitive it forgot to list nor watered down into uselessness; both directions
  * are pinned by `network-primitives.test.ts`.
  */
-import { readdirSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
 
 /**
  * Constructs that open, or name a module capable of opening, an outbound network
@@ -42,19 +41,12 @@ export const NETWORK_PATTERNS: readonly RegExp[] = [
   /\bgot\s*\(/,
 ]
 
-/** Recursively list the source files a guard scan should read (.ts/.mts/.cts/.tsx). */
-export function sourceFiles(dir: string): string[] {
-  let entries: string[]
-  try {
-    entries = readdirSync(dir)
-  } catch {
-    return []
-  }
-  const out: string[] = []
-  for (const name of entries) {
-    const full = join(dir, name)
-    if (statSync(full).isDirectory()) out.push(...sourceFiles(full))
-    else if (/\.(?:ts|mts|cts|tsx)$/.test(name)) out.push(full)
-  }
-  return out
-}
+/**
+ * Recursively list the source files a guard scan should read.
+ *
+ * The walk and the extension set are `tests/support/tree.ts`'s, so this scan and
+ * every other structural scan read the same files. Kept as a named export
+ * because two suites in this directory import it and the name says what it is
+ * for; ADR-0029 is why it is no longer its own copy of the six lines.
+ */
+export const sourceFiles = (dir: string): string[] => filesUnder(dir, { match: SOURCE_EXTENSIONS })
