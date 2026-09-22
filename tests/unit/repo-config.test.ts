@@ -836,6 +836,14 @@ describe("slice0/container-builds-and-runs", () => {
     // different numbers, each of them written down. This guard refuses that at
     // any version rather than at 22, so it does not have to be edited to stay
     // true, only to stay honest about where a pin lives.
+    //
+    // WHAT THIS DOES NOT SEE. `@types/node` names a major too, and it is not in
+    // the map: it is a caret range in devDependencies, so putting it here would
+    // turn this guard red for a bump that belongs to the dependency-update
+    // group rather than to the runtime. The damage a mismatch there does is
+    // loud — a Node API the older typings lack is a `tsc` error, not a silent
+    // divergence — which is why it is named here rather than guarded. When it
+    // reaches the same major as the pins, it belongs in this map.
     const majors = new Map<string, string>()
 
     const fromImage = (file: string): string => {
