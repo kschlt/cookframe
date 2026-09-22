@@ -73,8 +73,9 @@ export interface InstanceDeps {
   readonly adapterVersion: string
   /**
    * Released after the last in-flight request, when the instance stops. The
-   * store's own teardown (CFV1-PG hands one back from its factory); absent for a
-   * store that holds nothing to release.
+   * store's own teardown — `createPostgresStore` returns one on its handle —
+   * and absent for a store that holds nothing to release, which is why it is
+   * optional rather than required.
    */
   readonly closeStore?: () => Promise<void>
 }

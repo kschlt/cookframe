@@ -329,8 +329,11 @@ describe("run/a-stop-leaves-nothing-half-written", () => {
     // Stated exactly, because the criterion's second clause is easy to overclaim:
     // this measures that a stop with nothing in flight completes, and that the
     // instance served nothing afterwards. It does NOT measure that a record
-    // survives a restart — that is the store's property, and the provisional
-    // in-memory store does not have it. CFV1-PG is where that becomes testable.
+    // survives a restart — that is the store's property, not this seam's, and
+    // it is measured at the store: `persistence/a-restart-keeps-the-library`
+    // (CFV1-PG, on `main`). What the entry point still constructs is the
+    // provisional in-memory store, which does not have that property; wiring the
+    // durable one in is CFV1-WIRE.
     const it_ = await instance()
     await fetch(`${it_.origin}/nothing-here`)
 

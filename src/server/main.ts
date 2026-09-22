@@ -67,9 +67,16 @@ async function main(): Promise<void> {
   const transport = createOpenAITransport({ apiKey: config.modelApiKey, model: config.model })
 
   // ONE repository, constructed here and shared by every path (ADR-0018, and
-  // `run/one-store-per-process`). The provisional in-memory store is what the
-  // tree carries today; CFV1-PG replaces this single expression with its own
-  // factory and hands back a handle whose `close` becomes `closeStore` below.
+  // `run/one-store-per-process`).
+  //
+  // This is the PROVISIONAL in-memory store, so an instance started from here
+  // forgets its library when it stops. That is not an oversight and it is not
+  // durable-by-accident: CFV1-PG's `createPostgresStore` and `resolveDatabaseUrl`
+  // are on `main` and proved, and replacing this expression with them is its own
+  // unit (CFV1-WIRE) — it needs a startup decision about a database whose
+  // migration was never applied, and it makes every proof and CI job that starts
+  // the process depend on a real server. `store.repository` is what gets
+  // injected and `store.close` is what belongs in `closeStore` below.
   const repo = createProvisionalStore()
 
   const instance = await startInstance(
