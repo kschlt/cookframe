@@ -5,7 +5,8 @@ few rules that keep the project coherent.
 
 ## Setup
 
-Requires Node 22 or newer.
+Requires Node 26 — the version `package.json` declares and the one CI and both
+containers run.
 
 ```bash
 npm ci
@@ -51,9 +52,14 @@ You do not apply the migration yourself for the tests — they apply
 `migrations/0001-the-recipe-store.sql` into each throwaway schema, which is also how that file
 stays the only declaration of the store's shape.
 
-CI runs six check jobs (typecheck, lint, unit, schema-contract, normalization-invariant,
-url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for the store proofs
-(`persistence`) and the DBQ spike (`dbq`). A failure in any one fails the build.
+CI runs each of these as its own job, plus a secret scan, a container build, and jobs with a
+PostgreSQL service for the store proofs (`persistence`) and the DBQ spike (`dbq`). The job list
+lives in `.github/workflows/ci.yml` and grows with the test directories, so read it there rather
+than from a copy here. A failure in any one fails the build.
+
+One job is not like the others: `merge-gate` runs the full gate against the *result* of merging
+your branch into `main`, not against your branch (`ADR-0022`). Two pull requests that are each
+green can still break `main` together, and that job is what catches it.
 
 ## Rules that are easy to miss
 
@@ -67,7 +73,7 @@ url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for t
   Copy `.env.example` to `.env` and fill it locally.
 - **Private eval fixtures stay private.** Real photos and personal recipes live under
   `evals/fixtures/private/`, which is git-ignored. Commit only `evals/fixtures/public/`.
-- **Architecture and product decisions are records.** See `docs/adr/` and `docs/pdr/`. An
+- **Architecture and product decisions are records.** See `docs/adr/` and `docs/product-decisions/`. An
   accepted record is never rewritten; it is superseded by a new one.
 
 ## Pull requests
