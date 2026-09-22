@@ -177,11 +177,13 @@ than in a public issue.
 
 ## License
 
+Copyright © 2026 [kschlt](https://github.com/kschlt).
+
 Cookframe is licensed under the
 [GNU Affero General Public License, version 3 or later](LICENSE). You may run it, read it, change
 it and pass it on. If you change it and offer it to other people over a network, you have to offer
 them your changed source too.
 
-Copyright in the project is held by its maintainer, who is therefore also free to license the same
-code on other terms. That is why [`CONTRIBUTING.md`](CONTRIBUTING.md) asks an outside contributor
+That copyright is held by the maintainer alone, who is therefore also free to license the same code
+on other terms. That is why [`CONTRIBUTING.md`](CONTRIBUTING.md) asks an outside contributor
 to agree to the same, before their first change is merged.
