@@ -15,13 +15,38 @@
 import type { Hono } from "hono"
 import { createInstanceCredential } from "../../src/http/instance-credential.js"
 import { createPagesApp, type PagesAppDeps } from "../../src/http/pages-app.js"
+import {
+  capabilityUrl,
+  createInMemoryCapabilityStore,
+} from "../../src/shopping/capability-token.js"
 
 /** Long enough for `createInstanceCredential` (32), and obviously not a secret. */
 export const PAGES_CREDENTIAL = `library-${"not-a-secret-".repeat(3)}`
 
+/**
+ * The public address these suites pretend to be reachable at. Nothing here
+ * fetches it: the cooking proofs are about pages, and the handoff routes that
+ * build a URL from it have their own suite.
+ */
+export const PAGES_BASE_URL = "https://pages.test"
+
+/**
+ * What a slice-6 proof has to supply. The two handoff collaborators are
+ * defaulted rather than demanded — these proofs are about the cooking page, and
+ * a suite that had to name a capability store to ask for a recipe page would be
+ * carrying a dependency it never uses. A proof that cares passes its own.
+ */
+export type PagesAppTestDeps = Omit<
+  PagesAppDeps,
+  "credential" | "capabilityStore" | "capabilityUrlFor"
+> &
+  Partial<Pick<PagesAppDeps, "capabilityStore" | "capabilityUrlFor">>
+
 /** The pages app under this suite's credential. */
-export const pagesApp = (deps: Omit<PagesAppDeps, "credential">): Hono =>
+export const pagesApp = (deps: PagesAppTestDeps): Hono =>
   createPagesApp({
+    capabilityStore: createInMemoryCapabilityStore(),
+    capabilityUrlFor: (token) => capabilityUrl(PAGES_BASE_URL, token),
     ...deps,
     credential: createInstanceCredential(PAGES_CREDENTIAL, "library credential"),
   })
