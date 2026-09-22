@@ -66,6 +66,9 @@ export function createIngestCredential(secret: string): IngestCredential {
   }
 }
 
+/** The one scheme this endpoint understands, with its single separating space. */
+const BEARER_PREFIX = "Bearer "
+
 /**
  * The credential out of an `Authorization` header, or `undefined`.
  *
@@ -73,9 +76,20 @@ export function createIngestCredential(secret: string): IngestCredential {
  * because RFC 7235 says it is case-insensitive and a phone's HTTP client is not
  * this project's to specify. The value itself is returned unchanged — trimming
  * or normalizing it would make two different secrets compare equal.
+ *
+ * Which is why this is a prefix test and not `/^Bearer (.+)$/`. In JavaScript
+ * `$` matches before a final newline unless `m` is set, so that pattern quietly
+ * dropped a trailing `\n` and returned a value the header did not carry — the
+ * one case where the sentence above was false. Nothing was at risk (a value
+ * with a newline is a different value and is refused either way), but a
+ * docstring that promises verbatim and a function that sometimes strips is the
+ * defect this repository keeps finding, in miniature. Found by review.
  */
 export function bearerCredential(authorization: string | undefined): string | undefined {
   if (authorization === undefined) return undefined
-  const match = /^Bearer (.+)$/i.exec(authorization)
-  return match?.[1]
+  if (authorization.slice(0, BEARER_PREFIX.length).toLowerCase() !== BEARER_PREFIX.toLowerCase()) {
+    return undefined
+  }
+  const value = authorization.slice(BEARER_PREFIX.length)
+  return value === "" ? undefined : value
 }
