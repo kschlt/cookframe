@@ -127,12 +127,32 @@ applied to content: **a model's claim about the source is evidence, never author
   entry survives, `snapshot.id`, which is assigned before the model sees anything. Interpolations
   inside a `sealSourceText(...)` call are now exempted by their position in the source instead, so
   a value reaching the boundary needs no permission by name.
-- **The scan alone cannot hold this.** It inspects `${...}` interpolations, so any other way of
-  building a string — `.concat`, an array `join` — is invisible to it. That is not a defect to fix
-  by widening the pattern, because the next construction escapes the next pattern; it is why each
-  assembly path also carries a behavioural proof asserting the sealed part's shape and the absence
-  of the sealed text from every other part. Twice now a structural-only guard has been shown
-  insufficient by a mutation, and both times the behavioural proof is what closed it.
+- **A guard that reads the source can only ever check a SPELLING, so the load-bearing one reads the
+  assembled prompt instead.** The scan inspects `${...}`, so `.concat` is invisible to it, and so is
+  `+` — review found the first, and then, a round later, the second, in the same place. Widening the
+  pattern is not the repair: the next construction escapes the next pattern, and each widening reads
+  as progress while the hole moves. Per-path behavioural proofs were the first answer and were not
+  enough either, because they hold per known value on its path of the day. What holds instead is a
+  DIFFERENTIAL: assemble the exchange twice from inputs differing only in what the source controls,
+  cut out the fenced regions, and require the remainder to be byte-identical. Any source byte in the
+  instruction channel makes the remainder differ, through a template, `+`, `.concat`, `join`, a
+  helper several calls down, or a construction nobody has thought of — because none of that is
+  looked at. Mutation-checked in eight shapes; one of them, laundering the value through a
+  neutrally-named local, is caught by the differential alone and leaves the scan green.
+- **What the differential does not reach, stated so the guarantee is not read wider than it is.** It
+  compares two inputs, so it exercises exactly the fields the fixture varies. A content field added
+  to `SourceSnapshot` later must be varied there, or it is simply not covered — one edit in one
+  place, with a failing differential behind it, but not nothing. The inventory scan is kept beside
+  it for the other half: a NEW module that starts assembling prompts fails the build whether or not
+  anyone thought to drive it. Neither guard says the model obeys the fence; that is verification's
+  half, and this record's whole point is that neither half stands alone.
+- **The image path's exemption is keyed on the media type while its reason is about provenance.**
+  `verifyCaptureSupport` and the capture provider branch on `mediaType.startsWith("image/")`, but
+  the argument for the exemption is that a photograph is a page the user physically held. A URL that
+  serves `image/*` is not that, and would inherit the exemption on the strength of its content type
+  alone. It is unreachable today, because `sourceMediaType` has no production caller; it opens the
+  moment Slice 4 wires the fallback, and that unit owns keying the exemption on where the bytes came
+  from rather than on what they claim to be.
 - **Some legitimate pages will be refused.** Verification is strict on purpose — it fails on the
   first unsupported claim rather than on a rate, because the harm from one invented ingredient is
   not proportional to its share of the recipe. The calibration measured this cost on a corpus

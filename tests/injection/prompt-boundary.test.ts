@@ -29,6 +29,12 @@ import { readFileSync } from "node:fs"
 import { dirname, join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import type { SourceSnapshot } from "../../schema/index.js"
+import {
+  createModelCaptureProvider,
+  createModelNormalizationProvider,
+} from "../../src/pipeline/model-providers.js"
+import type { ModelExchange, ModelTransport } from "../../src/pipeline/providers.js"
 import { sourceFiles } from "../url-fetch/network-primitives.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -219,5 +225,200 @@ describe("injection/source-text-crosses-one-boundary", () => {
     }
     // It receives the sealed part already built, and states the rule naming it.
     expect(body).toContain("untrustedRegionRule(")
+  })
+})
+
+/**
+ * The load-bearing half, added after round 5 of review found the scan above
+ * blind to `+` — as round 2 found it blind to `.concat()`.
+ *
+ * Widening the pattern is not the fix, and the second finding is the proof: the
+ * next construction escapes the next pattern, and each widening reads as
+ * progress while the hole moves. The behavioural proofs written after round 2
+ * held only per known value on its path of the day, so completeness depended on
+ * someone remembering to add a proof for a fourth value.
+ *
+ * So this checks the RESULT instead of the route to it. Assemble the exchange
+ * twice from inputs that differ only in what the source controls, cut out the
+ * fenced regions, and require what remains to be byte-identical. Any byte of
+ * the source that reaches the instruction channel makes the remainder differ —
+ * through a template, `+`, `.concat`, `Array.join`, a helper three calls down,
+ * or a construction nobody has thought of, because none of that is looked at.
+ *
+ * The marker is drawn from the test seam so both runs fence with the same one;
+ * production draws it from `crypto.randomUUID()`.
+ *
+ * What it does NOT cover, stated plainly because the record should not claim
+ * more than the guard holds: a field of `SourceSnapshot` that {@link voiced}
+ * does not vary is not exercised, so a content field added to the contract
+ * later needs a line there. That is one edit in one place with a failing
+ * differential behind it, rather than a per-value proof per path — but it is
+ * not nothing, and it is the reason the inventory scan above is kept.
+ */
+const FENCED = /<<<(UNTRUSTED-SOURCE-[^\s>]*) \([^)]*\)>>>\n[\s\S]*?\n<<<END \1>>>/g
+
+/** Everything the exchange puts in front of the model, with fenced regions cut out. */
+function outsideTheFence(exchange: ModelExchange): string {
+  return [
+    exchange.system,
+    ...exchange.parts.map((part) =>
+      part.kind === "text" ? part.text : `<image ${part.mediaType} ${part.bytes.length}B>`,
+    ),
+  ]
+    .map((text) => text.replace(FENCED, "<<<FENCED REGION, CUT OUT BY THIS PROOF>>>"))
+    .join("\n--- part boundary ---\n")
+}
+
+/**
+ * A snapshot in one `voice`: every string the SOURCE controls carries it, and
+ * every string the PIPELINE assigns is held constant.
+ *
+ * That split is the whole judgement in this proof, and it is made once, here,
+ * where it can be read — not spread across an allowlist of expressions. `id`
+ * and `captureProvenance` are the pipeline's own; a block's `type` is voiced
+ * because the capture model CHOOSES it, which is how round 3's leak got in.
+ * Block ids are voiced too although CFV1-S6's policy assigns them, not the
+ * model: nothing needs an id outside the fence, so permitting one would have to
+ * be argued for rather than inherited.
+ */
+function voiced(voice: string): SourceSnapshot {
+  return {
+    id: "snap-assigned-by-the-pipeline",
+    version: 1,
+    sourceType: "url",
+    sourceUrl: `https://${voice}.invalid/${voice}-path`,
+    sourceSite: `${voice} site name`,
+    capturedText: `${voice} captured text`,
+    blocks: [
+      { id: `${voice}-b1`, order: 0, type: "title", text: `${voice} title text` },
+      {
+        id: `${voice}-b2`,
+        order: 1,
+        type: voice === "alpha" ? "ingredient_group" : "instruction_group",
+        text: `${voice} group text`,
+        heading: `${voice} group heading`,
+      },
+    ],
+    captureProvenance: {
+      sourceAdapter: "adapter-assigned-by-the-pipeline",
+      adapterVersion: "0.0.0",
+      runId: "capture-run-assigned-by-the-pipeline",
+    },
+  }
+}
+
+/** A transport that records every exchange and always replies `reply`. */
+function recording(reply: string): ModelTransport & { readonly seen: ModelExchange[] } {
+  const seen: ModelExchange[] = []
+  return {
+    seen,
+    async send(exchange) {
+      seen.push(exchange)
+      return { text: reply }
+    },
+  }
+}
+
+const boundaryStage = (transport: ModelTransport) => ({
+  transport,
+  promptText: "PROMPT",
+  contractText: "CONTRACT",
+  markerSource: () => "FIXED",
+})
+
+/**
+ * Drive one stage to exhaustion and return every exchange it built.
+ *
+ * The reply is always rejected on purpose: the stage retries once, so ONE run
+ * yields both the initial exchange and the repair exchange. The repair path is
+ * where the rejected reply and the rejection REASON enter, and the reason is
+ * built from the reply's own words — so a voiced reply voices the reason too.
+ */
+async function exchangesFor(voice: string): Promise<{
+  capture: readonly ModelExchange[]
+  normalization: readonly ModelExchange[]
+}> {
+  const captureTransport = recording(
+    JSON.stringify({
+      capturedText: "x",
+      blocks: [{ id: "b1", order: 0, type: `${voice}-not-a-block-type`, text: "t" }],
+    }),
+  )
+  await createModelCaptureProvider(boundaryStage(captureTransport))
+    .capture(new TextEncoder().encode(`${voice} fetched page text`), {
+      snapshotId: "snap-assigned-by-the-pipeline",
+      snapshotVersion: 1,
+      sourceAdapter: "adapter-assigned-by-the-pipeline",
+      adapterVersion: "0.0.0",
+      runId: "capture-run-assigned-by-the-pipeline",
+      captureModel: "m",
+      sourceMediaType: "text/html",
+    })
+    .catch(() => undefined)
+
+  const normTransport = recording(JSON.stringify({ [`${voice}UnknownKey`]: 1 }))
+  await createModelNormalizationProvider(boundaryStage(normTransport))
+    .normalize(voiced(voice), {
+      runId: "r",
+      targetOntologyVersion: "1.0.0",
+      normalizationModel: "m",
+    })
+    .catch(() => undefined)
+
+  return { capture: captureTransport.seen, normalization: normTransport.seen }
+}
+
+describe("injection/source-text-crosses-one-boundary", () => {
+  it("nothing the source controls reaches the model outside the fence", async () => {
+    const [alpha, beta] = await Promise.all([exchangesFor("alpha"), exchangesFor("beta")])
+
+    // Both stages retry once, so each run yields the first call and the repair.
+    expect(alpha.capture).toHaveLength(2)
+    expect(alpha.normalization).toHaveLength(2)
+    expect(beta.capture).toHaveLength(2)
+    expect(beta.normalization).toHaveLength(2)
+
+    const paths: readonly (readonly [
+      string,
+      readonly ModelExchange[],
+      readonly ModelExchange[],
+    ])[] = [
+      ["capture, first call (the fetched bytes)", alpha.capture, beta.capture],
+      ["normalization, first call (the snapshot)", alpha.normalization, beta.normalization],
+    ]
+    for (const [what, a, b] of paths) {
+      expect(
+        outsideTheFence(a[0] as ModelExchange),
+        `${what}: the source's own words changed the prompt outside the fenced region`,
+      ).toEqual(outsideTheFence(b[0] as ModelExchange))
+      expect(
+        outsideTheFence(a[1] as ModelExchange),
+        `${what}, on the REPAIR call: the rejected reply or the rejection reason reached the instruction channel`,
+      ).toEqual(outsideTheFence(b[1] as ModelExchange))
+    }
+  })
+
+  it("the proof discriminates: the same words inside the fence do differ", async () => {
+    // A differential proves nothing unless the inputs really did differ, and the
+    // fenced region is where that difference is supposed to live. Without this,
+    // a `voiced` that accidentally produced identical snapshots — or a strip
+    // that cut the whole prompt away — would read as a pass.
+    const [alpha, beta] = await Promise.all([exchangesFor("alpha"), exchangesFor("beta")])
+    const fencedText = (exchange: ModelExchange): string =>
+      exchange.parts
+        .map((part) => (part.kind === "text" ? part.text : ""))
+        .join("\n")
+        .match(FENCED)
+        ?.join("\n") ?? ""
+
+    const pairs: readonly (readonly [ModelExchange, ModelExchange])[] = [
+      [alpha.capture[0] as ModelExchange, beta.capture[0] as ModelExchange],
+      [alpha.normalization[0] as ModelExchange, beta.normalization[0] as ModelExchange],
+      [alpha.capture[1] as ModelExchange, beta.capture[1] as ModelExchange],
+      [alpha.normalization[1] as ModelExchange, beta.normalization[1] as ModelExchange],
+    ]
+    for (const [a, b] of pairs) {
+      expect(fencedText(a), "the two runs did not actually differ").not.toEqual(fencedText(b))
+    }
   })
 })
