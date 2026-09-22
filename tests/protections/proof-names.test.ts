@@ -84,15 +84,17 @@ describe("protections/every-proof-can-be-named", () => {
   it("counts the registrations whose names it cannot read, and says how many", () => {
     // Composed names are left to the instrument's refusal at run time. What
     // this number holds that the names above do not is the TREE, not the
-    // reader: a new registration whose name the guard cannot see. Measured when
-    // #89 landed with an `it.each` in `url-capture-wiring.test.ts`: the count
-    // went from 25 to 26, and this was the only assertion in the file to fail.
-    // Against the reader it is redundant, and kept anyway. Of the thirteen
+    // reader: a new registration whose name the guard cannot see. Measured twice
+    // while this guard waited for review. #89 added an `it.each` in
+    // `url-capture-wiring.test.ts` and moved the count from 25 to 26. #94 added
+    // nine more in `shopping-handoff.test.ts` and `configuration.test.ts` and
+    // moved it to 35. Both times this was the only assertion in the file to
+    // fail. Against the reader it is redundant, and kept anyway. Of the thirteen
     // plants measured against the reader, none dies here alone; each also
     // reddens a fixture or a named proof above. So the number is not what holds
     // the reader. It is what makes a proof this guard cannot see arrive as a
     // visible decision instead of silently.
-    expect(byFile.flatMap((f) => f.composed).length).toBe(26)
+    expect(byFile.flatMap((f) => f.composed).length).toBe(35)
   })
 })
 
