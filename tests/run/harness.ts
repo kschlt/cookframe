@@ -27,10 +27,7 @@ import {
   type RunningInstance,
   startInstance,
 } from "../../src/server/instance.js"
-import {
-  type CapabilityStore,
-  createInMemoryCapabilityStore,
-} from "../../src/shopping/capability-token.js"
+import { type CapabilityStore, createCapabilityStore } from "../../src/shopping/capability-token.js"
 
 /**
  * Two DIFFERENT secrets, because PDR-0003 says the phone's does not open the
@@ -162,7 +159,7 @@ export interface TestInstanceParts {
  */
 export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanceParts {
   const repo = createProvisionalStore()
-  const capabilityStore = createInMemoryCapabilityStore()
+  const capabilityStore = createCapabilityStore(repo)
   const closed = { count: 0 }
   let n = 0
 

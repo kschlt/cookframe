@@ -27,7 +27,7 @@ import { createCapabilityApp } from "../../src/http/capability-app.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
 import {
   type CapabilityStore,
-  createInMemoryCapabilityStore,
+  createCapabilityStore,
   type TokenMinter,
 } from "../../src/shopping/capability-token.js"
 import { mapCanonicalToSchemaOrg } from "../../src/shopping/schema-org-mapping.js"
@@ -108,7 +108,7 @@ const canonical = (id: string, title: string): CanonicalRecipe =>
 /** Mount an app over a fresh store+repo, and hand back the pieces a test drives. */
 async function mount() {
   const repo = createProvisionalStore()
-  const store = createInMemoryCapabilityStore({ mint: sequentialMinter() })
+  const store = createCapabilityStore(repo, { mint: sequentialMinter() })
   const app = createCapabilityApp({ store, repo })
   return { repo, store, app }
 }

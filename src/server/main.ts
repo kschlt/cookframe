@@ -32,7 +32,7 @@ import {
   createModelNormalizationProvider,
 } from "../pipeline/model-providers.js"
 import { createOpenAITransport } from "../pipeline/openai-transport.js"
-import { createInMemoryCapabilityStore } from "../shopping/capability-token.js"
+import { createCapabilityStore } from "../shopping/capability-token.js"
 import { readConfiguration } from "./config.js"
 import { startInstance } from "./instance.js"
 
@@ -102,11 +102,12 @@ async function main(): Promise<void> {
   //
   // ONE read per migration-backed area, because `migrations/` holds more than
   // one file and a database can be half-migrated. `listLibrary` reaches the
-  // recipe store (`0001`) and `loadCookingPlan` the plan store (`0002`); an
-  // instance that came up on `0001` alone would serve its library and answer
-  // every cooking route with a 500, which is the same failure one migration
-  // further along. Absence is a return value for both, so neither needs a
-  // fixture and neither costs more than a round trip.
+  // recipe store (`0001`), `loadCookingPlan` the plan store (`0002`) and
+  // `resolveCapabilityGrant` the grants (`0003`); an instance that came up on
+  // `0001` alone would serve its library and answer every cooking route with a
+  // 500, which is the same failure one migration further along. Absence is a
+  // return value for all three, so none needs a fixture and none costs more
+  // than a round trip.
   //
   // The cost, stated: the process now needs its database reachable to come up at
   // all, so a restart during an outage leaves the instance down rather than up
@@ -118,6 +119,7 @@ async function main(): Promise<void> {
     // An id nothing can hold: the answer is always `undefined`, so what this
     // measures is only whether the table it reads can be read at all.
     await repo.loadCookingPlan("startup-probe", 1)
+    await repo.resolveCapabilityGrant("startup-probe")
   } catch (error) {
     await store.close().catch(() => {})
     if (error instanceof StoreNotMigratedError) throw error
@@ -131,7 +133,10 @@ async function main(): Promise<void> {
   const instance = await startInstance(
     {
       repo,
-      capabilityStore: createInMemoryCapabilityStore(),
+      // Over the SAME repository, so a grant is kept where the library is and
+      // outlives this process the way a recipe does (ADR-0032). ADR-0026 stops
+      // the machine when idle, and Bring fetches a URL it kept long after.
+      capabilityStore: createCapabilityStore(repo),
       ingestCredential: createInstanceCredential(config.ingestCredential, "ingest credential"),
       libraryCredential: createInstanceCredential(config.libraryCredential, "library credential"),
       capture: createModelCaptureProvider({

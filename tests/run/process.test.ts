@@ -37,6 +37,7 @@ import { Client } from "pg"
 import { afterAll, describe, expect, it } from "vitest"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS } from "../../src/http/not-found.js"
 import { createPostgresStore } from "../../src/persistence/index.js"
+import { createCapabilityStore } from "../../src/shopping/capability-token.js"
 import {
   decideDatabaseAvailability,
   isReachable,
@@ -458,61 +459,82 @@ describe("wire/the-port-opens-only-behind-a-reachable-store", () => {
   }, 60_000)
 })
 
+/**
+ * The table a database is missing when it stops after the first `applied`
+ * migrations, one row per place an operator can stop short.
+ *
+ * Written out rather than read off the migration files, so this is the claim and
+ * not a restatement of what the files happen to say. The row count is held
+ * against the directory in the proof below: a migration added without a row here
+ * is red, which is what keeps a fourth migration from arriving with nothing
+ * probing its table at startup.
+ */
+const MISSING_AFTER: ReadonlyArray<readonly [applied: number, table: string]> = [
+  [1, "cooking_plan"],
+  [2, "capability_grant"],
+]
+
 describe.skipIf(availability.mode === "skip")(
   "run/a-half-migrated-database-refuses-by-name",
   () => {
-    it("refuses to start when a later migration was never applied", async () => {
-      // The mistake the first migration's proof cannot reach. `migrations/` holds
-      // more than one file, an operator applies them by hand, and stopping after
-      // the first leaves a database that answers `listLibrary` perfectly — so a
-      // startup read probing only the recipe store lets the instance bind and 500
-      // every cooking route. That is the exact failure ADR-0027 exists to prevent,
-      // one migration further along, and it is why the probe reads once per
-      // migration-backed area rather than once.
-      if (availability.mode !== "run") throw new Error("unreachable: the suite is skipped")
-      const first = MIGRATIONS[0]
-      if (first === undefined) throw new Error("no migrations to apply")
+    it("has a row for every place an operator can stop short", () => {
+      // Every proper prefix of the directory, and each of them once.
+      expect(MISSING_AFTER.map(([applied]) => applied)).toEqual(
+        Array.from({ length: MIGRATIONS.length - 1 }, (_, i) => i + 1),
+      )
+    })
 
-      const schema = `cf_half_${randomBytes(6).toString("hex")}`
-      const admin = new Client({ connectionString: availability.url })
-      await admin.connect()
-      try {
-        await admin.query(`create schema "${schema}"`)
-        await admin.query(`set search_path to "${schema}"`)
-        // ONLY the first, read off the directory rather than named here: a third
-        // migration must make this case stricter, never silently unchanged.
-        await admin.query(first.sql)
-      } finally {
-        await admin.end().catch(() => {})
-      }
+    for (const [applied, table] of MISSING_AFTER) {
+      it(`refuses to start after ${applied} of the migrations, naming \`${table}\``, async () => {
+        // The mistake the first migration's proof cannot reach. `migrations/`
+        // holds more than one file, an operator applies them by hand, and
+        // stopping early leaves a database that answers every read the earlier
+        // files back — so a startup read probing only the recipe store lets the
+        // instance bind and 500 every route that needs a later table. That is
+        // the exact failure ADR-0027 exists to prevent, one migration further
+        // along, and it is why the probe reads once per migration-backed area
+        // rather than once.
+        if (availability.mode !== "run") throw new Error("unreachable: the suite is skipped")
 
-      const port = await freePort()
-      const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
-
-      try {
-        const code = await Promise.race([
-          started.exited,
-          new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-        ])
-        expect(code, `Output:\n${started.output()}`).not.toBe(0)
-        // The table it could not read, named. `recipe_version` exists here, so a
-        // refusal naming that one would mean the probe never reached the second
-        // migration's tables at all.
-        expect(started.output()).toContain("cooking_plan")
-        expect(started.output()).toContain("migrations/")
-        expect(started.output()).not.toContain("listening on port")
-        await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
-      } finally {
-        started.child.kill("SIGKILL")
-        const cleanup = new Client({ connectionString: availability.url })
-        await cleanup.connect()
+        const schema = `cf_half_${randomBytes(6).toString("hex")}`
+        const admin = new Client({ connectionString: availability.url })
+        await admin.connect()
         try {
-          await cleanup.query(`drop schema if exists "${schema}" cascade`)
+          await admin.query(`create schema "${schema}"`)
+          await admin.query(`set search_path to "${schema}"`)
+          for (const migration of MIGRATIONS.slice(0, applied)) await admin.query(migration.sql)
         } finally {
-          await cleanup.end().catch(() => {})
+          await admin.end().catch(() => {})
         }
-      }
-    }, 60_000)
+
+        const port = await freePort()
+        const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
+
+        try {
+          const code = await Promise.race([
+            started.exited,
+            new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
+          ])
+          expect(code, `Output:\n${started.output()}`).not.toBe(0)
+          // The table it could not read, named. Every earlier table exists
+          // here, so a refusal naming one of those would mean the probe never
+          // reached this migration's table at all.
+          expect(started.output()).toContain(`\`${table}\``)
+          expect(started.output()).toContain("migrations/")
+          expect(started.output()).not.toContain("listening on port")
+          await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
+        } finally {
+          started.child.kill("SIGKILL")
+          const cleanup = new Client({ connectionString: availability.url })
+          await cleanup.connect()
+          try {
+            await cleanup.query(`drop schema if exists "${schema}" cascade`)
+          } finally {
+            await cleanup.end().catch(() => {})
+          }
+        }
+      }, 60_000)
+    }
   },
 )
 
@@ -587,6 +609,81 @@ describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-the-library"
     } finally {
       first.child.kill("SIGKILL")
       second?.child.kill("SIGKILL")
+    }
+  }, 120_000)
+})
+
+/** A capability URL fetched the way Bring fetches it: over TCP, with no credential at all. */
+async function capabilityStatus(port: number, token: string): Promise<number> {
+  const res = await fetch(`http://127.0.0.1:${port}/r/${token}`)
+  await res.arrayBuffer()
+  return res.status
+}
+
+describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-every-capability-grant", () => {
+  it("a URL one process serves, the next process started against the same database still serves", async () => {
+    // OQ-48, measured across a real stop. ADR-0016 made the capability URL
+    // permanent-but-revocable because Bring keeps it and fetches it again
+    // later; ADR-0026 stops the machine when idle. Until ADR-0032 the process
+    // an operator starts kept its grants in memory, so the URL answered 200
+    // before `SIGTERM` and 404 after it, next to a recipe page that still
+    // answered 200. Every in-process proof stayed green through that, which is
+    // why this one spans two processes.
+    //
+    // **What this does NOT do, stated rather than implied:** the grants are
+    // minted through the product's own capability store over the product's own
+    // durable repository — the seam `main.ts` builds — and not through an HTTP
+    // route. What this proof owns is that the process an operator starts
+    // resolves grants from the database, reads them per request, and keeps
+    // them across a restart; how a grant comes to exist is proved where it is
+    // minted.
+    const schema = await ownSchema()
+
+    const writer = createPostgresStore(schema.url)
+    const granting = createCapabilityStore(writer.repository)
+    let first: Started | undefined
+    let second: Started | undefined
+    try {
+      await writer.repository.appendCanonicalVersion(canonical("r-shop", "Linsensuppe"))
+      const before = await granting.issue("r-shop")
+
+      const port = await freePort()
+      first = spawnInstance(environment(port, schema.url))
+      await waitFor(first, /listening on port/)
+      expect(await capabilityStatus(port, before.token)).toBe(200)
+
+      // Minted and revoked WHILE the first process runs, and required on its
+      // next request. This separates "resolves grants from the database" from
+      // "read the grants once at startup and kept a copy": an instance that
+      // cached them would serve the new URL as a miss and the revoked one as a
+      // hit, and revocation — ADR-0016's kill switch — would wait for a restart.
+      const during = await granting.issue("r-shop")
+      expect(await capabilityStatus(port, during.token)).toBe(200)
+      expect(await granting.revoke(before.token)).toBe(true)
+      expect(await capabilityStatus(port, before.token)).toBe(NOT_FOUND_STATUS)
+
+      // A real stop, the signal a container runtime sends when the machine
+      // goes idle, and a clean exit, so what follows is a restart.
+      first.child.kill("SIGTERM")
+      expect(await first.exited, `Output:\n${first.output()}`).toBe(0)
+
+      const nextPort = await freePort()
+      second = spawnInstance(environment(nextPort, schema.url))
+      await waitFor(second, /listening on port/)
+      // The asymmetry OQ-48 measured, killed: the recipe survived the restart
+      // (it always did), and now the URL Bring kept for it survives too. The
+      // revoked one is still revoked, so both halves of a grant outlived the
+      // process.
+      expect(await library(nextPort)).toContain("Linsensuppe")
+      expect(await capabilityStatus(nextPort, during.token)).toBe(200)
+      expect(await capabilityStatus(nextPort, before.token)).toBe(NOT_FOUND_STATUS)
+
+      second.child.kill("SIGTERM")
+      expect(await second.exited, `Output:\n${second.output()}`).toBe(0)
+    } finally {
+      first?.child.kill("SIGKILL")
+      second?.child.kill("SIGKILL")
+      await writer.close()
     }
   }, 120_000)
 })

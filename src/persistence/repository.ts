@@ -1,6 +1,6 @@
 /**
  * The narrow persistence interface for Cookframe (CFV1-SL1, ADR-0003; widened by
- * ADR-0018).
+ * ADR-0018, ADR-0025 and ADR-0032).
  *
  * ADR-0003 fixed the interface at five operations and required that "no storage
  * type appears outside its implementation", and warned that such an interface
@@ -47,6 +47,23 @@ export interface LibraryEntry {
   readonly title?: string
 }
 
+/**
+ * One capability grant as the store keeps it (ADR-0032): the digest of a token,
+ * and the one recipe that token reaches.
+ *
+ * The DIGEST, never the token. A capability URL is a bearer credential, and the
+ * store is the one place every URL ever minted sits side by side, so what it
+ * keeps must resolve a presented token without being one. The digest is taken
+ * by the capability store in `src/shopping/`, before anything here is called:
+ * no repository ever receives the secret, so none can leak it.
+ */
+export interface CapabilityGrantRecord {
+  /** An opaque digest of the token. The store compares it and never interprets it. */
+  readonly tokenDigest: string
+  /** The single recipe the grant reaches — and the only thing it reaches. */
+  readonly recipeId: string
+}
+
 /** Raised when a snapshot id is not present in the store. */
 export class SnapshotNotFoundError extends Error {
   constructor(readonly snapshotId: string) {
@@ -85,7 +102,9 @@ export class UnversionedCookingPlanError extends Error {
 
 /**
  * The persistence operations — ADR-0003's original five, the read ADR-0018
- * added, and the two ADR-0025 added for the derived Cooking Plan. Everything the pipeline persists goes through this interface, and every
+ * added, the two ADR-0025 added for the derived Cooking Plan, and the three
+ * ADR-0032 added so a capability grant outlives the process that minted it.
+ * Everything the pipeline persists goes through this interface, and every
  * document is validated against the versioned contract before it is written (see
  * `./validate.ts`).
  */
@@ -157,4 +176,32 @@ export interface RecipeRepository {
    * miss rather than failing.
    */
   loadCookingPlan(recipeId: string, version: number): Promise<CookingPlan | undefined>
+
+  /**
+   * (9, ADR-0032) Keep a new capability grant.
+   *
+   * Returns `true` when the grant was stored and `false` when a grant with this
+   * digest is already held — active OR revoked. It never overwrites: a conflict
+   * sends the caller back to mint another token, and a revoked grant's digest
+   * stays taken forever, so a secret once revoked can never come back reaching a
+   * recipe (ADR-0016 point 5).
+   */
+  storeCapabilityGrant(grant: CapabilityGrantRecord): Promise<boolean>
+
+  /**
+   * (10, ADR-0032) The recipe an ACTIVE grant reaches, or `undefined` when the
+   * digest is unknown or its grant is revoked.
+   *
+   * The two misses are one answer here, not two, so no caller can tell a revoked
+   * grant from one that never existed and pass the difference on (ADR-0016
+   * point 5, ADR-0021).
+   */
+  resolveCapabilityGrant(tokenDigest: string): Promise<string | undefined>
+
+  /**
+   * (11, ADR-0032) Revoke a grant. Returns `true` when an active grant was
+   * revoked and `false` when the digest is unknown or already revoked.
+   * Idempotent, and the revoked grant is kept rather than deleted.
+   */
+  revokeCapabilityGrant(tokenDigest: string): Promise<boolean>
 }

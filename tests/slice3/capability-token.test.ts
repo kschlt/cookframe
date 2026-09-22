@@ -12,14 +12,22 @@
  * Tokens are minted through the same path production uses; a deterministic minter
  * is injected so the assertions are hermetic, and the CSPRNG minter's format and
  * uniqueness are checked separately.
+ *
+ * Since ADR-0032 the store keeps its grants in the repository, so every store
+ * here is built over one. The provisional repository is used because these are
+ * proofs about the token model and not about durability; that the durable
+ * repository keeps grants across a restart is proved in `tests/persistence/`
+ * and, for the process an operator starts, in `tests/run/process.test.ts`.
  */
 import { describe, expect, it } from "vitest"
+import { createProvisionalStore, type RecipeRepository } from "../../src/persistence/index.js"
 import {
   CAPABILITY_TOKEN_BYTES,
   type CapabilityStore,
   capabilityPath,
+  capabilityTokenDigest,
+  createCapabilityStore,
   createCryptoTokenMinter,
-  createInMemoryCapabilityStore,
   isPathSafeToken,
   type TokenMinter,
 } from "../../src/shopping/capability-token.js"
@@ -34,7 +42,7 @@ const sequentialMinter = (): TokenMinter => {
 }
 
 const store = (mint: TokenMinter = sequentialMinter()): CapabilityStore =>
-  createInMemoryCapabilityStore({ mint })
+  createCapabilityStore(createProvisionalStore(), { mint })
 
 describe("slice3/capability-url-single-recipe", () => {
   it("resolves a token to exactly its one recipe, and exposes no way to reach another", async () => {
@@ -157,5 +165,85 @@ describe("slice3/capability-token-format-and-lifetime", () => {
     expect(() => capabilityPath("has space")).toThrow()
     expect(() => capabilityPath("has/slash")).toThrow()
     expect(isPathSafeToken("a?b")).toBe(false)
+  })
+})
+
+describe("grants/the-repository-never-receives-the-token", () => {
+  it("hands the repository the token's digest and never the token itself", async () => {
+    // ADR-0032: the store is the one place every minted URL sits side by side,
+    // so it keeps what resolves a token without being one. Recorded at the
+    // interface rather than read back out of one store, so this holds for every
+    // repository a capability store can be built on.
+    const repo = createProvisionalStore()
+    const seen: string[] = []
+    const recording = new Proxy(repo, {
+      get(target, property, receiver) {
+        const value = Reflect.get(target, property, receiver)
+        if (typeof value !== "function") return value
+        return (...args: unknown[]) => {
+          seen.push(JSON.stringify(args))
+          return (value as (...a: unknown[]) => unknown).apply(target, args)
+        }
+      },
+    }) as RecipeRepository
+    const s = createCapabilityStore(recording, { mint: sequentialMinter() })
+
+    const grant = await s.issue("recipe-A")
+    expect(await s.resolve(grant.token)).toBe("recipe-A")
+    expect(await s.revoke(grant.token)).toBe(true)
+
+    // All three operations reached the repository, each under the digest…
+    const digest = capabilityTokenDigest(grant.token)
+    expect(seen).toEqual([
+      JSON.stringify([{ tokenDigest: digest, recipeId: "recipe-A" }]),
+      JSON.stringify([digest]),
+      JSON.stringify([digest]),
+    ])
+    // …and the token itself never did.
+    for (const call of seen) expect(call).not.toContain(grant.token)
+  })
+
+  it("takes a digest that is not the token and cannot be mistaken for one", () => {
+    // Deterministic, so a presented token finds its grant; different from the
+    // token, so a kept row is not a working URL. SHA-256 as base64url is 43
+    // characters, the same length as a token — which is why the second line
+    // compares the values rather than the shapes.
+    const token = createCryptoTokenMinter()()
+    expect(capabilityTokenDigest(token)).toBe(capabilityTokenDigest(token))
+    expect(capabilityTokenDigest(token)).not.toBe(token)
+    expect(capabilityTokenDigest("tok-1")).toBe("ZdzxbqPfpJBpYoCJ60p1SDBw9VhLKiHuZJErX2IfEto")
+  })
+})
+
+describe("grants/a-revoked-token-is-never-minted-again", () => {
+  it("mints past a digest that is taken, whether its grant is active or revoked", async () => {
+    // ADR-0016 point 5: revoked secrets are retained as revoked so a secret can
+    // never be re-minted onto a different recipe. A minter that hands back a
+    // revoked token must be answered with another mint, not with the old
+    // secret reaching a new recipe.
+    const repo = createProvisionalStore()
+    const replaying = (tokens: string[]): TokenMinter => {
+      let i = 0
+      return () => tokens[Math.min(i++, tokens.length - 1)] ?? ""
+    }
+    const first = createCapabilityStore(repo, { mint: replaying(["tok-exposed"]) })
+    const exposed = await first.issue("recipe-A")
+    expect(await first.revoke(exposed.token)).toBe(true)
+
+    const second = createCapabilityStore(repo, { mint: replaying(["tok-exposed", "tok-fresh"]) })
+    const fresh = await second.issue("recipe-B")
+    expect(fresh.token).toBe("tok-fresh")
+    // The exposed secret stays dead, and reaches neither recipe.
+    expect(await second.resolve("tok-exposed")).toBeUndefined()
+    expect(await second.resolve(fresh.token)).toBe("recipe-B")
+  })
+
+  it("gives up rather than overwrite when every mint collides", async () => {
+    const repo = createProvisionalStore()
+    const stuck = createCapabilityStore(repo, { mint: () => "tok-stuck" })
+    await stuck.issue("recipe-A")
+    await expect(stuck.issue("recipe-B")).rejects.toThrow(/repeated collisions/)
+    // And the grant that was there is untouched.
+    expect(await stuck.resolve("tok-stuck")).toBe("recipe-A")
   })
 })
