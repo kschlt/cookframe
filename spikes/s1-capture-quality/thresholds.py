@@ -22,7 +22,10 @@ change actually travels, not in a review checklist:
 - `append-only-check` compares the registry against its committed baseline (a git
   ref, or a file) and refuses any change to an existing entry — so an edit that
   also forges a fresh hash, which the at-rest check alone would miss, is caught
-  against what was actually committed. This is `assert_append_only` on the CLI.
+  against what was actually committed. This is `assert_append_only` on the CLI. It
+  fails CLOSED: an unresolvable git ref (a checkout too shallow to carry the base)
+  is refused, distinct from a baseline that genuinely lacks the file yet (a first
+  registration, which passes). The CI job that runs it checks out full history.
 
 A "registration" is addressable by a content hash over the ACTIVE bar set
 (`registration_id`). A recorded verdict names that hash, so a result and the
@@ -381,11 +384,15 @@ def _ref_exists(ref: str, cwd: Path) -> bool:
     return r.returncode == 0
 
 
-def baseline_from_git(ref: str, current_path: Path) -> dict | None:
-    """The registry as it stood at a git ref, or None if it did not exist there
-    (a genuine first registration) or the ref cannot be resolved."""
-    if not _ref_exists(ref, current_path.parent):
-        return None
+def baseline_from_git(ref: str, current_path: Path) -> tuple[bool, dict | None]:
+    """The registry as it stood at a RESOLVABLE git ref.
+
+    Returns (found, doc): `found` is False when the file did not exist at that ref
+    — a genuine first registration. The caller checks ref resolvability first
+    (`_ref_exists`) and fails closed on an unresolvable ref, so this is only ever
+    asked of a ref that resolves; a "not found" from here therefore means the file
+    was absent, never that the guard could not run.
+    """
     rel = _repo_rel(current_path)
     show = subprocess.run(
         ["git", "-C", str(current_path.parent), "show", f"{ref}:{rel}"],
@@ -393,11 +400,8 @@ def baseline_from_git(ref: str, current_path: Path) -> dict | None:
         text=True,
     )
     if show.returncode != 0:
-        return None  # the file did not exist at that ref
-    try:
-        return json.loads(show.stdout)
-    except json.JSONDecodeError:
-        return None
+        return (False, None)  # the file did not exist at that ref
+    return (True, json.loads(show.stdout))
 
 
 # --- CLI --------------------------------------------------------------------
@@ -432,6 +436,18 @@ def _cmd_id(_args) -> int:
 
 def _cmd_gen_doc(args) -> int:
     doc = load()
+    if args.write:
+        # A publication path must not publish a source the tool itself calls
+        # INVALID: refuse to carry an unverified (e.g. hand-edited) registry into
+        # the document a human reads. `register` produces a valid doc, so the
+        # sanctioned path is unaffected.
+        problems = verify_integrity(doc)
+        if problems:
+            print("gen-doc --write REFUSED: bars.json is INVALID (run `verify`) — a publication")
+            print("path must not publish an unverified source:")
+            for p in problems:
+                print(f"  - {p}")
+            return 1
     current = DOC_PATH.read_text(encoding="utf-8")
     rendered = render_doc(doc, current)
     if args.write:
@@ -485,11 +501,21 @@ def _cmd_append_only_check(args) -> int:
     if args.baseline_file:
         baseline = load(Path(args.baseline_file))
     elif args.git_base:
-        baseline = baseline_from_git(args.git_base, current_path)
-        if baseline is None:
+        # Fail CLOSED when the ref cannot be resolved: an unresolvable base (for
+        # example a checkout too shallow to carry it) means the guard could not
+        # read what was committed, which must never read as "nothing to refuse".
+        if not _ref_exists(args.git_base, current_path.parent):
             print(
-                f"append-only: no baseline for '{current_path.name}' at {args.git_base} "
-                "(first registration or ref unavailable) — nothing to compare against"
+                f"append-only REFUSED: base ref {args.git_base!r} could not be resolved, so the "
+                "committed baseline could not be read. The unit job needs `fetch-depth: 0` so the "
+                "base commit is present; the guard fails closed rather than waving the change through."
+            )
+            return 1
+        found, baseline = baseline_from_git(args.git_base, current_path)
+        if not found:
+            print(
+                f"append-only OK — '{current_path.name}' did not exist at {args.git_base} "
+                "(first registration); nothing to compare against"
             )
             return 0
     else:

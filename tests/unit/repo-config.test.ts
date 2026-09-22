@@ -379,6 +379,25 @@ describe("CI workflow (ci.yml)", () => {
     expect(runs, "CI does not run the append-only check against the base").toMatch(
       /thresholds\.py append-only-check/,
     )
+    // The append-only check can only read the committed baseline if ITS job
+    // checks out enough history — it fails closed on an unresolvable base ref.
+    // Tie fetch-depth: 0 to that specific job, not searched across all jobs: a
+    // condition proved in the wrong job (or nowhere) is the CIPY failure mode.
+    // Deleting fetch-depth from that checkout reddens this.
+    const aoJob = Object.values(workflow.jobs).find((j) =>
+      (j.steps ?? []).some(
+        (s) => typeof s.run === "string" && /thresholds\.py append-only-check/.test(s.run),
+      ),
+    )
+    expect(aoJob, "no job runs the append-only check").toBeTruthy()
+    const checkout = (aoJob?.steps ?? []).find(
+      (s) => typeof s.uses === "string" && (s.uses as string).startsWith("actions/checkout"),
+    )
+    expect(checkout, "the append-only-check job has no checkout step").toBeTruthy()
+    expect(
+      (checkout as { with?: Record<string, unknown> }).with?.["fetch-depth"],
+      "the append-only-check job's checkout is not full-depth, so its base ref is unreachable and the guard cannot run",
+    ).toBe(0)
   })
 
   it("dbq/ci-provides-the-database — the dbq job runs against a real PostgreSQL service", () => {

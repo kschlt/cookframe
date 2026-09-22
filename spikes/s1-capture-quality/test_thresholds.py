@@ -204,6 +204,15 @@ def in_place_edit_refused() -> bool:
         if _cli(tmp, "verify").returncode == 0:
             return False
 
+        # A publication path must not carry an unverified edit into the document:
+        # gen-doc --write refuses while the registry is INVALID and leaves the
+        # document untouched, so gen-doc --check cannot later "agree" with a doc
+        # that a hand-edit had smuggled the lowered bar into.
+        doc_before = (tmp / "THRESHOLD.md").read_text()
+        gw = _cli(tmp, "gen-doc", "--write")
+        if gw.returncode == 0 or (tmp / "THRESHOLD.md").read_text() != doc_before:
+            return False
+
         # Strongest launder: forge a fresh hash so `verify` alone would pass...
         temp["hash"] = T.entry_hash(temp)
         _write(reg)
@@ -212,6 +221,14 @@ def in_place_edit_refused() -> bool:
         # ...but append-only-check against the committed baseline still refuses it.
         laundered = _cli(tmp, "append-only-check", "--baseline-file", str(base))
         if laundered.returncode == 0 or "append-only VIOLATED" not in laundered.stdout:
+            return False
+
+        # append-only-check fails CLOSED when the base ref cannot be resolved (a
+        # too-shallow checkout is the real-world case): it refuses, it does not
+        # wave the change through. This temp dir is not a git work tree, so any
+        # ref is unresolvable — the guard must still refuse, not pass vacuously.
+        unresolved = _cli(tmp, "append-only-check", "--git-base", "no-such-ref-xyz")
+        if unresolved.returncode == 0:
             return False
 
         # A legitimate appended revision, by contrast, passes append-only-check.
