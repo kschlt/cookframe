@@ -40,6 +40,18 @@
  * regression that reclassifies literal names as composed turns red instead of
  * quietly shrinking the set this checks.
  *
+ * Whether the reader agrees with vitest is not something the suite can check.
+ * It is measured, and the measurement is to be repeated whenever the renderer
+ * or the scan changes: run the whole suite with `--reporter=json`, collect every
+ * `fullName`, and compare it with the names this module gives for every file
+ * under `tests/`, helpers read as helpers. A name the reader gives that vitest
+ * does not report is a renderer bug; a name vitest reports that the reader
+ * neither gives nor counts is a blind spot. Done on 2026-09-22 against vitest
+ * 5.0.1: first 992 names given, every one reported, and one blind spot, the
+ * helper below; then, with helpers read, 1008 of 1247 given, every one
+ * reported, and every name vitest reports that the reader does not give sits
+ * in a file with sites counted for it.
+ *
  * A call registers only when its function is vitest's: bound, by an import
  * from `vitest`, to `describe`, `suite`, `it` or `test`, under whatever local
  * name. The binding decides, not the spelling, so a function of a file's own

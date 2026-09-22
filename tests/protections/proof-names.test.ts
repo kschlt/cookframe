@@ -140,6 +140,11 @@ describe("protections/every-proof-can-be-named", () => {
     //
     // When this is red, look at the new site before moving the list. A name the
     // reader should be able to read belongs in the reader, not in this list.
+    //
+    // An entry holds file, reason and how often, not which registration: one
+    // the reader cannot name has no name to carry. A registration that moves
+    // within one file is therefore invisible here, and cannot be otherwise. The
+    // 32 helper entries are the widest case of it: one file, one reason.
     const survivors = byFile.flatMap((f) => f.composed.map((c) => `${c.file}: ${c.why}`)).sort()
     const contract = `tests/persistence/repository-contract.ts: ${IN_A_HELPER}`
     const contractSuites = 7
