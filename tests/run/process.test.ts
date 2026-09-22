@@ -371,7 +371,11 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
       // from an unreachable one is unguarded and could be deleted.
       expect(started.output()).not.toContain("could not be read")
       // And nothing bound, so there is no instance answering out of a database
-      // it cannot read.
+      // it cannot read. Both halves: it never announced a port, and nothing is
+      // listening on one. The first is what makes the ORDER falsifiable — a
+      // process that binds and only then discovers the empty database still
+      // exits non-zero with the same message, and would pass every line above.
+      expect(started.output()).not.toContain("listening on port")
       await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
     } finally {
       started.child.kill("SIGKILL")
