@@ -30,6 +30,7 @@
 import { spawn } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -93,9 +94,10 @@ function environment(
     HOME: process.env["HOME"] ?? "",
     PORT: String(port),
     MODEL_PROVIDER: "openai",
-    // Never used: no test here submits a capture, so no model call is made.
-    // A real key would be a real charge, and this proof has no business making
-    // one (the project's budget rule).
+    // Never a real key. A real key would be a real charge, and these proofs
+    // have no business making one (the project's budget rule). The one case
+    // that submits a photograph routes the model's request to a local refusal
+    // (`modelRequestsRefusedLocally`), so the key never leaves the machine.
     OPENAI_API_KEY: "not-a-real-key",
     OPENAI_MODEL: "not-a-real-model",
     COOKFRAME_INGEST_CREDENTIAL: INGEST_CREDENTIAL,
@@ -442,6 +444,121 @@ describe.skipIf(availability.mode === "skip")(
         await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
       } finally {
         started.child.kill("SIGKILL")
+      }
+    }, 60_000)
+  },
+)
+
+/**
+ * Where a spawned process's model request goes instead of to the provider.
+ *
+ * The photo route hands a photograph to the model once it has kept it, and the
+ * composition root wires the real provider transport, which is right and is
+ * not what a proof may call. The process is left as it is; only its
+ * ENVIRONMENT differs. Node's `fetch` honours `HTTPS_PROXY` when
+ * `NODE_USE_ENV_PROXY` is set, so the transport's request arrives here as a
+ * `CONNECT` and is refused before a tunnel exists. The key and the photograph
+ * never leave the machine, the capture fails the way a provider outage makes
+ * it fail, and the refusal is recorded, so a proof can tell a process that
+ * asked the model from one that stopped before it.
+ *
+ * `onRequest` runs when the request arrives, before it is refused. That is the
+ * moment the model would first see the photograph.
+ */
+async function modelRequestsRefusedLocally(onRequest: () => void): Promise<{
+  readonly env: Record<string, string>
+  readonly asked: string[]
+  readonly close: () => Promise<void>
+}> {
+  const asked: string[] = []
+  const server = createServer((_req, res) => {
+    asked.push("a plain request")
+    res.writeHead(403).end()
+  })
+  server.on("connect", (req, socket) => {
+    asked.push(req.url ?? "")
+    onRequest()
+    socket.end("HTTP/1.1 403 Forbidden\r\n\r\n")
+  })
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const address = server.address()
+  if (address === null || typeof address === "string") throw new Error("no port was bound")
+  return {
+    env: { NODE_USE_ENV_PROXY: "1", HTTPS_PROXY: `http://127.0.0.1:${address.port}` },
+    asked,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+}
+
+/** Whether some file under `volume` holds exactly `bytes`. The layout is the store's own. */
+function holds(volume: string, bytes: Uint8Array): boolean {
+  return filesIn(volume).some((file) => Buffer.from(bytes).equals(readFileSync(file)))
+}
+
+describe.skipIf(availability.mode === "skip")(
+  "run/a-photograph-sent-to-the-process-is-on-its-volume",
+  () => {
+    it("keeps a photograph it is sent under STORAGE_ROOT, before the model is asked", async () => {
+      // Every other proof that a photograph is kept composes the instance
+      // inside the test runner and hands it the store. That left the last link
+      // (the store `main.ts` builds and the directory it builds it on)
+      // unproven by behaviour. The review of #98 measured it: an ingest app
+      // given a store that accepts and discards kept every socket and process
+      // proof green. This case sends the photograph to the process an operator
+      // starts, and reads the directory the operator named.
+      const schema = await ownSchema()
+      const volume = freshVolume()
+      // Random, so no other file can hold these bytes: not the start-up probe's
+      // empty file, and nothing a previous run left behind.
+      const photograph = new Uint8Array(randomBytes(4096))
+
+      let keptWhenAsked: boolean | undefined
+      const model = await modelRequestsRefusedLocally(() => {
+        keptWhenAsked ??= holds(volume, photograph)
+      })
+      const port = await freePort()
+      const started = spawnInstance({ ...environment(port, schema.url, volume), ...model.env })
+      try {
+        await waitFor(started, /cookframe listening on port \d+/)
+
+        const res = await fetch(`http://127.0.0.1:${port}/capture`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${INGEST_CREDENTIAL}`, "content-type": "image/jpeg" },
+          body: photograph,
+        })
+
+        // The floor. The photograph went the whole way: through the route, to
+        // the model, which refused. A process that answered before asking the
+        // model would satisfy "kept" below without having carried the
+        // photograph the way a real one is carried.
+        expect(
+          await res.json(),
+          "the capture should fail the way a refused model makes it fail",
+        ).toEqual({
+          error: "capture_failed",
+        })
+        expect(res.status).toBe(500)
+        expect(
+          model.asked,
+          "the process never asked the model: the photograph did not travel the photo route's whole path",
+        ).toEqual(["api.openai.com:443"])
+
+        // The claim. The bytes sent are on the directory STORAGE_ROOT names.
+        // They are read back from the files, not asked of the store, since the
+        // store's own `put` would write the file being looked for.
+        expect(
+          holds(volume, photograph),
+          "no file under STORAGE_ROOT holds the photograph the process was sent",
+        ).toBe(true)
+        // And they were already there when the model was asked. A capture that
+        // fails is the case the ordering exists for.
+        expect(
+          keptWhenAsked,
+          "the photograph was not yet on the volume when the model was asked for it",
+        ).toBe(true)
+      } finally {
+        started.child.kill("SIGKILL")
+        await model.close()
       }
     }, 60_000)
   },
