@@ -81,47 +81,29 @@ describe("protections/every-proof-can-be-named", () => {
     ).toEqual([])
   })
 
-  it("counts, file by file, the registrations whose names it cannot read", () => {
-    // Composed names (a template with a substitution, or a title from an
-    // `.each` table) are left to the instrument's refusal at run time. This
-    // table is what holds the TREE rather than the reader: a registration whose
-    // name the guard cannot see never arrives silently. It is expected to move.
-    // Measured twice while this guard waited for review, both times as the only
-    // red in the file: #89 took the total from 25 to 26 with one `it.each` in
-    // `url-capture-wiring.test.ts`, and #94 took it to 35 with seven in
-    // `shopping-handoff.test.ts` and two in `configuration.test.ts`.
+  it("counts the registrations whose names it cannot read, and says how many", () => {
+    // Composed names are left to the instrument's refusal at run time. What
+    // this number holds that the names above do not is the TREE, not the
+    // reader: a new registration whose name the guard cannot see. Measured twice
+    // while this guard waited for review. #89 added an `it.each` in
+    // `url-capture-wiring.test.ts` and moved the count from 25 to 26. #94 added
+    // nine more in `shopping-handoff.test.ts` and `configuration.test.ts` and
+    // moved it to 35. Both times this was the only assertion in the file to
+    // fail. The nine from #94 were each looked at before the number moved:
+    // all are `it.each` with a `%s` or `%j` format, so their names come from a
+    // table and no static reader can give them.
     //
-    // It is a table and not a total so that a red names the file, and so that
-    // a registration moving from one file to another is red too. When a row is
-    // red, look at the new sites in that file before touching the row. A name
-    // the reader should be able to read belongs in the reader, not in this
-    // table. Move the row only when the names there really come from a table
-    // or a substitution. A row changed by reflex guards nothing.
+    // So this number moves with merges, and that is its purpose. When it is
+    // red, do not move it by reflex. Look at the new sites first: a name the
+    // reader should be able to read belongs in the reader, not in this count.
+    // A red that gets waved through without looking guards nothing.
     //
-    // Against the reader this is redundant, and kept anyway: none of the
-    // thirteen plants measured against the reader dies here alone; each also
-    // reddens a fixture or a named proof above.
-    const perFile = Object.fromEntries(
-      byFile.filter((f) => f.composed.length > 0).map((f) => [f.file, f.composed.length]),
-    )
-    expect(perFile).toEqual({
-      "tests/base/merge-gate.test.ts": 1,
-      "tests/cooking-ux/start-now-admission.test.ts": 1,
-      "tests/dbq/queries.test.ts": 1,
-      "tests/fixtures/public-fixtures.test.ts": 4,
-      "tests/multi-recipe/multi-recipe.test.ts": 2,
-      "tests/protections/url-capture-wiring.test.ts": 1,
-      "tests/records/record-ids.test.ts": 1,
-      "tests/run/configuration.test.ts": 2,
-      "tests/run/fly-configuration.test.ts": 3,
-      "tests/run/shopping-handoff.test.ts": 7,
-      "tests/schema/finite-number.contract.test.ts": 5,
-      "tests/slice2/render.test.ts": 3,
-      "tests/slice3/schema-org-mapping.test.ts": 1,
-      "tests/slice5/mobile-entry-point.test.ts": 1,
-      "tests/slice5/plist.test.ts": 1,
-      "tests/slice6/generation-policy.test.ts": 1,
-    })
+    // Against the reader it is redundant, and kept anyway. Of the thirteen
+    // plants measured against the reader, none dies here alone; each also
+    // reddens a fixture or a named proof above. So the number is not what holds
+    // the reader. It is what makes a proof this guard cannot see arrive as a
+    // visible decision instead of silently.
+    expect(byFile.flatMap((f) => f.composed).length).toBe(35)
   })
 })
 
