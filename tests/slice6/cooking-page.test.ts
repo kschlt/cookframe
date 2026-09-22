@@ -25,11 +25,11 @@ import {
   UntraceablePlanFactError,
   unitNeedsItsAmountBlock,
 } from "../../src/cooking/index.js"
-import { createCookingApp } from "../../src/http/cooking-app.js"
 import type { RecipeRepository } from "../../src/persistence/index.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
 import { renderCookingPage } from "../../src/render/index.js"
 import { bellPepper, nerano } from "./fixtures.js"
+import { getPage, pagesApp } from "./pages.js"
 
 /** Markers that tell the two pages apart without reading either one by eye. */
 const COOKING_PAGE = '<ol class="units">'
@@ -37,7 +37,7 @@ const RECIPE_PAGE = "<h2>Ingredients</h2>"
 
 interface Served {
   readonly repo: RecipeRepository
-  readonly app: ReturnType<typeof createCookingApp>
+  readonly app: ReturnType<typeof pagesApp>
   readonly degraded: { recipeId: string; reason: unknown }[]
   readonly version: number
 }
@@ -47,7 +47,7 @@ async function serving(...recipes: readonly CanonicalRecipe[]): Promise<Served> 
   const degraded: { recipeId: string; reason: unknown }[] = []
   let version = 0
   for (const recipe of recipes) version = (await repo.appendCanonicalVersion(recipe)).version
-  const app = createCookingApp({
+  const app = pagesApp({
     repo,
     onDegraded: (recipeId, reason) => degraded.push({ recipeId, reason }),
   })
@@ -55,7 +55,7 @@ async function serving(...recipes: readonly CanonicalRecipe[]): Promise<Served> 
 }
 
 const cook = async (s: Served, recipe: CanonicalRecipe): Promise<Response> =>
-  await s.app.request(`/recipes/${recipe.id}/cook`)
+  await getPage(s.app, `/recipes/${recipe.id}/cook`)
 
 const body = async (response: Response): Promise<string> => await response.text()
 
@@ -153,7 +153,7 @@ describe("slice6/recipe-viewable-without-plan", () => {
 
   it("keeps the recipe page reachable, and the two pages distinct", async () => {
     const s = await serving(bellPepper)
-    const recipe = await s.app.request(`/recipes/${bellPepper.id}`)
+    const recipe = await getPage(s.app, `/recipes/${bellPepper.id}`)
     expect(recipe.status).toBe(200)
     const page = await body(recipe)
     expect(page).toContain(RECIPE_PAGE)
@@ -164,8 +164,8 @@ describe("slice6/recipe-viewable-without-plan", () => {
     // The one 404: not knowing the recipe is a different thing from not having
     // a plan for it, and collapsing them would make the degradation untestable.
     const s = await serving(bellPepper)
-    expect((await s.app.request("/recipes/nobody/cook")).status).toBe(404)
-    expect((await s.app.request("/recipes/nobody")).status).toBe(404)
+    expect((await getPage(s.app, "/recipes/nobody/cook")).status).toBe(404)
+    expect((await getPage(s.app, "/recipes/nobody")).status).toBe(404)
   })
 })
 
@@ -201,9 +201,9 @@ describe("slice6/recipe-viewable-when-derivation-fails", () => {
     const broken = withDanglingUse(nerano)
     const repo = createProvisionalStore()
     await repo.appendCanonicalVersion(broken)
-    const bare = createCookingApp({ repo })
+    const bare = pagesApp({ repo })
 
-    const response = await bare.request(`/recipes/${broken.id}/cook`)
+    const response = await getPage(bare, `/recipes/${broken.id}/cook`)
     expect(response.status).toBe(200)
     expect(await body(response)).toContain(RECIPE_PAGE)
   })
@@ -211,7 +211,7 @@ describe("slice6/recipe-viewable-when-derivation-fails", () => {
   it("leaves the recipe address untouched by the plan's failure", async () => {
     const broken = withDanglingUse(nerano)
     const s = await serving(broken)
-    const recipe = await s.app.request(`/recipes/${broken.id}`)
+    const recipe = await getPage(s.app, `/recipes/${broken.id}`)
 
     expect(recipe.status).toBe(200)
     expect(await body(recipe)).toContain(RECIPE_PAGE)
