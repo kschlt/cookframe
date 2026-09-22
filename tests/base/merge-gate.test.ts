@@ -44,18 +44,22 @@ import { declaredGateCommand, runMergeGate } from "../../scripts/merge-gate.js"
  * the slowest proof in the file:
  *
  *   5 runs of this file alone ................................  907 ms
- *   3 runs inside the full suite (69 files in parallel) .......  859 ms
+ *   3 runs inside the full suite (69 files in parallel) .......  859 ms  <- the row that decides this
+ *
  *   1 run against  4 competing busy processes ................. 1504 ms
  *   1 run against  8 .......................................... 1715 ms
  *   1 run against 16 .......................................... 2473 ms
  *   1 run against 32 .......................................... 4821 ms  <- 179 ms under the old bound
  *   1 run against 48 .......................................... 6231 ms  <- two proofs past it
  *
- * The suite's own parallelism costs this file almost nothing; what stretches it
- * is the machine being oversubscribed, which is the one thing a shared runner
- * does and the one thing that is unknowable after the fact. At roughly twelve
- * times oversubscription the cost reproduces the reported 6173 ms on demand, so
- * that red was never a flake — it was this measurement, taken by accident.
+ * That second row is the one doing the work, and it is easy to skim past: 859 ms
+ * inside 69 parallel files against 907 ms alone means the suite's own
+ * parallelism costs this file almost nothing, which rules out sharding it or
+ * pulling it out of the parallel run. What is left is the machine being
+ * oversubscribed, which is the one thing a shared runner does and the one thing
+ * that is unknowable after the fact. At roughly twelve times oversubscription
+ * the cost reproduces the reported 6173 ms on demand, so that red was never a
+ * flake — it was this measurement, taken by accident.
  *
  * The bound is therefore the worst cost measured at the contention that
  * reproduces the incident, times five. Stated as a multiple rather than as a
@@ -70,13 +74,33 @@ import { declaredGateCommand, runMergeGate } from "../../scripts/merge-gate.js"
  * 3640 and 3508 ms, one band with no outlier, so a per-proof figure would be
  * precision this measurement does not have.
  *
- * WHAT THIS DOES NOT DO. Nothing holds this number in place. Delete the call
- * below and the bound silently reverts to the same guessed default that caused
- * the incident, with every proof still green.
+ * The constant is named after what it measures rather than after what it
+ * permits, which is the point: `MEASURED_WORST_UNDER_CONTENTION_MS` cannot be
+ * edited upward without lying about where the number came from, whereas a
+ * `TIMEOUT_MS` invites exactly the silent raise this file exists because of.
+ *
+ * WHAT THE PROOF BELOW PINS, AND WHAT IT DOES NOT. It pins that this
+ * declaration takes effect — delete the call and the bound reverts to the same
+ * guessed default that caused the incident, which is the incident's own shape.
+ * It does not pin the multiple: raising `HEADROOM` tenfold raises both sides of
+ * its assertion and the proof stays green — measured, not assumed, as a
+ * deliberate survivor through the repository's own instrument. That is the
+ * right shape. The multiple is a judgment read off the table above, not a
+ * measurable fact, and a proof that pretended otherwise would be pinning an
+ * opinion while looking like evidence.
  */
 const MEASURED_WORST_UNDER_CONTENTION_MS = 6231
 const HEADROOM = 5
 vi.setConfig({ testTimeout: MEASURED_WORST_UNDER_CONTENTION_MS * HEADROOM })
+
+describe("base/the-bound-is-declared", () => {
+  it("runs under the measured bound, not vitest's guessed default", (ctx) => {
+    // A test is told its own effective timeout, so the declaration above can be
+    // read back from inside one rather than taken on trust. With the call
+    // removed this reads `expected 5000 to be 31155`: the reversion itself.
+    expect(ctx.task.timeout).toBe(MEASURED_WORST_UNDER_CONTENTION_MS * HEADROOM)
+  })
+})
 
 const made: string[] = []
 afterEach(() => {
