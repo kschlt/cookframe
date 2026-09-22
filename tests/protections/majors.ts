@@ -188,27 +188,23 @@ const NODE_26: MajorHarness = {
       target: "tests/url-fetch/url-security.connector.test.ts",
       mutations: [
         {
-          // MEASURED, and not the assertion anyone would name first. This plant
-          // reddens five proofs in this suite; `url-security/redirect-revalidation`
-          // is among them and CANNOT be named, because a second proof is called
-          // `url-security/redirect-revalidation (named host re-classified on
-          // connect)` and the shorter name is a prefix of the longer one. A
-          // marker is a substring, so naming the short one matches two tests and
-          // `decideMarker` refuses it — correctly, since a failure could not be
-          // attributed to either. Naming the LONG one is worse and was the first
-          // attempt here: it resolves to exactly one test, and that test does
-          // not fail under this plant, so the run came back INCONCLUSIVE rather
-          // than green — the instrument declining to call a kill it had not
-          // seen.
+          // Named at the per-hop revalidation proof, which is the defect: when
+          // the fetcher follows a redirect itself, no hop after the first is
+          // examined at all. Measured, this plant reddens five proofs here.
           //
-          // So the assertion named is the per-hop scheme check, which is unique
-          // and is the defect rather than a neighbour of it: when the fetcher
-          // follows a redirect itself, no hop is re-examined at all, and the
-          // scheme of the hop it followed was never checked.
+          // It could not be named when this list was ported. The proof was then
+          // called `url-security/redirect-revalidation`, a PREFIX of its sibling
+          // `… (named host re-classified on connect)`, and a marker is a
+          // substring: the short name matched both, `decideMarker` refused it,
+          // and naming the long one came back INCONCLUSIVE because that sibling
+          // does not fail under this plant. The plant sat at the scheme check
+          // instead. The proofs have been renamed since, and
+          // `protections/every-proof-can-be-named` keeps the shape from coming
+          // back.
           name: "the fetcher follows redirects itself instead of revalidating each hop",
           find: '      redirect: "manual",',
           replace: '      redirect: "follow",',
-          mustFail: "url-security/scheme-allowlist (reached by redirect)",
+          mustFail: "url-security/redirect-revalidation (a later hop to a private literal)",
         },
       ],
     },
