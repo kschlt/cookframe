@@ -62,6 +62,26 @@ the thirteen narrowings left it green.
 
 The five that went red are the rule, and so are the eight that did not.
 
+### The counterexample that arrived by itself
+
+While this sweep was being written, `CFV1-MUT` landed an **eighth** copy of the same recursive walk
+on `main`, in `tests/protections/configured-database.ts`, with a ninth answer to the extension
+question (`.ts` by `endsWith`). Written independently, the same day, by someone who had no way to
+know the other seven existed.
+
+It is **not** a violation of the rule below, and that is why it is here. Narrowing it fails the
+build: remove its descent and it is red, change its extension and it is red. What holds it is one
+proof, `protections/a-test-runs-on-what-was-configured`, whose assertion names a file the walk has
+to reach. Nothing about the walk was made careful; the assertion was made specific, and the walk
+inherited it.
+
+Two things follow. The duplication is a maintenance cost and not a correctness one, so
+consolidating a copy is a judgement about upkeep rather than an obligation of this record. And the
+misattribution is worth seeing: narrowing that walk's *extension* reddens the proof about its
+*depth*, because the named file simply stops being found. The guard is held, and its failure
+message points at the wrong half — which is the second defect shape, surviving inside a guard that
+is otherwise correct.
+
 ## Decision
 
 **A structural guard's breadth is held only by an assertion that names something the breadth is
