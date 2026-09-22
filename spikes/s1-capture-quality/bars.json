@@ -1,0 +1,185 @@
+{
+  "note": "CFV1-THR — the single, append-only declaration of the OQ-14 capture-quality bars. A bar is declared once; a revision APPENDS a new dated entry (a higher seq, supersedes pointing at the entry it replaces) and the old entry stays. Editing an entry in place is refused by thresholds.py (assert_append_only) and caught at rest by its per-entry hash (verify_integrity). The scorer reads the active bars from here; THRESHOLD.md's bar tables are generated from here. Do not hand-edit: use `thresholds.py register`, then `thresholds.py seal` and `thresholds.py gen-doc --write`. Bar values recorded 2026-09-20, before any capture was read (git history is the ordering proof).",
+  "registrations": [
+    {
+      "seq": 1,
+      "bar": "ingredient.quantity",
+      "kind": "field",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "wrong amount ruins the dish; silent after deletion",
+      "supersedes": null,
+      "hash": "e13ead1c63ec0738c42a3bbb31eb483cc365dac01305be20360e7a12d79e39e6"
+    },
+    {
+      "seq": 2,
+      "bar": "ingredient.unit",
+      "kind": "field",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "1 tsp vs 1 tbsp salt is a safety/edibility failure",
+      "supersedes": null,
+      "hash": "aa944e78ee92674c383c49c261ecb95b87a5bc2422866df5f076521e935ec542"
+    },
+    {
+      "seq": 3,
+      "bar": "split_reserved",
+      "kind": "field",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "losing \"reserve 150 g\" makes a later step impossible",
+      "supersedes": null,
+      "hash": "196c187108304fe075038f571581b5577fc7d6bbd2cee1aa3cd10a51e60262c5"
+    },
+    {
+      "seq": 4,
+      "bar": "temperature",
+      "kind": "field",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "under/over-temp is a food-safety failure",
+      "supersedes": null,
+      "hash": "77724feb40309f448dc58d6f5722c7af3b188547289b5d252fbd9c8dfd7bc688"
+    },
+    {
+      "seq": 5,
+      "bar": "multiple_yields",
+      "kind": "field",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "picking the wrong yield mis-scales everything",
+      "supersedes": null,
+      "hash": "02cf0a7acb974936b619d85cce3d3b95ec99dc6409949f0318d16c7da84c0ab0"
+    },
+    {
+      "seq": 6,
+      "bar": "ingredient.name",
+      "kind": "field",
+      "value": 0.95,
+      "registered": "2026-09-20",
+      "reasoning": "wrong ingredient identity",
+      "supersedes": null,
+      "hash": "6e6ae9ed38618c958f771ae982a99ddb448e0761b08792a74e070aec25579958"
+    },
+    {
+      "seq": 7,
+      "bar": "instruction.text",
+      "kind": "field",
+      "value": 0.95,
+      "registered": "2026-09-20",
+      "reasoning": "the action itself",
+      "supersedes": null,
+      "hash": "11d656641a4a0ecbb1294e74345e765892da18c4fac6a34f0bbe11eed5bf9642"
+    },
+    {
+      "seq": 8,
+      "bar": "instruction.order",
+      "kind": "field",
+      "value": 0.95,
+      "registered": "2026-09-20",
+      "reasoning": "reordered steps break the recipe",
+      "supersedes": null,
+      "hash": "cd0c00dd082cc4d2b912f171f6c4c41e9a523565a75a6ba17fbbf33b616d6cb0"
+    },
+    {
+      "seq": 9,
+      "bar": "title",
+      "kind": "field",
+      "value": 0.95,
+      "registered": "2026-09-20",
+      "reasoning": "recipe identity",
+      "supersedes": null,
+      "hash": "63efcca9826313c38ae0cbccc027c5c5ba53abddd2f5a8a63a1915dfb17d731b"
+    },
+    {
+      "seq": 10,
+      "bar": "yield",
+      "kind": "field",
+      "value": 0.95,
+      "registered": "2026-09-20",
+      "reasoning": "scaling / shopping base",
+      "supersedes": null,
+      "hash": "91efea22c11e99b55dd192ddbceeb320e68e7ab903b7c3de9c073c1b229b7441"
+    },
+    {
+      "seq": 11,
+      "bar": "time",
+      "kind": "field",
+      "value": 0.95,
+      "registered": "2026-09-20",
+      "reasoning": "planning + readiness",
+      "supersedes": null,
+      "hash": "9cbf27dbf39bb02e8a108b042d0c330cb5c8d9dcc5c46b1e9d505adf1a5ddeba"
+    },
+    {
+      "seq": 12,
+      "bar": "ingredient_group",
+      "kind": "field",
+      "value": 0.9,
+      "registered": "2026-09-20",
+      "reasoning": "grouping structure when the source has it",
+      "supersedes": null,
+      "hash": "5ff1d1b33ca8b373b9b663f107fa4ea8b2aedf338c0220ca09d469f687a03454"
+    },
+    {
+      "seq": 13,
+      "bar": "nutrition",
+      "kind": "field",
+      "value": 0.9,
+      "registered": "2026-09-20",
+      "reasoning": "preserved-not-acted-on canonical fact",
+      "supersedes": null,
+      "hash": "d52c885ae54a39f44ed9d9124e7fa50234d9164ce0f62a130e16277befb2e761"
+    },
+    {
+      "seq": 14,
+      "bar": "classification",
+      "kind": "field",
+      "value": 0.9,
+      "registered": "2026-09-20",
+      "reasoning": "preserved source fact",
+      "supersedes": null,
+      "hash": "426053cf29a31fd5380b364804842ceb2f97b0afcaafd2c3a3c7cd5735867d86"
+    },
+    {
+      "seq": 15,
+      "bar": "fractions",
+      "kind": "edge",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "½, ¾, 1 1/2 — a misread fraction is a silently wrong amount",
+      "supersedes": null,
+      "hash": "bcbf50c46c9dd6dd93f0fb923ad804bd8a63d209a817b7c31c22d0b25ee6fb75"
+    },
+    {
+      "seq": 16,
+      "bar": "ranges",
+      "kind": "edge",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "2–3, 180-200 °C — a range matches only if both bounds survive",
+      "supersedes": null,
+      "hash": "68d6acd22a97e70c61872b7e30d95d95fa2bdea72be5341daa0084d029985262"
+    },
+    {
+      "seq": 17,
+      "bar": "ambiguous_units",
+      "kind": "edge",
+      "value": 0.95,
+      "registered": "2026-09-20",
+      "reasoning": "1 can, 1 clove, a pinch, 1 stick — unit-shaped words carrying the quantity",
+      "supersedes": null,
+      "hash": "85e41c2e8571bccf4296fe20123c860e9e343b8d38625b80ab57c914e2819746"
+    },
+    {
+      "seq": 18,
+      "bar": "multiple_yields",
+      "kind": "edge",
+      "value": 0.98,
+      "registered": "2026-09-20",
+      "reasoning": "makes 12 / serves 4 — the kept base yield mis-scales everything if wrong",
+      "supersedes": null,
+      "hash": "b343dd8fa77d1c54a7d32afaa52aa02719a82adffb90ad88eb138dd7dba3f6f7"
+    }
+  ]
+}
