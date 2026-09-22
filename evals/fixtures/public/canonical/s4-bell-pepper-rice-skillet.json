@@ -1,0 +1,484 @@
+{
+  "id": "s4-bell-pepper-rice-skillet",
+  "schemaVersion": "2.0.0",
+  "title": {
+    "state": "from_source",
+    "sourceText": "Bell Pepper Rice Skillet",
+    "sourceRefs": [
+      {
+        "blockId": "b-title"
+      }
+    ]
+  },
+  "sourceName": "Cookframe Fixtures",
+  "sourceUrl": "https://example.invalid/bell-pepper-rice-skillet",
+  "yields": [
+    {
+      "id": "y-1",
+      "sourceText": "4 servings",
+      "valueExpression": {
+        "sourceText": "4",
+        "kind": "exact",
+        "value": 4
+      },
+      "unit": "servings",
+      "scalingEligibility": "allowed",
+      "sourceRefs": [
+        {
+          "blockId": "b-yield-1"
+        }
+      ]
+    }
+  ],
+  "equipment": [
+    {
+      "id": "e-skillet",
+      "sourceText": "Large skillet with lid",
+      "name": "Large skillet with lid",
+      "qualifiers": [],
+      "sourceRefs": [
+        {
+          "blockId": "b-eq-e-skillet"
+        }
+      ]
+    }
+  ],
+  "ingredientGroups": [
+    {
+      "id": "g-1",
+      "sourceRefs": [
+        {
+          "blockId": "b-ing-list"
+        }
+      ],
+      "ingredients": [
+        {
+          "id": "i-peppers",
+          "sourceText": "1 kg bell peppers, mixed colors",
+          "name": "bell peppers",
+          "qualifiers": ["mixed colors"],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-peppers"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "1",
+            "kind": "exact",
+            "value": 1
+          },
+          "unit": "kg"
+        },
+        {
+          "id": "i-onion",
+          "sourceText": "1 onion",
+          "name": "onion",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-onion"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "1",
+            "kind": "exact",
+            "value": 1
+          }
+        },
+        {
+          "id": "i-garlic",
+          "sourceText": "2 cloves garlic",
+          "name": "garlic",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-garlic"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "2",
+            "kind": "exact",
+            "value": 2
+          },
+          "unit": "cloves"
+        },
+        {
+          "id": "i-ajvar",
+          "sourceText": "3 tbsp ajvar",
+          "name": "ajvar",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-ajvar"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "3",
+            "kind": "exact",
+            "value": 3
+          },
+          "unit": "tbsp"
+        },
+        {
+          "id": "i-paprika",
+          "sourceText": "2 tsp sweet paprika powder",
+          "name": "sweet paprika powder",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-paprika"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "2",
+            "kind": "exact",
+            "value": 2
+          },
+          "unit": "tsp"
+        },
+        {
+          "id": "i-rice",
+          "sourceText": "250 g rice, uncooked",
+          "name": "rice",
+          "qualifiers": ["uncooked"],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-rice"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "250",
+            "kind": "exact",
+            "value": 250
+          },
+          "unit": "g"
+        },
+        {
+          "id": "i-broth",
+          "sourceText": "500 ml vegetable broth",
+          "name": "vegetable broth",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-broth"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "500",
+            "kind": "exact",
+            "value": 500
+          },
+          "unit": "ml"
+        },
+        {
+          "id": "i-oil",
+          "sourceText": "olive oil",
+          "name": "olive oil",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-oil"
+            }
+          ]
+        },
+        {
+          "id": "i-salt",
+          "sourceText": "salt",
+          "name": "salt",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-salt"
+            }
+          ]
+        },
+        {
+          "id": "i-pepper",
+          "sourceText": "pepper",
+          "name": "pepper",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-pepper"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "instructionSections": [
+    {
+      "id": "sec-1",
+      "sourceRefs": [
+        {
+          "blockId": "b-instr-list"
+        }
+      ],
+      "steps": [
+        {
+          "id": "st-1",
+          "sourceText": "Cut the bell peppers into bite-sized pieces. Finely chop the onion and garlic.",
+          "normalizedActionText": "Cut the bell peppers into bite-sized pieces. Finely chop the onion and garlic.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-1"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-peppers",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-peppers"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-onion",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-onion"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-garlic",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-garlic"
+                }
+              ]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "st-2",
+          "sourceText": "Heat the oil in the skillet. Saute the bell peppers and onion. Add the garlic, ajvar and paprika powder and fry briefly.",
+          "normalizedActionText": "Heat the oil in the skillet. Saute the bell peppers and onion. Add the garlic, ajvar and paprika powder and fry briefly.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-2"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-oil",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-oil"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "1",
+                "kind": "exact",
+                "value": 1
+              },
+              "unit": "tbsp"
+            },
+            {
+              "ingredientId": "i-ajvar",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-ajvar"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-paprika",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-paprika"
+                }
+              ]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [
+            {
+              "equipmentId": "e-skillet",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-2"
+                }
+              ]
+            }
+          ],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [
+            {
+              "sourceText": "Heat the oil in the skillet",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-2"
+                }
+              ]
+            }
+          ],
+          "waitCues": []
+        },
+        {
+          "id": "st-3",
+          "sourceText": "Add the uncooked rice and broth. Cover and simmer on medium heat.",
+          "normalizedActionText": "Add the uncooked rice and broth. Cover and simmer on medium heat.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-3"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-rice",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-rice"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-broth",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-broth"
+                }
+              ]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [
+            {
+              "equipmentId": "e-skillet",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-3"
+                }
+              ]
+            }
+          ],
+          "producesComponents": [],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "20 min",
+                "kind": "exact",
+                "value": 20,
+                "unit": "min"
+              },
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-3"
+                }
+              ]
+            }
+          ],
+          "temperatures": [],
+          "donenessCues": [
+            {
+              "sourceText": "until the rice is tender",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-3"
+                }
+              ]
+            }
+          ],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "st-4",
+          "sourceText": "Season to taste with salt, pepper and paprika.",
+          "normalizedActionText": "Season to taste with salt, pepper and paprika.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-4"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-salt",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-salt"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "to taste",
+                "kind": "qualitative"
+              }
+            },
+            {
+              "ingredientId": "i-pepper",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-pepper"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "to taste",
+                "kind": "qualitative"
+              }
+            },
+            {
+              "ingredientId": "i-paprika",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-paprika"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "to taste",
+                "kind": "qualitative"
+              }
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "sourceSnapshotId": "snap-s4-bell-pepper",
+    "sourceSnapshotVersion": 1,
+    "targetOntologyVersion": "1.0.0",
+    "runId": "run-s4-bell-pepper-1"
+  }
+}
