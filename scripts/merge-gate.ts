@@ -173,6 +173,12 @@ export function runMergeGate(request: MergeGateRequest): MergeGateResult {
           "merge",
           "--no-edit",
           "--no-ff",
+          // The repository's own `commit-msg` hook (`.githooks/`, wired by
+          // `npm ci`) would refuse this commit: the worktree has no
+          // `node_modules` yet, and `Merge commit '<sha>'` is no Conventional
+          // Commit. The commit dies with the worktree, so its message decides
+          // nothing, and a refusal here would be reported as a CONFLICT.
+          "--no-verify",
           headSha,
         ],
         { cwd: worktree, stdio: ["ignore", "pipe", "pipe"] },

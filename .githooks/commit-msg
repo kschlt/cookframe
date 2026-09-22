@@ -1,0 +1,10 @@
+#!/bin/sh
+# Refuse a commit subject the `commits` CI job would refuse, before the commit
+# exists. The rule and the reasons: tests/commits/commit-msg.ts. Wired by
+# `npm install` / `npm ci` (`prepare` in package.json). git runs this from the
+# root of the work tree.
+if [ ! -d node_modules/tsx ]; then
+  echo "commit-msg: node_modules/tsx is missing; run \`npm ci\` so the commit subject can be checked" >&2
+  exit 1
+fi
+exec node --import tsx tests/commits/commit-msg.run.ts "$1"

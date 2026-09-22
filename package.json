@@ -36,7 +36,8 @@
     "start": "node --import tsx src/server/main.ts",
     "eval": "tsx evals/harness.ts",
     "majors": "tsx tests/protections/majors.run.ts",
-    "quality": "npm run typecheck && biome ci . && vitest run"
+    "quality": "npm run typecheck && biome ci . && vitest run",
+    "prepare": "git config core.hooksPath .githooks || exit 0"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

@@ -22,11 +22,14 @@
  * its two sides, because neither incident did: git merges both silently.
  */
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { declaredGateCommand, runMergeGate } from "../../scripts/merge-gate.js"
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 /**
  * How long these proofs are allowed to take, and why that number.
@@ -356,6 +359,43 @@ describe("base/green-merge-is-not-slowed", () => {
     const result = gateOn(dir)
     expect(result.outcome).toBe("already-current")
     expect(result.gateRan, "the gate was run a second time on an unchanged tree").toBe(false)
+    expect(result.exitCode).toBe(0)
+  })
+})
+
+describe("base/a-commit-hook-does-not-decide-the-merge", () => {
+  it("merges although the repository's own commit-msg hook would refuse the merge commit", () => {
+    // `npm ci` points `core.hooksPath` at `.githooks`, in CI as anywhere, and
+    // the merge worktree reads that configuration. The hook there refuses this
+    // merge twice over: the worktree has no `node_modules` yet, and git's
+    // subject for merging a sha, `Merge commit '<sha>'`, is not a Conventional
+    // Commit. The merge commit is discarded with the worktree, so its subject
+    // decides nothing, and a refusal would be reported as a CONFLICT between
+    // two changes that have none.
+    const dir = fixture({
+      gate: "node --check a.js && node --check b.js",
+      mainFiles: { "a.js": "export const a = 1;\n", "b.js": "export const b = 1;\n" },
+      sideA: { "a.js": "export const a = 2;\n" },
+      sideB: { "b.js": "export const b = 2;\n" },
+    })
+    mkdirSync(join(dir, ".githooks"))
+    copyFileSync(join(repoRoot, ".githooks", "commit-msg"), join(dir, ".githooks", "commit-msg"))
+    run(dir, "git", "add", ".githooks/commit-msg")
+    run(dir, "git", "update-index", "--chmod=+x", ".githooks/commit-msg")
+    run(dir, "git", "commit", "-qm", "chore: the hook lands on main")
+    run(dir, "git", "config", "core.hooksPath", ".githooks")
+
+    // First: the hook is live here, or the merge below proves nothing.
+    writeFileSync(join(dir, "c.js"), "export const c = 1;\n")
+    run(dir, "git", "add", "c.js")
+    expect(
+      () => run(dir, "git", "commit", "-qm", "chore: anything at all"),
+      "the hook is not live in the fixture",
+    ).toThrow()
+    run(dir, "git", "reset", "-q", "--hard")
+
+    const result = gateOn(dir)
+    expect(result.outcome, result.summary).toBe("green")
     expect(result.exitCode).toBe(0)
   })
 })
