@@ -74,11 +74,14 @@ Working today:
   to start early, and the step you are on.
 - **A refusal instead of a guess.** A photograph holding four recipes is refused and says so; a
   field the source never gave stays empty and says so.
+- **Hand a recipe to Bring.** Your instance issues a link that grants one recipe and nothing else,
+  which Bring reads as a Schema.org page and turns into a shopping list, and it takes the link back
+  when you ask. No page offers this yet: the link is a request to your instance with the library
+  credential.
 
 Built and tested, but not reachable from a running instance yet — the section below says why each
 one is still here:
 
-- handing a shopping list to Bring, as a Schema.org page at a URL that grants one recipe;
 - keeping the photograph itself and showing it on the page;
 - re-converting a recipe you already have with a better model or a newer ontology.
 
@@ -98,9 +101,10 @@ says so and says why:
 
 Not there yet, stated as plainly as the rest:
 
-- **The shopping handoff is not wired into the pages.** The Schema.org document and the
-  capability URL that serves it work and are tested; no page issues you such a URL, so today only a
-  test harness can reach one.
+- **A link handed to Bring stops working when the instance restarts.** The grant behind it is kept
+  in memory, so the first restart, including the stop an idle machine makes on its own, turns every
+  link already issued into a page that does not exist
+  ([`docs/open-questions.md`](docs/open-questions.md), OQ-48).
 - **Capture quality has not passed its own gate.** The threshold run against real photographs
   returned FAIL, and the thresholds themselves turned out to be under-specified for sources a human
   transcribes ([`docs/open-questions.md`](docs/open-questions.md), OQ-14).
@@ -138,7 +142,8 @@ You need Node 26, a PostgreSQL database and an OpenAI API key. Copy
 [`.env.example`](.env.example) and fill it in. There are no defaults: an instance that is missing
 configuration refuses to start and names every variable at fault in one message, with the database
 URL refused a line later by the store's own seam, which also rejects a URL no PostgreSQL driver
-could connect with. Then apply both migrations, in order, and start it:
+could connect with. Then apply every migration in [`migrations/`](migrations/), in order, and
+start it:
 
 ```bash
 npm ci

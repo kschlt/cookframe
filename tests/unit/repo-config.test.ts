@@ -1129,6 +1129,19 @@ describe("slice0/container-builds-and-runs", () => {
     ).toBeDefined()
     majors.set("package.json @types/node", typesNodeMajor ?? "")
 
+    // The two pages that tell a person which Node to install. Measured in the
+    // review of #79: putting the README's old major back left the suite green,
+    // because nothing read either sentence. Each pattern is the sentence's own
+    // wording and FAILS CLOSED, so rewording one arrives here as a sentence to
+    // re-point rather than as a claim nobody holds any more.
+    const fromProse = (file: string, sentence: RegExp): string => {
+      const major = sentence.exec(read(file))?.[1]
+      if (major === undefined) throw new Error(`${file} no longer says ${sentence}`)
+      return major
+    }
+    majors.set("README.md", fromProse("README.md", /^You need Node (\d+),/m))
+    majors.set("CONTRIBUTING.md", fromProse("CONTRIBUTING.md", /^Requires Node (\d+) —/m))
+
     expect(
       new Set(majors.values()).size,
       `these disagree about the Node major: ${[...majors]
