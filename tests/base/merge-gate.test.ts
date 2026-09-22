@@ -25,8 +25,82 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { declaredGateCommand, runMergeGate } from "../../scripts/merge-gate.js"
+
+/**
+ * How long these proofs are allowed to take, and why that number.
+ *
+ * Every proof below builds a real git repository and runs a real subprocess
+ * gate against it. That cost is the subject, not setup: the file's opening
+ * comment says why a proof that reads `ci.yml` would check a spelling instead.
+ * So the bound has to fit the work rather than the work fit the bound.
+ *
+ * On 2026-09-22 one of these went red in the gate at 6173 ms against vitest's
+ * built-in 5000 ms, passed five times out of five in isolation, and was green
+ * on the next full run. Nothing in this repository had ever declared a timeout
+ * for it: 5000 ms was a default nobody measured. This is what it costs,
+ * measured on a four-core container under Node 26.10.0, worst of each set, for
+ * the slowest proof in the file:
+ *
+ *   5 runs of this file alone ................................  907 ms
+ *   3 runs inside the full suite (69 files in parallel) .......  859 ms  <- the row that decides this
+ *
+ *   1 run against  4 competing busy processes ................. 1504 ms
+ *   1 run against  8 .......................................... 1715 ms
+ *   1 run against 16 .......................................... 2473 ms
+ *   1 run against 32 .......................................... 4821 ms  <- 179 ms under the old bound
+ *   1 run against 48 .......................................... 6231 ms  <- two proofs past it
+ *
+ * That second row is the one doing the work, and it is easy to skim past: 859 ms
+ * inside 69 parallel files against 907 ms alone means the suite's own
+ * parallelism costs this file almost nothing, which rules out sharding it or
+ * pulling it out of the parallel run. What is left is the machine being
+ * oversubscribed, which is the one thing a shared runner does and the one thing
+ * that is unknowable after the fact. At roughly twelve times oversubscription
+ * the cost reproduces the reported 6173 ms on demand, so that red was never a
+ * flake — it was this measurement, taken by accident.
+ *
+ * The bound is therefore the worst cost measured at the contention that
+ * reproduces the incident, times five. Stated as a multiple rather than as a
+ * bare number so that a later red can be read: if it is under this, the work
+ * grew or the machine was worse than any of the rows above; if it is far under,
+ * the proof broke.
+ *
+ * It is file-scoped and deliberately not a suite-wide default. A number raised
+ * everywhere hides the proofs that are slow because they are doing something
+ * wrong. It is also one bound for all of them rather than a number per proof:
+ * at 48 competing processes the five slowest here measured 6231, 5319, 4228,
+ * 3640 and 3508 ms, one band with no outlier, so a per-proof figure would be
+ * precision this measurement does not have.
+ *
+ * The constant is named after what it measures rather than after what it
+ * permits, which is the point: `MEASURED_WORST_UNDER_CONTENTION_MS` cannot be
+ * edited upward without lying about where the number came from, whereas a
+ * `TIMEOUT_MS` invites exactly the silent raise this file exists because of.
+ *
+ * WHAT THE PROOF BELOW PINS, AND WHAT IT DOES NOT. It pins that this
+ * declaration takes effect — delete the call and the bound reverts to the same
+ * guessed default that caused the incident, which is the incident's own shape.
+ * It does not pin the multiple: raising `HEADROOM` tenfold raises both sides of
+ * its assertion and the proof stays green — measured, not assumed, as a
+ * deliberate survivor through the repository's own instrument. That is the
+ * right shape. The multiple is a judgment read off the table above, not a
+ * measurable fact, and a proof that pretended otherwise would be pinning an
+ * opinion while looking like evidence.
+ */
+const MEASURED_WORST_UNDER_CONTENTION_MS = 6231
+const HEADROOM = 5
+vi.setConfig({ testTimeout: MEASURED_WORST_UNDER_CONTENTION_MS * HEADROOM })
+
+describe("base/the-bound-is-declared", () => {
+  it("runs under the measured bound, not vitest's guessed default", (ctx) => {
+    // A test is told its own effective timeout, so the declaration above can be
+    // read back from inside one rather than taken on trust. With the call
+    // removed this reads `expected 5000 to be 31155`: the reversion itself.
+    expect(ctx.task.timeout).toBe(MEASURED_WORST_UNDER_CONTENTION_MS * HEADROOM)
+  })
+})
 
 const made: string[] = []
 afterEach(() => {
@@ -203,6 +277,11 @@ describe("base/semantic-conflict-is-refused", () => {
   it("notices although the two changes share no file, so nothing conflicts", () => {
     // Both incidents merged cleanly. A mechanism that leans on git reporting a
     // conflict would have caught neither.
+    //
+    // The two assertions below once ran the gate twice over the same fixture,
+    // which cost a second real merge and subprocess run — 777 ms down to 609 ms
+    // median once they shared one result. Setup, not subject: both are claims
+    // about the same outcome.
     const dir = typecheckIncident()
     const changed = (ref: string): string[] =>
       execFileSync("git", ["diff", "--name-only", "main..." + ref], { cwd: dir, encoding: "utf8" })
@@ -210,8 +289,9 @@ describe("base/semantic-conflict-is-refused", () => {
         .filter((l) => l !== "")
     const overlap = changed("side-a").filter((f) => changed("side-b").includes(f))
     expect(overlap, "the fixture's two sides touch a file in common").toEqual([])
-    expect(gateOn(dir).outcome).not.toBe("conflict")
-    expect(gateOn(dir).outcome).toBe("red")
+    const result = gateOn(dir)
+    expect(result.outcome).not.toBe("conflict")
+    expect(result.outcome).toBe("red")
   })
 })
 
