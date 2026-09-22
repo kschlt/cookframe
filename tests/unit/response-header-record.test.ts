@@ -114,11 +114,12 @@
  * a string or an unrelated name cannot flag it, and a shared record cannot hide
  * behind whitespace or a line break.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
+import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const srcDir = join(repoRoot, "src")
@@ -139,16 +140,8 @@ interface Finding {
   readonly line: number
 }
 
-/** .ts/.mts/.cts/.tsx under a directory, recursively. */
-function sourceFiles(dir: string): string[] {
-  const out: string[] = []
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    if (statSync(full).isDirectory()) out.push(...sourceFiles(full))
-    else if (/\.(?:ts|mts|cts|tsx)$/.test(name)) out.push(full)
-  }
-  return out
-}
+/** Source files under a directory, recursively — the shared walk (ADR-0029). */
+const sourceFiles = (dir: string): string[] => filesUnder(dir, { match: SOURCE_EXTENSIONS })
 
 /** A node that opens its own variable scope. */
 function isFunctionLike(node: ts.Node): boolean {

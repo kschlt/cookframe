@@ -9,28 +9,26 @@
  *
  * Each `describe` string is the proof id it satisfies.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
-/** Every `.ts`/`.mts` file under a directory, repo-relative, sorted. */
+/**
+ * Every source file under a directory, repo-relative, sorted.
+ *
+ * The walk and the extension set come from `tests/support/tree.ts` rather than
+ * being spelled here. This copy read `.ts` and `.mts` and missed `.cts`/`.tsx`,
+ * which three other guards read — a difference invisible while `src/` holds
+ * nothing but `.ts`, and silent the first time it does not. ADR-0029.
+ */
 function sourcesUnder(dir: string): string[] {
-  const found: string[] = []
-  const walk = (absolute: string): void => {
-    for (const entry of readdirSync(absolute)) {
-      const child = join(absolute, entry)
-      if (statSync(child).isDirectory()) {
-        walk(child)
-      } else if (/\.m?ts$/.test(entry)) {
-        found.push(relative(repoRoot, child))
-      }
-    }
-  }
-  walk(join(repoRoot, dir))
-  return found.sort()
+  return filesUnder(join(repoRoot, dir), { match: SOURCE_EXTENSIONS }).map((f) =>
+    relative(repoRoot, f),
+  )
 }
 
 const read = (rel: string): string => readFileSync(join(repoRoot, rel), "utf8")
@@ -361,6 +359,20 @@ describe("run/configuration-arrives-only-through-declared-seams", () => {
   })
 })
 
+/**
+ * A hosting platform named in source text — a variable only one host sets, or a
+ * hostname only one host serves.
+ *
+ * Declared beside the scan rather than inside it so the two precision proofs
+ * below run the SAME predicate the enforcement scan runs. A table over a private
+ * copy shows that some regular expression is broad; it does not show that the
+ * guard uses it.
+ */
+const namesAPlatform = (text: string): boolean =>
+  /\b(?:FLY_[A-Z_]+|RENDER_[A-Z_]+|VERCEL_[A-Z_]+|RAILWAY_[A-Z_]+|DYNO|HEROKU_[A-Z_]+)\b|\.fly\.dev|\bfly\.io\b|\.onrender\.com|\.vercel\.app/.test(
+    text,
+  )
+
 describe("run/no-module-names-a-platform", () => {
   /** The package specifier of an import line, or undefined. */
   const importedPackage = (line: string): string | undefined => {
@@ -396,9 +408,50 @@ describe("run/no-module-names-a-platform", () => {
     // one host sets, a hostname only one host serves. The allowlist above is
     // what catches a platform's SDK, so the two together do not rest on anyone
     // having thought of every provider.
-    const platformish =
-      /\b(?:FLY_[A-Z_]+|RENDER_[A-Z_]+|VERCEL_[A-Z_]+|RAILWAY_[A-Z_]+|DYNO|HEROKU_[A-Z_]+)\b|\.fly\.dev|fly\.io|\.onrender\.com|\.vercel\.app/
-    const naming = sourcesUnder("src").filter((file) => platformish.test(read(file)))
+    const naming = sourcesUnder("src").filter((file) => namesAPlatform(read(file)))
     expect(naming).toEqual([])
+  })
+
+  it("run/the-platform-detector-is-precise — the deny list catches each platform it names", () => {
+    // Why this table exists, and it is the same argument as
+    // `run/the-seam-detector-is-precise` above. The proof before this one
+    // asserts an EMPTY list. An empty list is what a detector that matches
+    // nothing produces too, so that proof is satisfied by any narrowing of the
+    // pattern whatsoever. Measured on `main` at `4cbf371`: cutting the deny
+    // list down to `/\bFLY_[A-Z_]+\b/` — one of its six platforms — left the
+    // whole gate green, 1011 passed. ADR-0029 is the rule this is an instance
+    // of; the fixtures are what hold it now.
+    for (const line of [
+      "const app = process.env.FLY_APP_NAME",
+      "const url = process.env.RENDER_EXTERNAL_URL",
+      'if (process.env.VERCEL_ENV === "production") {}',
+      "const host = process.env.RAILWAY_STATIC_URL",
+      "const web = process.env.DYNO",
+      "const slug = process.env.HEROKU_APP_NAME",
+      'const origin = "https://cookframe.fly.dev"',
+      "// deployed on fly.io",
+      'const origin = "https://cookframe.onrender.com"',
+      'const origin = "https://cookframe.vercel.app"',
+    ]) {
+      expect(namesAPlatform(line), line).toBe(true)
+    }
+  })
+
+  it("run/the-platform-detector-is-precise — it spares the neighbours that are not platforms", () => {
+    // The dangerous half, and the question ADR-0029 asks of every negative
+    // table: which entry dies if a condition is dropped? `DYNOMITE` and
+    // `FLYWHEEL` die with the word boundaries; `notfly.iota` dies with the dot;
+    // `flying` and the prose line die with the literal `fly.io`. A table whose
+    // entries are spared for structural reasons nobody chose measures nothing.
+    for (const line of [
+      "const mixer = DYNOMITE_SPEED", // DYNO is not a whole word here
+      "const wheel = FLYWHEEL_RATIO", // FLY_ needs its underscore
+      'const label = "flying start"', // fly without its domain
+      'const host = "notfly.iota"', // fly.io only as a domain
+      "const render = renderCookingPage(plan)", // RENDER_ needs shouting case
+      'const dyno = "dynamic"', // lowercase, and not the variable
+    ]) {
+      expect(namesAPlatform(line), line).toBe(false)
+    }
   })
 })
