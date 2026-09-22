@@ -1,0 +1,63 @@
+# Dependency update automation, as a file rather than as a toggle (CFV1-PROT).
+#
+# The alternative was the repository's Dependabot SETTING, and it was rejected for
+# a reason this item exists to enforce: a platform toggle cannot be read back by
+# anything in this repository. A workflow's own `GITHUB_TOKEN` gets
+# `403 Resource not accessible by integration` on `/vulnerability-alerts` and
+# `/automated-security-fixes`, the repository object arrives without its
+# `security_and_analysis` block, and `permissions: administration: read` is not
+# grantable at all — a workflow declaring it is rejected outright. Only a stored
+# admin token could read those, and on a public, contribution-open repository
+# that token is a larger exposure than the setting it would prove.
+#
+# As a file, the automation is versioned, reviewable in a pull request, and
+# actually checkable: `tests/protections/repository-claims.test.ts` READS this
+# file rather than asserting that someone enabled something.
+#
+# What this does NOT do, stated rather than implied: it does not enable
+# Dependabot security alerts, which remain a repository setting nothing here can
+# read. Version updates and security alerts are different features.
+# `docs/repository-protections.md` records which is which.
+version: 2
+
+updates:
+  # The product's own dependencies. `npm ci` installs from the lockfile in CI and
+  # in both images, so the lockfile is what a deployment actually gets — which is
+  # why the lockfile is what Dependabot must be allowed to touch.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # Grouped, because this repository's merges are serial: branch protection
+    # requires a branch to be up to date, so every open pull request goes stale
+    # on each merge. Five separate patch bumps would be five rebase cycles for
+    # what is one decision.
+    groups:
+      development-dependencies:
+        dependency-type: development
+      production-dependencies:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+
+  # The actions in `.github/workflows/` are supply chain too, and the easier half
+  # to forget: a third-party action runs with the workflow's token. They are
+  # pinned by tag today (`actions/checkout@v4`), so an update here is a tag move
+  # a human reviews rather than something that happens silently.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # `Dockerfile` (the quality gate) and `Dockerfile.runtime` (the instance an
+  # operator runs) both sit at the repository root, which is the directory this
+  # ecosystem scans. The runtime image is the one that ships, so its base image
+  # going stale is a security question rather than a housekeeping one.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
