@@ -291,6 +291,12 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
             adapterVersion: deps.adapterVersion,
             runId: deps.identity.newCaptureRunId(),
             sourceMediaType: mediaType,
+            // A page the user held, which is what earns the vision path and its
+            // verification exemption (ADR-0019) — the media type does not. Left
+            // out, the provider fails closed to the text path and reads the
+            // image's bytes as UTF-8: the model is handed mojibake, capture is
+            // refused against it, and no photograph could ever be imported.
+            sourceProvenance: "photo",
           },
           {
             runId: deps.identity.newNormalizationRunId(),
