@@ -188,8 +188,8 @@ the inline `<script>` and evaluates it, so they exercise the shipped `admitsToSt
 about a unit reads that unit, never the page, because `salt` also sits in FETCH / PREPARE and a
 page-wide search would pass with the row dropped.
 
-Every rule was then re-broken in the shipped files and the suite required to go red. Thirteen
-mutations, thirteen reds, `npm run test:cooking-ux`:
+Every rule was then re-broken in the shipped files and the suite required to go red. Twenty-two
+mutations, twenty-two reds, `npm run test:cooking-ux`:
 
 | # | Mutation | Failing proof |
 |---|---|---|
@@ -206,6 +206,24 @@ mutations, thirteen reds, `npm run test:cooking-ux`:
 | 11 | a finding is left as a placeholder | `findings-carry-recommendations` |
 | 12 | the stated unit-count range drifts from the data | `step-count-range` |
 | 13 | an open question goes unregistered | `findings-carry-recommendations` |
+| 14 | `neededAtUnit >= 2` is loosened to `>= 1` | `start-now-admission` |
+| 15 | the `<= unitCount` bound is deleted | `start-now-admission` |
+| 16 | the `slow` leg is deleted | `start-now-admission` |
+| 17 | the `safeToLeave` leg is deleted | `start-now-admission` |
+| 18 | the whole-number leg is deleted | `start-now-admission` |
+| 19 | the shape leg is deleted | `start-now-admission` |
+| 20 | the behaviour block is caught by a bare `<script>` again | every proof |
+| 21 | a criterion is proved under a different name | `findings-carry-recommendations` |
+| 22 | the README declares a proof id nothing implements | `findings-carry-recommendations` |
+
+**Mutations 14-19 were added after review, and they matter more than the rest.** The first pass
+checked that every refused entry is refused — but both refused entries fail `slow` AND `safeToLeave`
+AND the unit index at once, so that assertion held with *any single leg* of the rule deleted. All
+six. Each leg is now broken on its own, on an entry that genuinely qualifies, and required to be
+refused both by `admitsToStartNow` and on the page. The boundary is driven in the proof rather than
+by adding a refused entry to the fixtures, because `startNowRejected` records what the real
+evaluation refused and a made-up entry would not be that.
+
 
 ## Reproducing / extending the recipe set
 

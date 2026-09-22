@@ -21,7 +21,10 @@ export const prototypeHtml = (): string => readFileSync(prototypePath, "utf8")
 export const recipesJson = (): string => readFileSync(recipesPath, "utf8")
 
 const DATA_BLOCK = /<script id="recipe-data" type="application\/json">\n([\s\S]*?)\n {4}<\/script>/
-const BEHAVIOUR_BLOCK = /<script>\n([\s\S]*?)\n {4}<\/script>\s*<\/body>/
+// Both blocks are caught by id. A pattern anchored on a bare `<script>` would
+// widen silently if a second one were ever added above, and `vm.runInContext`
+// would then evaluate the markup in between; by id it fails closed instead.
+const BEHAVIOUR_BLOCK = /<script id="prototype-behaviour">\n([\s\S]*?)\n {4}<\/script>/
 
 function capture(re: RegExp, what: string): string {
   const m = re.exec(prototypeHtml())
@@ -30,7 +33,7 @@ function capture(re: RegExp, what: string): string {
 }
 
 export const embeddedRecipeJson = (): string => capture(DATA_BLOCK, "#recipe-data block")
-export const behaviourScript = (): string => capture(BEHAVIOUR_BLOCK, "behaviour script")
+export const behaviourScript = (): string => capture(BEHAVIOUR_BLOCK, "#prototype-behaviour block")
 
 /** The handful of element behaviours the prototype's script actually uses. */
 class FakeNode {

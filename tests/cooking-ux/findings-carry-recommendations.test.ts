@@ -7,11 +7,13 @@
  * Both are checked, and the A-vs-B finding additionally has to name the
  * preferred layout and the condition under which the other one wins.
  */
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { readdirSync, readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { spikeDir } from "./harness.js"
 
+const testDir = dirname(fileURLToPath(import.meta.url))
 const readme = readFileSync(join(spikeDir, "README.md"), "utf8")
 const findings = readme.slice(readme.indexOf("\n## Findings"))
 const sections = [...findings.matchAll(/\n### (?!Still open)(.+)\n([\s\S]*?)(?=\n### |\n## |$)/g)]
@@ -47,21 +49,25 @@ describe("cooking-ux/findings-carry-recommendations", () => {
     expect("- Recommendation: _pending_").toMatch(/_pending_|_TBD_|TODO/i)
   })
 
-  it("names the preferred layout and the condition under which the other wins", () => {
-    const body = sections[0]?.[2] ?? ""
-    expect(body).toMatch(/build \*\*A\*\* as the default/)
-    expect(body).toMatch(/\*\*B\*\* is better where/)
-    expect(body, "a condition that is measured and one that is not must be told apart").toMatch(
-      /stated, not measured/,
-    )
-  })
-
   it("reports both halves of the suppression claim separately", () => {
     const body = sections[1]?.[2] ?? ""
     expect(body).toMatch(/\*\*Clutter reduced\?\*\*/)
     expect(body).toMatch(/\*\*Readiness work hidden\?\*\*/)
     expect(body, "the unanswered half must not be closed by a default").toMatch(/off by default/)
     expect(body).toMatch(/OQ-37/)
+  })
+
+  it("gives every proof id the README declares a describe of that exact name", () => {
+    // A criterion proved under a different name is a criterion nobody can find.
+    const declared = new Set([...readme.matchAll(/`(cooking-ux\/[a-z-]+)`/g)].map((m) => m[1]))
+    expect(declared.size, "the README declares no proof ids").toBeGreaterThanOrEqual(7)
+    const suite = readdirSync(testDir)
+      .filter((f) => f.endsWith(".test.ts"))
+      .map((f) => readFileSync(join(testDir, f), "utf8"))
+      .join("\n")
+    for (const id of declared) {
+      expect(suite, `no describe("${id}")`).toContain(`describe("${id}"`)
+    }
   })
 
   it("registers what the spike could not answer in the open-questions file", () => {
@@ -71,5 +77,25 @@ describe("cooking-ux/findings-carry-recommendations", () => {
       expect(row, `${id} is not registered`).toContain("open")
       expect(row, `${id} does not point back at the spike`).toContain("spikes/s4-cooking-ux")
     }
+  })
+})
+
+describe("cooking-ux/hypothesis-a-vs-b", () => {
+  const body = sections[0]?.[2] ?? ""
+
+  it("names the preferred layout", () => {
+    expect(body).toMatch(/build \*\*A\*\* as the default/)
+  })
+
+  it("names the condition under which the other one wins", () => {
+    expect(body).toMatch(/\*\*B\*\* is better where/)
+    expect(body, "a condition that is measured and one that is not must be told apart").toMatch(
+      /stated, not measured/,
+    )
+  })
+
+  it("states what the layout costs, because that was the question asked", () => {
+    expect(body).toMatch(/A is free/)
+    expect(body).toMatch(/not\s+a second call/)
   })
 })
