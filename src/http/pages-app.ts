@@ -131,10 +131,11 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
     //
     // **That is an N+1 read and it is deliberate here, not overlooked.** The
     // alternative is a listing projection, which is a store decision and belongs
-    // to CFV1-PG, not to the unit that first gives the page an address. It is
+    // to the store, not to the unit that first gives the page an address. It is
     // registered rather than silently accepted: see the open question this unit
-    // filed. Against the provisional in-memory store the cost is not measurable;
-    // against a sleeping database it will be, and that is the moment to move it.
+    // filed (OQ-43). Since CFV1-WIRE these reads go to PostgreSQL, so the cost is
+    // now real rather than hypothetical — one round trip per recipe, measured
+    // against OQ-25a's unanswered threshold before anyone moves it.
     const entries = await deps.repo.listLibrary()
     const loaded = await Promise.all(entries.map((e) => deps.repo.loadLatestCanonical(e.recipeId)))
     // A row whose recipe vanished between the two reads is dropped rather than

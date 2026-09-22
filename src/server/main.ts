@@ -21,7 +21,11 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { createInstanceCredential } from "../http/instance-credential.js"
-import { createProvisionalStore } from "../persistence/index.js"
+import {
+  createPostgresStore,
+  resolveDatabaseUrl,
+  StoreNotMigratedError,
+} from "../persistence/index.js"
 import { createContentDerivedBlockIdPolicy } from "../pipeline/block-id-policy.js"
 import {
   createModelCaptureProvider,
@@ -67,17 +71,62 @@ async function main(): Promise<void> {
   const transport = createOpenAITransport({ apiKey: config.modelApiKey, model: config.model })
 
   // ONE repository, constructed here and shared by every path (ADR-0018, and
-  // `run/one-store-per-process`).
+  // `run/one-store-per-process`). CFV1-PG made this the durable store: what an
+  // instance keeps now survives the process that wrote it, which is what makes
+  // `SIGTERM` a stop rather than a loss.
   //
-  // This is the PROVISIONAL in-memory store, so an instance started from here
-  // forgets its library when it stops. That is not an oversight and it is not
-  // durable-by-accident: CFV1-PG's `createPostgresStore` and `resolveDatabaseUrl`
-  // are on `main` and proved, and replacing this expression with them is its own
-  // unit (CFV1-WIRE) — it needs a startup decision about a database whose
-  // migration was never applied, and it makes every proof and CI job that starts
-  // the process depend on a real server. `store.repository` is what gets
-  // injected and `store.close` is what belongs in `closeStore` below.
-  const repo = createProvisionalStore()
+  // `DATABASE_URL` is deliberately NOT in `REQUIRED_CONFIGURATION`. The store's
+  // own seam reads it and refuses by name (`resolveDatabaseUrl`, which also
+  // rejects a URL no PostgreSQL driver can connect with — something a list of
+  // required names cannot check), and one variable refused in two places is two
+  // places to keep in step. The cost is that this refusal arrives a few lines
+  // after the configuration one instead of with it; both exit non-zero naming
+  // the variable, which is what an operator needs.
+  const store = createPostgresStore(resolveDatabaseUrl())
+  const repo = store.repository
+
+  // The store is USED once before the port is bound, and that is a decision
+  // rather than a warm-up (ADR-0027).
+  //
+  // `pg` connects lazily, so a store pointed at a database with no tables in it
+  // constructs perfectly and fails on the first request that needs one. An
+  // instance that binds, answers its miss, and returns 500 from every page is
+  // the failure shape this project refuses everywhere else it can: configured
+  // wrongly, running anyway, discovered by a user. `StoreNotMigratedError` says
+  // "before starting the instance", which is a promise only this line can keep —
+  // CFV1-PG could raise it, but nothing was reading it at a start.
+  //
+  // The probe is a real operation, not `select 1`: a query invented here could
+  // pass against a database where every operation the instance actually performs
+  // fails. It is the cheapest read the repository has.
+  //
+  // ONE read per migration-backed area, because `migrations/` holds more than
+  // one file and a database can be half-migrated. `listLibrary` reaches the
+  // recipe store (`0001`) and `loadCookingPlan` the plan store (`0002`); an
+  // instance that came up on `0001` alone would serve its library and answer
+  // every cooking route with a 500, which is the same failure one migration
+  // further along. Absence is a return value for both, so neither needs a
+  // fixture and neither costs more than a round trip.
+  //
+  // The cost, stated: the process now needs its database reachable to come up at
+  // all, so a restart during an outage leaves the instance down rather than up
+  // and failing. For a single-user instance an operator restarts themselves
+  // (PDR-0002), down-and-saying-why is the better of the two, and it is the same
+  // trade `resolveDatabaseUrl` already made by refusing an absent URL.
+  try {
+    await repo.listLibrary()
+    // An id nothing can hold: the answer is always `undefined`, so what this
+    // measures is only whether the table it reads can be read at all.
+    await repo.loadCookingPlan("startup-probe", 1)
+  } catch (error) {
+    await store.close().catch(() => {})
+    if (error instanceof StoreNotMigratedError) throw error
+    throw new Error(
+      `the database at DATABASE_URL could not be read, so the instance has nowhere to keep its ` +
+        `library: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
 
   const instance = await startInstance(
     {
@@ -104,6 +153,15 @@ async function main(): Promise<void> {
       targetOntologyVersion: TARGET_ONTOLOGY_VERSION,
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
+      // Released after the server has stopped accepting and drained, never
+      // before: a pool closed while a request is still in flight turns a clean
+      // stop into a half-written one. `run/a-stop-leaves-nothing-half-written`
+      // proves that ORDER, but against the harness's own counter rather than
+      // this pool — the stop handler below calls `process.exit(0)`, which makes
+      // a drained pool and a leaked one indistinguishable from outside. What
+      // guards THIS line is a text assertion in `run/only-the-entry-point-binds`,
+      // and it says as much rather than reading like a behavioural one.
+      closeStore: () => store.close(),
     },
     config.port,
   )
