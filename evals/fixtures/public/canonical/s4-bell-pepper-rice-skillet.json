@@ -1,7 +1,15 @@
 {
   "id": "s4-bell-pepper-rice-skillet",
-  "schemaVersion": "1.0.0",
-  "title": "Bell Pepper Rice Skillet",
+  "schemaVersion": "2.0.0",
+  "title": {
+    "state": "from_source",
+    "sourceText": "Bell Pepper Rice Skillet",
+    "sourceRefs": [
+      {
+        "blockId": "b-title"
+      }
+    ]
+  },
   "sourceName": "Cookframe Fixtures",
   "sourceUrl": "https://example.invalid/bell-pepper-rice-skillet",
   "yields": [

@@ -42,6 +42,7 @@ import { SourceRef } from "./common.js"
  * all the way back to the captured evidence.
  */
 export const CanonicalElementKind = z.enum([
+  "title",
   "step",
   "ingredient",
   "equipment",
@@ -206,10 +207,36 @@ export const PlanDerivation = z
   .strict()
 export type PlanDerivation = z.infer<typeof PlanDerivation>
 
+/**
+ * The plan's title, as a declared state rather than a string (`PDR-0005`).
+ *
+ * The Canonical stopped carrying `title: string` for the reason that bears
+ * directly here: a recipe whose source gives no title had no way to say so, and
+ * the field was filled with a sentence from the method instead. A plan that
+ * narrowed the union back to a string would restore exactly that, one `??` from
+ * a cooking view headed by its own first instruction.
+ */
+export const PlanTitle = z.discriminatedUnion("state", [
+  z
+    .object({
+      state: z.literal("from_source"),
+      /** The source's own wording, carried through unchanged. */
+      text: z.string().min(1),
+      origin: CanonicalOrigin,
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal("not_in_source"),
+    })
+    .strict(),
+])
+export type PlanTitle = z.infer<typeof PlanTitle>
+
 export const CookingPlan = z
   .object({
     recipeId: z.string().min(1),
-    title: z.string(),
+    title: PlanTitle,
     setUp: z.array(SetUpItem),
     startNow: z.array(PrerequisiteItem),
     fetchPrepare: z.array(FetchItem),

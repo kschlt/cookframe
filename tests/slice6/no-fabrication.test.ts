@@ -129,6 +129,30 @@ describe("slice6/every-fact-traces-to-canonical", () => {
     expect(checked, "no origin is under test").toBeGreaterThan(80)
   })
 
+  it("carries the title the source gave, grounded in the recipe it came from", () => {
+    for (const recipe of allRecipes) {
+      const title = deriveCookingPlan(recipe).title
+      expect(title.state, recipe.id).toBe("from_source")
+      if (title.state !== "from_source") continue
+      expect(title.text, recipe.id).toBe(
+        recipe.title.state === "from_source" ? recipe.title.sourceText : "",
+      )
+    }
+  })
+
+  it("says a title is not in the source rather than substituting one", () => {
+    // `PDR-0005`: the Canonical stopped carrying `title: string` because the
+    // field was being filled with a sentence from the method. A plan that fell
+    // back to the recipe id, or to the first unit's action, would put that
+    // substitution back one layer further out.
+    const untitled: CanonicalRecipe = structuredClone(nerano)
+    untitled.title = { state: "not_in_source" }
+    const plan = deriveCookingPlan(untitled)
+    expect(plan.title).toEqual({ state: "not_in_source" })
+    expect(JSON.stringify(plan.title)).not.toContain(untitled.id)
+    expect(JSON.stringify(plan.title)).not.toContain(plan.units[0]?.actionText)
+  })
+
   it("fails derivation rather than rendering when a use names nothing", () => {
     const dangling: CanonicalRecipe = structuredClone(nerano)
     const step = dangling.instructionSections[0]?.steps[0]

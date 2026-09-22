@@ -36,7 +36,15 @@ export interface CanonicalVersion {
 export interface LibraryEntry {
   readonly recipeId: string
   readonly latestVersion: number
-  readonly title: string
+  /**
+   * The source's own title, absent when the source carried none.
+   *
+   * Absent rather than a placeholder: a listing row is a thing a person reads
+   * and a thing a query groups by, and either would be wrong about a recipe
+   * whose card had no heading. The caller decides what to show for a gap —
+   * `src/render/library.ts` says so in words — and the store never invents one.
+   */
+  readonly title?: string
 }
 
 /** Raised when a snapshot id is not present in the store. */
@@ -93,7 +101,7 @@ export interface RecipeRepository {
    */
   loadLatestCanonical(recipeId: string): Promise<CanonicalVersion | undefined>
 
-  /** (4) List the library: one entry per recipe id, newest version's title. */
+  /** (4) List the library: one entry per recipe id, newest version's title if it has one. */
   listLibrary(): Promise<readonly LibraryEntry[]>
 
   /**

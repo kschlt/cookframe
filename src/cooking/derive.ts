@@ -36,6 +36,7 @@ import type {
   IngredientUse,
   InstructionStep,
   PlanAmount,
+  PlanTitle,
   PrerequisiteItem,
   ReservedAmount,
   SetUpItem,
@@ -251,6 +252,21 @@ const startNowOf = (ordered: ReturnType<typeof stepsInCanonicalOrder>): Prerequi
 const isAtHandBasic = (ingredient: Ingredient): boolean =>
   ingredient.quantityExpression === undefined
 
+/**
+ * The plan's title, carried as the state the Canonical declares (`PDR-0005`).
+ * A recipe whose source gave no title yields a plan that says so; nothing here
+ * falls back to the recipe id or to the first instruction, which is the
+ * substitution that record exists to stop.
+ */
+const titleOf = (recipe: CanonicalRecipe): PlanTitle =>
+  recipe.title.state === "from_source"
+    ? {
+        state: "from_source",
+        text: recipe.title.sourceText,
+        origin: originOf("title", recipe.id, recipe.title.sourceRefs),
+      }
+    : { state: "not_in_source" }
+
 /** Derive the Cooking Plan. Pure: same recipe in, byte-identical plan out. */
 export function deriveCookingPlan(
   recipe: CanonicalRecipe,
@@ -363,7 +379,7 @@ export function deriveCookingPlan(
 
   return {
     recipeId: recipe.id,
-    title: recipe.title,
+    title: titleOf(recipe),
     setUp,
     startNow: startNowOf(ordered),
     fetchPrepare,

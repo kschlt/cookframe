@@ -46,7 +46,7 @@ const canonical = (id: string, title: string): CanonicalRecipe =>
   CanonicalRecipe.parse({
     id,
     schemaVersion: SCHEMA_VERSION,
-    title,
+    title: { state: "from_source", sourceText: title, sourceRefs: [{ blockId: "b-title" }] },
     authors: ["Fixture Author"],
     yields: [
       {

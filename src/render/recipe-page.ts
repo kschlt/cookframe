@@ -13,6 +13,7 @@
  */
 import { html } from "hono/html"
 import type { HtmlEscapedString } from "hono/utils/html"
+import { NO_TITLE_IN_SOURCE } from "./source-wording.js"
 import type {
   EquipmentView,
   IngredientGroupView,
@@ -21,7 +22,9 @@ import type {
   RecipeView,
   SectionView,
   StepView,
+  TitleView,
 } from "./view-model.js"
+import { titleLine } from "./view-model.js"
 
 type Fragment = HtmlEscapedString | Promise<HtmlEscapedString> | string
 
@@ -69,6 +72,19 @@ const section = (view: SectionView): Fragment =>
     view.title === undefined ? nothing : html`<h3>${view.title}</h3>`
   }<ol>${view.steps.map(stepItem)}</ol>`
 
+/**
+ * The page's heading.
+ *
+ * The gap gets its own markup rather than a placeholder string in an ordinary
+ * `<h1>`: a reader scanning the page sees that this card carried no title,
+ * which is the whole point of the declared state. Nothing here can fall back to
+ * recipe text — the view has no such string to fall back to.
+ */
+const titleHeading = (title: TitleView): Fragment =>
+  title.state === "from_source"
+    ? html`<h1>${title.text}</h1>`
+    : html`<h1 class="untitled"><span class="source-gap">${NO_TITLE_IN_SOURCE}</span></h1>`
+
 const timeItem = (time: LabelledTextView): Fragment => html`<li>${time.label}: ${time.text}</li>`
 
 const signals = (view: RecipeView): Fragment => {
@@ -91,12 +107,12 @@ const attributionLine = (view: RecipeView): Fragment => {
 /** The recipe page body, without the document shell. */
 export function recipeBody(view: RecipeView): HtmlEscapedString | Promise<HtmlEscapedString> {
   return html`<article>
-<h1>${view.title}</h1>
+${titleHeading(view.title)}
 ${attributionLine(view)}
 ${
   view.heroImage === undefined
     ? nothing
-    : html`<img src="${view.heroImage.src}" alt="${view.title}">${
+    : html`<img src="${view.heroImage.src}" alt="${titleLine(view.title)}">${
         view.heroImage.attribution === undefined
           ? nothing
           : html`<p class="meta">${view.heroImage.attribution}</p>`

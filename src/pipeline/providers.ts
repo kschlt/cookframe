@@ -49,12 +49,25 @@ export interface CaptureContext {
   readonly capturePromptVersions?: readonly string[]
   /**
    * The media type of the bytes being captured, e.g. `image/jpeg` for a phone
-   * photo or `text/plain` for a pasted source. It is not provenance — it is what
-   * the caller knows about the input and the provider cannot reliably infer, and
-   * it decides whether a model-backed provider takes its vision path or its text
-   * path. A provider that does not care about it ignores it.
+   * photo or `text/plain` for a pasted source. It is what the caller knows about
+   * the input and the provider cannot reliably infer; on the vision path it is
+   * how the image bytes are encoded. It does NOT decide the verification
+   * exemption — {@link sourceProvenance} does (ADR-0019). A provider that does not
+   * care about it ignores it.
    */
   readonly sourceMediaType?: string
+  /**
+   * Where the bytes came from, which is what earns a model-backed provider's
+   * verification exemption — not the media type (ADR-0019). `"photo"` is a page
+   * the user physically held: the vision path, exempt from source-text
+   * verification because pixels carry no text to anchor against. `"url"` (a
+   * fetched page) and `"paste"` (pasted text) carry someone else's words and are
+   * verified against them. When a provider needs this and it is absent it fails
+   * CLOSED to the verified text path — an absent provenance never earns the
+   * exemption, and a URL that merely serves `image/*` is not a photograph the
+   * user held, so it does not inherit one's exemption.
+   */
+  readonly sourceProvenance?: "url" | "paste" | "photo"
 }
 
 /**

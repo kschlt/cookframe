@@ -1,7 +1,15 @@
 {
   "id": "s4-spaghetti-alla-nerano",
-  "schemaVersion": "1.0.0",
-  "title": "Spaghetti alla Nerano",
+  "schemaVersion": "2.0.0",
+  "title": {
+    "state": "from_source",
+    "sourceText": "Spaghetti alla Nerano",
+    "sourceRefs": [
+      {
+        "blockId": "b-title"
+      }
+    ]
+  },
   "sourceName": "Cookframe Fixtures",
   "sourceUrl": "https://example.invalid/spaghetti-alla-nerano",
   "yields": [

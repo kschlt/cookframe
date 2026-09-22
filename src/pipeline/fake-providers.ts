@@ -67,7 +67,19 @@ export function createFakeNormalizationProvider(): NormalizationProvider {
       const recipe: CanonicalRecipe = {
         id: `recipe-of-${snapshot.id}`,
         schemaVersion: SCHEMA_VERSION,
-        title: titleBlock?.text ?? `Untitled (${snapshot.id})`,
+        // The fake used to fall back to `Untitled (<snapshot id>)` here, which
+        // is a small version of the defect the title union exists for: a value
+        // the source never carried, indistinguishable from one it did. With no
+        // title block there is nothing to ground a title on, so it declares the
+        // gap.
+        title:
+          titleBlock === undefined
+            ? { state: "not_in_source" as const }
+            : {
+                state: "from_source" as const,
+                sourceText: titleBlock.text,
+                sourceRefs: [{ blockId: titleBlock.id }],
+              },
         yields: [],
         ingredientGroups: ingredientBlock
           ? [

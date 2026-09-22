@@ -54,6 +54,7 @@ export function everyOrigin(
   plan: CookingPlan,
 ): readonly { where: string; origin: CanonicalOrigin }[] {
   const found: { where: string; origin: CanonicalOrigin }[] = []
+  if (plan.title.state === "from_source") found.push({ where: "title", origin: plan.title.origin })
   for (const item of plan.setUp) found.push({ where: `setUp ${item.text}`, origin: item.origin })
   for (const item of plan.startNow)
     found.push({ where: `startNow ${item.text}`, origin: item.origin })
@@ -87,6 +88,10 @@ export function resolvesInCanonical(recipe: CanonicalRecipe, origin: CanonicalOr
   const atIndex = <T>(list: readonly T[]): boolean =>
     origin.index !== undefined && origin.index < list.length
   switch (origin.element) {
+    case "title":
+      // The title's grounding is the recipe's own, so the origin names the
+      // recipe and the state has to be the one that carries a wording.
+      return origin.id === recipe.id && recipe.title.state === "from_source"
     case "step":
       return step !== undefined
     case "ingredient":
