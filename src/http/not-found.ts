@@ -22,10 +22,18 @@
  * here can have both, and the library's contents are the thing worth keeping.
  */
 
-/** The body, status and headers of a miss. One definition, both apps. */
+/** The body and status of a miss. One definition, both apps. */
 export const NOT_FOUND_BODY = "Not Found"
 export const NOT_FOUND_STATUS = 404
-export const NOT_FOUND_HEADERS = { "content-type": "text/plain; charset=utf-8" } as const
+
+/**
+ * The one header a miss carries. NOT exported: a header record is only ever handed
+ * to a response builder through {@link notFoundHeaders}, which copies it, so the
+ * constant itself never leaves this module and cannot be handed to `c.body(...)`
+ * shared. That is the invariant `response-header-record.test.ts` guards — an
+ * exported header record is one misuse away from poisoning a response process-wide.
+ */
+const NOT_FOUND_HEADERS = { "content-type": "text/plain; charset=utf-8" } as const
 
 /**
  * A FRESH headers object for one response. Never the constant itself.
