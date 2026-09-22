@@ -62,7 +62,7 @@ jobs:
       # runtime turns a future interpreter change into a mystery failure on an
       # unrelated pull request — the scorer would start passing or failing for a
       # reason no diff explains.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: npm ci
