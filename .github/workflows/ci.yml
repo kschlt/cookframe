@@ -306,6 +306,22 @@ jobs:
       - run: npm ci
       - run: npm run test:run
 
+  # CFV1-IDS. The guard that turns red when two branches claim one record number.
+  # It gets a job of its own for the reason `ci/every-declared-test-script-runs-in-
+  # a-named-job` states: this check earns its keep on the pull request that pulls
+  # `main` and discovers the collision, and "container failed" is not a sentence
+  # that tells the author to renumber their record.
+  records:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:records
+
   slice1:
     runs-on: ubuntu-latest
     steps:
