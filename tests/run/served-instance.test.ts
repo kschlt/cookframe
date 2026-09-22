@@ -206,6 +206,13 @@ describe("run/absent-and-forbidden-are-one-answer", () => {
     //
     // It survived nineteen pull requests because `app.request(...)` never
     // reaches that code. Asking twice is what makes the proof discriminating.
+    //
+    // **All three shared values, not just one.** `not-found.ts` exports a body,
+    // a status and a headers object; only the OBJECT can be mutated, because a
+    // string and a number are immutable in JavaScript and the adapter writes
+    // into a record. The comparison below is over all three response fields
+    // anyway — status, content type and body — so a second response that
+    // differed in any of them fails here.
     const first = await shapeOf(await fetch(`${it_.origin}/nothing-here`))
     const second = await shapeOf(await fetch(`${it_.origin}/nothing-else`))
     const third = await shapeOf(await fetch(`${it_.origin}/recipes/recipe-Z`))
@@ -282,6 +289,12 @@ describe("run/a-stop-leaves-nothing-half-written", () => {
     // Long enough to be inside the capture, short enough to be well before it
     // returns. The assertion below is what makes this a measurement rather than
     // a hope: a stop that cut the request off would not answer 201.
+    //
+    // **Would a no-op `stop()` pass this?** No, and it was measured rather than
+    // reasoned: a stop that severs in-flight connections fails the 201, a stop
+    // that never releases the store fails `closed.count`, and a stop that does
+    // nothing at all leaves the port answering and fails the last line. All
+    // three are planted mutations and all three are red.
     await new Promise((resolve) => setTimeout(resolve, 80))
     const stopped = it_.stop()
 

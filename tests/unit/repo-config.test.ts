@@ -652,6 +652,41 @@ describe("slice0/container-builds-and-runs", () => {
       /docker run .*npm run quality/,
     )
   })
+
+  it("ci/gitleaks-ignores-are-pinned-to-one-commit", () => {
+    // `.gitleaksignore` silences findings the secret scanner reported. It is the
+    // one mechanism in this repository that can make a security check quieter,
+    // so what it is ALLOWED to say is checked here rather than left to whoever
+    // is unblocking a pull request at the time.
+    //
+    // Only a FINGERPRINT is admitted: `<40-hex commit>:<path>:<rule>:<line>`.
+    // That pins each entry to one line of one file in one commit, so it cannot
+    // hide a finding anywhere else, including in a commit that does not exist
+    // yet. The entry this guard exists to refuse is the convenient one — a bare
+    // path or glob such as `tests/**`, which silences the rule forever and
+    // everywhere, and reads in a diff exactly like the narrow kind.
+    //
+    // Absent file is fine: nothing silenced is the best state.
+    let text: string
+    try {
+      text = read(".gitleaksignore")
+    } catch {
+      return
+    }
+
+    const entries = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "" && !line.startsWith("#"))
+
+    const fingerprint = /^[0-9a-f]{40}:[^:]+:[^:]+:\d+$/
+    for (const entry of entries) {
+      expect(
+        entry,
+        `.gitleaksignore entry is not pinned to a single commit, file and line: ${entry}`,
+      ).toMatch(fingerprint)
+    }
+  })
 })
 
 function walk(dir: string): string[] {
