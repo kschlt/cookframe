@@ -35,6 +35,7 @@
     "test:watch": "vitest",
     "start": "node --import tsx src/server/main.ts",
     "eval": "tsx evals/harness.ts",
+    "majors": "tsx tests/protections/majors.run.ts",
     "quality": "npm run typecheck && biome ci . && vitest run"
   },
   "dependencies": {
