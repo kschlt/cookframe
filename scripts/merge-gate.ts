@@ -135,10 +135,29 @@ export function runMergeGate(request: MergeGateRequest): MergeGateResult {
   try {
     git(repoDir, "worktree", "add", "--detach", worktree, baseSha)
     try {
-      execFileSync("git", ["merge", "--no-edit", "--no-ff", headSha], {
-        cwd: worktree,
-        stdio: ["ignore", "pipe", "pipe"],
-      })
+      // An identity is supplied per invocation, as insurance rather than as a
+      // fix for anything observed. This merge creates a commit and
+      // `actions/checkout` configures no committer, but git then GUESSES one
+      // from the user and host and commits anyway — measured, including with
+      // `user.useConfigOnly`, so the failure is NOT reproducible here and no
+      // test below claims otherwise. Where that guess cannot be made the merge
+      // would abort, and this function would have reported it as a CONFLICT,
+      // blaming the two changes for a fault of its own. The commit dies with
+      // the worktree, so the identity costs nothing; a wrong diagnosis would.
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=merge-gate",
+          "-c",
+          "user.email=merge-gate@invalid",
+          "merge",
+          "--no-edit",
+          "--no-ff",
+          headSha,
+        ],
+        { cwd: worktree, stdio: ["ignore", "pipe", "pipe"] },
+      )
     } catch {
       return {
         exitCode: 2,

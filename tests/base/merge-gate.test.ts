@@ -59,6 +59,8 @@ function fixture(options: {
     }
   }
   run(dir, "git", "init", "-q", "-b", "main")
+  // The fixture needs an identity to build its own history. `withoutIdentity`
+  // removes it again at the end, to model a CI checkout.
   run(dir, "git", "config", "user.email", "fixture@example.invalid")
   run(dir, "git", "config", "user.name", "Fixture")
   writeFileSync(
