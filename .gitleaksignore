@@ -23,3 +23,29 @@
 # The entry remains because the string is in this branch's history and rewriting
 # that history was not available here. Nothing in the working tree matches it.
 69aa37e379bd57d837ead2362f06290d889b03d0:tests/slice5/mobile-entry-point.test.ts:generic-api-key:43
+
+# ---------------------------------------------------------------------------
+# 2384f6b, tests/run/harness.ts:36 and tests/run/configuration.test.ts:26,98 —
+# generic-api-key
+#
+# CFV1-RUN, and the same mistake as the entry above, made again one unit later.
+# Three test credentials were committed as literals and gitleaks matched them at
+# entropy 4.39. It was RIGHT to, for the reason already written above: a string
+# nothing can tell apart from a secret is a secret as far as any scanner can
+# know. None of the three was ever live — each configured an instance that lives
+# for the length of a test.
+#
+# The fix was the same: stop committing one. They are assembled from an
+# obviously non-secret phrase as of bc6c323, and the CI step that starts the
+# runtime image mints its two with `openssl rand`. Nothing in the working tree
+# matches them. These three entries remain only because the strings are in this
+# branch's history and rewriting that history is denied here.
+#
+# The rule this file states about itself is now enforced rather than trusted:
+# `ci/gitleaks-ignores-are-pinned-to-one-commit` in tests/unit/repo-config.test.ts
+# rejects any entry that is not a 40-character commit hash followed by a path, a
+# rule and a line — so the path or rule exception this header warns against
+# fails the build instead of reading like the narrow kind in a diff.
+2384f6b69feeac4381404e198f112a92c0d14683:tests/run/harness.ts:generic-api-key:36
+2384f6b69feeac4381404e198f112a92c0d14683:tests/run/configuration.test.ts:generic-api-key:26
+2384f6b69feeac4381404e198f112a92c0d14683:tests/run/configuration.test.ts:generic-api-key:98

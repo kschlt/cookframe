@@ -21,7 +21,7 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import { MIN_INGEST_CREDENTIAL_LENGTH } from "../../src/http/ingest-credential.js"
+import { MIN_INSTANCE_CREDENTIAL_LENGTH } from "../../src/http/instance-credential.js"
 import { allStrings, type PlistValue, parsePlist } from "./plist.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -44,7 +44,7 @@ const raw = readFileSync(shortcutPath, "utf8")
  * and every URL and sentence carries characters outside both alphabets.
  */
 function credentialShaped(value: string): boolean {
-  if (value.length < MIN_INGEST_CREDENTIAL_LENGTH) return false
+  if (value.length < MIN_INSTANCE_CREDENTIAL_LENGTH) return false
   if (/^[0-9a-fA-F]+$/.test(value)) return true
   if (!/^[A-Za-z0-9_-]+$/.test(value)) return false
   return /[a-z]/.test(value) && /[A-Z]/.test(value) && /[0-9]/.test(value)

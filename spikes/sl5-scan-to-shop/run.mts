@@ -34,7 +34,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { createCapabilityApp } from "../../src/http/capability-app.js"
 import { createIngestApp } from "../../src/http/ingest-app.js"
-import { createIngestCredential } from "../../src/http/ingest-credential.js"
+import { createInstanceCredential } from "../../src/http/instance-credential.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
 import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
 import {
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
   const store = createInMemoryCapabilityStore()
   let n = 0
   const ingestApp = createIngestApp({
-    credential: createIngestCredential(CREDENTIAL),
+    credential: createInstanceCredential(CREDENTIAL, "ingest credential"),
     repo,
     capture,
     normalization,

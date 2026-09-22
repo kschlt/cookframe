@@ -41,6 +41,7 @@ import { Hono } from "hono"
 import type { RecipeRepository } from "../persistence/index.js"
 import { type CapabilityStore, isPathSafeToken } from "../shopping/capability-token.js"
 import { mapCanonicalToSchemaOrg } from "../shopping/schema-org-mapping.js"
+import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "./not-found.js"
 
 /** The collaborators the serving route composes; both injected (ADR-0004). */
 export interface CapabilityAppDeps {
@@ -49,10 +50,6 @@ export interface CapabilityAppDeps {
   /** Loads the latest Canonical version for a recipe id, or `undefined` (ADR-0018). */
   readonly repo: RecipeRepository
 }
-
-/** The one 404 every miss returns — a single body so the misses are indistinguishable. */
-const NOT_FOUND_BODY = "Not Found"
-const NOT_FOUND_HEADERS = { "content-type": "text/plain; charset=utf-8" } as const
 
 /**
  * Build the capability-URL serving app. `GET /r/:token` serves the token's recipe
@@ -65,7 +62,15 @@ export function createCapabilityApp(deps: CapabilityAppDeps): Hono {
 
   // One not-found response, used for every miss (routing and handler alike), so an
   // unknown token, a revoked token and a missing recipe cannot be told apart.
-  app.notFound((c) => c.body(NOT_FOUND_BODY, 404, NOT_FOUND_HEADERS))
+  // The three values come from `not-found.ts` rather than from here, because
+  // the pages CFV1-RUN added must answer an uncredentialed caller with exactly
+  // these bytes. Two copies would be two things that can drift apart.
+  //
+  // A FRESH headers object per response, never the shared constant: the node
+  // adapter writes the content length back into whatever record it is handed,
+  // which turns the second miss the process serves into a 500. The reason is
+  // written out in `not-found.ts`.
+  app.notFound((c) => c.body(NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders()))
 
   app.get("/r/:token", async (c) => {
     const token = c.req.param("token")
