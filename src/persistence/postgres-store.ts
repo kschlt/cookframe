@@ -64,17 +64,53 @@ const EXTRACT_SQL = `
  *
  * Postgres answers a query against a missing table with `42P01`, which reaches a
  * caller as a driver error naming a relation. That is a true message and an
- * unhelpful one: the fault is not in the query, it is that nobody ran
- * `migrations/0001-the-recipe-store.sql`. Saying so is the difference between an
- * operator fixing it in a minute and reading the driver's source.
+ * unhelpful one: the fault is not in the query, it is that nobody ran the
+ * migrations. Saying so is the difference between an operator fixing it in a
+ * minute and reading the driver's source.
+ *
+ * It names the DIRECTORY and not one file, because `migrations/` holds more
+ * than one and a missing `cooking_plan` is not fixed by applying the recipe
+ * store's migration. The first file stays in the sentence as the place to
+ * start, since the order matters and nothing else states it.
  */
+const APPLY_THE_MIGRATIONS =
+  "apply the migrations in migrations/ in order, beginning with " +
+  "migrations/0001-the-recipe-store.sql, before starting the instance"
+
 export class StoreNotMigratedError extends Error {
-  constructor(readonly relation: string) {
+  constructor(readonly relation: string | undefined) {
     super(
-      `the database has no \`${relation}\` table: apply migrations/0001-the-recipe-store.sql before starting the instance`,
+      relation === undefined
+        ? `a table this store needs does not exist: ${APPLY_THE_MIGRATIONS}`
+        : `the database has no \`${relation}\` table: ${APPLY_THE_MIGRATIONS}`,
     )
     this.name = "StoreNotMigratedError"
   }
+}
+
+/**
+ * Which relation was missing, taken from the driver's own report.
+ *
+ * `pg` fills `error.table` from the server's `TABLE` error field, and PostgreSQL
+ * sends that field for integrity violations — never for `42P01`. So the field is
+ * absent EVERY time here, and naming a fixed table as a fallback named one
+ * particular table for every missing one. That was harmless while `migrations/`
+ * held a single file: any missing table meant that file had not been applied.
+ * With a second migration it is worse than no name at all — it sends an operator
+ * whose `cooking_plan` is missing to re-run the recipe store's migration, which
+ * they already ran and which will refuse to run twice.
+ *
+ * The message carries the name (`relation "cooking_plan" does not exist`), so it
+ * is read from there, and when it cannot be read the refusal says a table is
+ * missing rather than guessing which.
+ */
+function missingRelation(error: object): string | undefined {
+  const table = (error as { table?: unknown }).table
+  if (typeof table === "string" && table !== "") return table
+  const message = (error as { message?: unknown }).message
+  const found =
+    typeof message === "string" ? /relation "([^"]+)" does not exist/.exec(message) : null
+  return found?.[1]
 }
 
 /** Postgres's `undefined_table`. */
@@ -88,8 +124,7 @@ function translate(error: unknown): never {
   if (typeof error === "object" && error !== null && "code" in error) {
     const { code } = error as { code?: unknown }
     if (code === UNDEFINED_TABLE) {
-      const table = (error as { table?: unknown }).table
-      throw new StoreNotMigratedError(typeof table === "string" ? table : "recipe_version")
+      throw new StoreNotMigratedError(missingRelation(error))
     }
   }
   throw error
