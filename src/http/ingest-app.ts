@@ -45,6 +45,7 @@ import { MultipleRecipesError, UnknownRecipeCountError } from "../pipeline/recip
 import { importFromUrl } from "../pipeline/url-import.js"
 import { SafeFetchError } from "../security/safe-fetch.js"
 import type { UrlByteSource } from "../security/url-byte-source.js"
+import type { ByteStore } from "../storage/index.js"
 import { importWording, refusalWording, urlRefusalWording } from "./capture-wording.js"
 import type { InstanceCredential } from "./instance-credential.js"
 import { bearerCredential } from "./instance-credential.js"
@@ -127,6 +128,25 @@ export interface IngestAppDeps {
   readonly normalization: NormalizationProvider
   readonly policy: BlockIdPolicy
   readonly identity: IngestIdentity
+  /**
+   * Where a submitted photograph is kept (ADR-0009): the byte store, which on a
+   * running instance is the filesystem volume `STORAGE_ROOT` names.
+   *
+   * `PDR-0001`'s tenth invariant keeps scan deletion disabled until the
+   * capture-quality gate passes, and ADR-0009 says what follows from it:
+   * captured images are RETAINED. Before this field existed nothing on the
+   * running path constructed a store, so every photograph was read by the model
+   * and then dropped with the request — the invariant held by the code and
+   * broken by the instance. `serve/a-photograph-is-kept-before-it-is-read` holds
+   * the wiring; `run/a-photograph-is-kept-on-the-volume` holds what it does.
+   *
+   * Required, like {@link urlCapture}, so a composition that forgets it does
+   * not compile. What this does NOT do is record the returned identity on the
+   * snapshot: the snapshot has no field for one, and adding it is the
+   * owner-gated schema decision `src/pipeline/capture.ts` names. The store is
+   * content-addressed, so the photograph stays findable by its bytes.
+   */
+  readonly scanStore: ByteStore
   /**
    * The egress seam a URL import fetches through (`src/security/url-byte-source.ts`).
    *
@@ -236,6 +256,25 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
       }
       if (body.byteLength > MAX_CAPTURE_BYTES) {
         return c.json(TOO_LARGE_BODY, 413)
+      }
+
+      // Kept BEFORE it is read, and that order is the decision.
+      //
+      // After would make keeping conditional on the model: a page refused as
+      // several recipes, or a capture that failed, would lose its photograph —
+      // and those are the photographs the invariant is for, since the scan-to-
+      // shop measurement found two of its three refusals wrong and the pixels
+      // are the only way to capture such a page again. Before also means a
+      // store that cannot write refuses the submission before any model is
+      // paid for, rather than after one was.
+      //
+      // A store that cannot write is this instance's fault, answered the way
+      // every other one is below. Continuing without the photograph would
+      // answer 201 for a capture whose scan the invariant says must exist.
+      try {
+        await deps.scanStore.put(body)
+      } catch {
+        return c.json({ error: "capture_failed" }, 500)
       }
 
       try {

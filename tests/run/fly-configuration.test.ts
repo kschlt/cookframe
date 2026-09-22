@@ -255,6 +255,56 @@ function requiredVariables(): string[] {
   return [...names, "DATABASE_URL"]
 }
 
+/** Where the process keeps photographs, and where the platform persists a volume. */
+const keptAt = (toml: string): string | undefined => valueIn(toml, "env", "STORAGE_ROOT")
+const persistedAt = (toml: string): string | undefined => valueIn(toml, "mounts", "destination")
+
+describe("run/the-platform-file-keeps-photographs-on-the-volume", () => {
+  it("the directory the process writes photographs to is the directory the platform persists", () => {
+    // The port guard above, for the byte store. `STORAGE_ROOT` has no default
+    // (`src/server/config.ts`), so the value in `[env]` is the whole
+    // instruction; `[mounts] destination` is the only path on this machine that
+    // survives a stop, and this machine stops whenever it is idle.
+    //
+    // When they disagree every capture succeeds, the photograph is written to
+    // the machine's own disk, and the next stop deletes it — `PDR-0001`'s tenth
+    // invariant broken by a typo, with nothing anywhere reporting an error.
+    const kept = keptAt(FLY_TOML)
+    const persisted = persistedAt(FLY_TOML)
+    expect(kept, "fly.toml [env] declares no STORAGE_ROOT").toBeDefined()
+    expect(persisted, "fly.toml declares no [mounts] destination").toBeDefined()
+    expect(persisted).toBe(kept)
+  })
+
+  it.each([
+    {
+      name: "no volume at all",
+      toml: '[env]\n  STORAGE_ROOT = "/data"\n',
+    },
+    {
+      name: "a volume mounted beside the directory written to",
+      toml: '[env]\n  STORAGE_ROOT = "/data"\n[mounts]\n  source = "v"\n  destination = "/srv"\n',
+    },
+    {
+      name: "a destination only a comment names",
+      toml: '[env]\n  STORAGE_ROOT = "/data"\n[mounts]\n  source = "v"\n  # destination = "/data"\n',
+    },
+    {
+      name: "the destination written under the wrong table",
+      toml: '[env]\n  STORAGE_ROOT = "/data"\n  destination = "/data"\n[mounts]\n  source = "v"\n',
+    },
+  ])("reports: $name", ({ toml }) => {
+    expect(persistedAt(toml)).not.toBe(keptAt(toml))
+  })
+
+  it("spares a file where the two agree, so the rule is not satisfied by rejecting everything", () => {
+    const agreeing =
+      '[env]\n  STORAGE_ROOT = "/data"\n[mounts]\n  source = "v"\n  destination = "/data"\n'
+    expect(keptAt(agreeing)).toBe("/data")
+    expect(persistedAt(agreeing)).toBe(keptAt(agreeing))
+  })
+})
+
 describe("run/the-platform-file-carries-no-secret", () => {
   it("the secret list is exactly the required variables this file does not set", () => {
     // The list above is a fixture, and a fixture can be narrowed. Cutting it to

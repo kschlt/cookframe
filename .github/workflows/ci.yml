@@ -486,8 +486,15 @@ jobs:
           # PUBLIC_BASE_URL is required since CFV1-SHOP: capability URLs are
           # built on it, and an instance without one refuses to start by name.
           # It is the address this step reaches the container at.
+          #
+          # The photographs go on a named volume at the path `fly.toml` mounts
+          # one, because that is the shape a deployment has: `STORAGE_ROOT` is
+          # required, and the process writes to it before binding, so an image
+          # that could not write there would never print its listening line.
           docker run -d --name cookframe-runtime -p 8080:8080 \
             --add-host=host.docker.internal:host-gateway \
+            -v cookframe-ci-photographs:/data \
+            -e STORAGE_ROOT=/data \
             -e PORT=8080 \
             -e MODEL_PROVIDER=openai \
             -e OPENAI_API_KEY=not-a-real-key \

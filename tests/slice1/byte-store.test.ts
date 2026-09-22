@@ -130,7 +130,25 @@ describe("slice1/storage-identity-confinement", () => {
     // caller sent.
     const root = readFileSync(join(repoRoot, "src", "server", "main.ts"), "utf8")
     expect(root).not.toMatch(/StorageIdentity/)
-    expect(root).not.toMatch(/createFilesystemByteStore|STORAGE_ROOT/)
+    // The one thing the composition root may do with the volume is hand the
+    // store its directory, as configuration read it. Until the photo route kept
+    // photographs this line forbade `createFilesystemByteStore` here outright,
+    // which was true of a root that built no store and would now forbid the
+    // wiring ADR-0009 and PDR-0001's tenth invariant ask for. What it still
+    // forbids is the part the exemption was never for: a path. The factory is
+    // called exactly once, with the configured value and nothing assembled
+    // around it, and the variable is not read from the environment here — it is
+    // read in `config.ts`, beside every other one. (Its NAME may appear: the
+    // refusal an operator sees when the volume cannot be written has to say
+    // which variable to fix.)
+    const constructions = [...root.matchAll(/createFilesystemByteStore\(([^)]*)\)/g)].map((m) =>
+      (m[1] ?? "").trim(),
+    )
+    expect(constructions, "the composition root builds no byte store, or builds two").toHaveLength(
+      1,
+    )
+    expect(constructions[0]).toBe("config.storageRoot")
+    expect(root).not.toMatch(/process\.env\s*(?:\.|\[\s*["'`])\s*STORAGE_ROOT/)
     // Every path it builds starts from the module's own location.
     expect(root).toMatch(/fileURLToPath\(import\.meta\.url\)/)
 
