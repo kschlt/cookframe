@@ -11,6 +11,61 @@ import { SCHEMA_VERSION } from "./version.js"
  * NOT modelled here — they belong to replaceable derived layers (§5, §11).
  */
 
+// --- §5.1 the recipe's name ----------------------------------------------
+/**
+ * The recipe's name, as a DECLARED state rather than a bare string.
+ *
+ * `title` used to be `z.string()`: required, and the only required content field
+ * on the whole contract carrying neither `sourceText` nor `sourceRefs` (the
+ * enumeration is `tests/schema/required-fields.contract.test.ts`). A source that
+ * has no title therefore had no way to say so, and the stage that must produce
+ * one filled it — `spikes/s1-photo-gate/VERDICT.md`, finding 3: a handwritten
+ * card with no heading was stored titled with the full text of its own first
+ * instruction. Nothing marked that title as manufactured and no check could,
+ * because the field carried no ref to check.
+ *
+ * So the contract stops demanding a value it cannot verify, and starts demanding
+ * a declaration it can:
+ *
+ * - `from_source` carries the source's own wording and the evidence for it. The
+ *   two field NAMES are load-bearing: `sourceText` beside a non-empty
+ *   `sourceRefs` is what `collectClaims` (claim-support) walks, so the title
+ *   became a verified claim on the `url` and `text` paths by acquiring them.
+ * - `not_in_source` is the declared gap — the state a reader sees instead of a
+ *   sentence from the method.
+ *
+ * Absence is declared rather than merely missing: an optional field would let a
+ * producer omit the title and be silent about why, which is the same silence in
+ * a new place. Here every recipe says which of the two it is.
+ *
+ * What this alone does NOT close: a model may still declare `from_source` and
+ * cite a block that is not a title. That is `verifyTitleGrounding`
+ * (`src/pipeline/title-grounding.ts`), which is the half that governs the image
+ * path, where claim verification is deliberately off (ADR-0023).
+ */
+export const RecipeTitle = z.discriminatedUnion("state", [
+  z
+    .object({
+      state: z.literal("from_source"),
+      /** The source's own wording, verbatim (§5.2). */
+      sourceText: z.string().min(1),
+      /**
+       * `.min(1)` here and nowhere else in this file. Elsewhere an empty
+       * `sourceRefs` means refs are inherited from the enclosing node; the title
+       * has no enclosing node to inherit from, so an empty array would restore
+       * exactly the ungrounded field this union exists to remove.
+       */
+      sourceRefs: z.array(SourceRef).min(1),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal("not_in_source"),
+    })
+    .strict(),
+])
+export type RecipeTitle = z.infer<typeof RecipeTitle>
+
 // --- §5.1 source-provided classifications ---------------------------------
 export const ClassificationKind = z.enum([
   "cuisine",
@@ -312,7 +367,8 @@ export const CanonicalRecipe = z
   .object({
     id: z.string().min(1),
     schemaVersion: z.literal(SCHEMA_VERSION),
-    title: z.string(),
+    /** A declared state, never a bare string (ADR-0023). */
+    title: RecipeTitle,
     description: z.string().optional(),
     /** Source-provided only; a missing author stays missing (§5.1). */
     authors: z.array(z.string()).optional(),

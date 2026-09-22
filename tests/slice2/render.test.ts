@@ -402,7 +402,11 @@ describe("slice2/no-client-runtime-in-output", () => {
   it("recipe text cannot introduce one either", () => {
     const hostile = CanonicalRecipe.parse({
       ...JSON.parse(JSON.stringify(onions)),
-      title: "<script>alert(1)</script>",
+      title: {
+        state: "from_source",
+        sourceText: "<script>alert(1)</script>",
+        sourceRefs: [{ blockId: "b-title" }],
+      },
       description: '"><img src=x onerror=alert(1)>',
     })
     const output = renderRecipePage(hostile)

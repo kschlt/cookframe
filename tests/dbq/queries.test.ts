@@ -58,7 +58,11 @@ function corpus(): CanonicalVersion[] {
     return r
   }
   const rename = (r: CanonicalRecipe, title: string): void => {
-    ;(r as { title: string }).title = title
+    ;(r as { title: CanonicalRecipe["title"] }).title = {
+      state: "from_source",
+      sourceText: title,
+      sourceRefs: [{ blockId: "b-title" }],
+    }
   }
   return [
     { recipeId: "r-1", version: 1, recipe: at("r-1", (r) => rename(r, "Gratin, first run")) },

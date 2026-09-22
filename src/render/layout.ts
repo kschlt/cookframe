@@ -51,6 +51,7 @@ li { margin: .3rem 0; }
 .tag { border: 1px solid var(--rule); border-radius: 999px; padding: .1rem .5rem; }
 .amount { font-variant-numeric: tabular-nums; }
 .optional { color: var(--ink-soft); font-size: .85rem; }
+.source-gap { color: var(--ink-soft); font-style: italic; font-weight: 400; }
 .annotations { list-style: none; padding: 0; margin: .3rem 0 0; font-size: .85rem; color: var(--ink-soft); }
 .annotations li { margin: .15rem 0; }
 .cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }

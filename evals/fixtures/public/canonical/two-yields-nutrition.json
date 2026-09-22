@@ -1,7 +1,11 @@
 {
   "id": "recipe-fixture-0001",
   "schemaVersion": "1.0.0",
-  "title": "Kartoffelgratin",
+  "title": {
+    "state": "from_source",
+    "sourceText": "Kartoffelgratin",
+    "sourceRefs": [{ "blockId": "b-title" }]
+  },
   "description": "A synthetic public fixture exercising the ontology's future-readiness case (recipe-ontology §12): two contextual yields, one source nutrition statement with an ambiguous per-serving basis, and source-provided classifications.",
   "authors": ["Cookframe Fixture"],
   "sourceName": "Cookframe Fixtures",

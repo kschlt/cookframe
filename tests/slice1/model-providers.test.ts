@@ -247,7 +247,7 @@ describe("slice1/model-reply-fails-closed", () => {
     // `yields` is required by the contract and absent here.
     const reply = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
-      title: "Pfannkuchen",
+      title: { state: "from_source", sourceText: "Pfannkuchen", sourceRefs: [{ blockId: "b1" }] },
       ingredientGroups: [],
       instructionSections: [],
     })
@@ -278,7 +278,7 @@ describe("slice1/run-provenance-recorded", () => {
     const reply = JSON.stringify({
       id: "a-model-chosen-recipe-id",
       schemaVersion: SCHEMA_VERSION,
-      title: "Pfannkuchen",
+      title: { state: "from_source", sourceText: "Pfannkuchen", sourceRefs: [{ blockId: "b1" }] },
       yields: [],
       ingredientGroups: [],
       instructionSections: [],
@@ -310,13 +310,13 @@ describe("slice1/contract-failure-is-retried", () => {
   /** A canonical the contract rejects: `yields` is required and absent. */
   const badCanonical = JSON.stringify({
     schemaVersion: SCHEMA_VERSION,
-    title: "Pfannkuchen",
+    title: { state: "from_source", sourceText: "Pfannkuchen", sourceRefs: [{ blockId: "b1" }] },
     ingredientGroups: [],
     instructionSections: [],
   })
   const goodCanonical = JSON.stringify({
     schemaVersion: SCHEMA_VERSION,
-    title: "Pfannkuchen",
+    title: { state: "from_source", sourceText: "Pfannkuchen", sourceRefs: [{ blockId: "b1" }] },
     yields: [],
     ingredientGroups: [],
     instructionSections: [],

@@ -68,7 +68,17 @@ export type SchemaOrgYield = string | SchemaOrgQuantitativeValue
 export interface SchemaOrgRecipe {
   readonly "@context": "https://schema.org"
   readonly "@type": "Recipe"
-  readonly name: string
+  /**
+   * Present only when the source named the recipe; omitted otherwise, with
+   * {@link SchemaOrgMappingResult.titleState} saying so.
+   *
+   * Schema.org wants a `name` on a Recipe and this mapping still will not
+   * supply one it does not have. A consumer reading a nameless Recipe knows it
+   * has no name; a consumer reading a name taken from the method is told
+   * something false about the source, and cannot tell. That is the same
+   * omit-never-coerce trade every other field here makes.
+   */
+  readonly name?: string
   readonly description?: string
   /** Present only when the source named an author; omitted otherwise. */
   readonly author?: readonly SchemaOrgPerson[]
@@ -90,6 +100,7 @@ export type OmissionReason =
   | "unmapped_time_type"
   | "duplicate_time_type"
   | "blank_source_text"
+  | "not_in_source"
 
 export interface SchemaOrgMappingOmission {
   readonly field: string
@@ -104,11 +115,18 @@ export interface SchemaOrgMappingOmission {
  */
 export type AuthorCompatibilityState = "present" | "absent"
 
+/**
+ * Whether the source named the recipe. The same explicit shape as
+ * {@link AuthorCompatibilityState}, for the field the contract used to demand.
+ */
+export type TitleCompatibilityState = "present" | "absent"
+
 export interface SchemaOrgMappingResult {
   readonly recipe: SchemaOrgRecipe
   /** The mapping version that produced `recipe`. */
   readonly mappingVersion: typeof SCHEMA_ORG_MAPPING_VERSION
   readonly authorState: AuthorCompatibilityState
+  readonly titleState: TitleCompatibilityState
   /** Every value the mapping omitted rather than coerce, with its reason. */
   readonly omissions: readonly SchemaOrgMappingOmission[]
 }
@@ -276,6 +294,16 @@ function mapYield(y: RecipeYield): { value: SchemaOrgYield; omission?: SchemaOrg
 export function mapCanonicalToSchemaOrg(recipe: CanonicalRecipe): SchemaOrgMappingResult {
   const omissions: SchemaOrgMappingOmission[] = []
 
+  // Title: a declared gap is carried across as a gap. The omission is recorded
+  // for the same reason a dropped ingredient is — a page that quietly has no
+  // name is as misleading as one with a borrowed name, and the record is what
+  // lets a caller tell "no name" from "the mapping lost it".
+  const titleState: TitleCompatibilityState =
+    recipe.title.state === "from_source" ? "present" : "absent"
+  if (recipe.title.state !== "from_source") {
+    omissions.push({ field: "name", reason: "not_in_source", sourceText: "" })
+  }
+
   // Author: source-provided only. Empty/blank names are dropped, and if nothing
   // remains the field is omitted and the state is `absent` — never invented.
   const authorNames = (recipe.authors ?? []).map((a) => a.trim()).filter((a) => a.length > 0)
@@ -368,7 +396,7 @@ export function mapCanonicalToSchemaOrg(recipe: CanonicalRecipe): SchemaOrgMappi
   const schemaRecipe: SchemaOrgRecipe = {
     "@context": "https://schema.org",
     "@type": "Recipe",
-    name: recipe.title,
+    ...(recipe.title.state === "from_source" ? { name: recipe.title.sourceText } : {}),
     ...(recipe.description !== undefined ? { description: recipe.description } : {}),
     ...(author.length > 0 ? { author } : {}),
     ...(recipeIngredient.length > 0 ? { recipeIngredient } : {}),
@@ -383,6 +411,7 @@ export function mapCanonicalToSchemaOrg(recipe: CanonicalRecipe): SchemaOrgMappi
     recipe: schemaRecipe,
     mappingVersion: SCHEMA_ORG_MAPPING_VERSION,
     authorState,
+    titleState,
     omissions,
   }
 }

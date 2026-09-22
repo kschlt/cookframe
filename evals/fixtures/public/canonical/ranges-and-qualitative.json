@@ -1,7 +1,11 @@
 {
   "id": "recipe-fixture-0002",
   "schemaVersion": "1.0.0",
-  "title": "Eingelegte Zwiebeln",
+  "title": {
+    "state": "from_source",
+    "sourceText": "Eingelegte Zwiebeln",
+    "sourceRefs": [{ "blockId": "b-title" }]
+  },
   "description": "A synthetic public fixture whose quantities and durations are deliberately non-scalar: a range, a qualitative quantity, an approximate amount and an open-ended rest. It also carries no author, so that \"a missing author stays missing\" is exercised rather than asserted.",
   "sourceName": "Cookframe Fixtures",
   "sourceClassifications": [

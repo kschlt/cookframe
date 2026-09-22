@@ -62,7 +62,11 @@ const canonical = (over?: Partial<CanonicalRecipe>): CanonicalRecipe => {
   const base: CanonicalRecipe = {
     id: "recipe-1",
     schemaVersion: SCHEMA_VERSION,
-    title: "Synthetic Test Loaf",
+    title: {
+      state: "from_source",
+      sourceText: "Synthetic Test Loaf",
+      sourceRefs: [{ blockId: "b-title" }],
+    },
     authors: ["Fixture Author"],
     yields: [yieldOf({ valueExpression: exactValue(1, "1 loaf"), unit: "loaf" })],
     ingredientGroups: [

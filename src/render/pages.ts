@@ -11,11 +11,11 @@ import type { CanonicalRecipe } from "../../schema/index.js"
 import { page } from "./layout.js"
 import { libraryBody, type RecipeHref } from "./library.js"
 import { recipeBody } from "./recipe-page.js"
-import { toLibraryCardView, toRecipeView, type ViewOptions } from "./view-model.js"
+import { titleLine, toLibraryCardView, toRecipeView, type ViewOptions } from "./view-model.js"
 
 export function renderRecipePage(recipe: CanonicalRecipe, options: ViewOptions = {}): string {
   const view = toRecipeView(recipe, options)
-  return page(view.title, recipeBody(view))
+  return page(titleLine(view.title), recipeBody(view))
 }
 
 export interface LibraryPageOptions extends ViewOptions {
