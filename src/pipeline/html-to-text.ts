@@ -48,10 +48,21 @@ const NON_CONTENT = [
  * REJOIN, not break.
  */
 const BLOCK_BOUNDARY =
-  /<\/?(?:p|div|section|article|header|footer|main|aside|nav|ul|ol|li|dl|dt|dd|table|thead|tbody|tfoot|tr|th|td|h[1-6]|blockquote|pre|figure|figcaption|form|fieldset|address|hr|br)\b[^>]*>/gi
+  /<\/?(?:p|div|section|article|header|footer|main|aside|nav|ul|ol|li|dl|dt|dd|table|thead|tbody|tfoot|tr|th|td|h[1-6]|blockquote|pre|figure|figcaption|form|fieldset|address|hr|br)\b(?:"[^"]*"|'[^']*'|[^>])*>/gi
 
-/** Any remaining tag: stripped without inserting a break, so inline markup rejoins. */
-const ANY_TAG = /<[^>]+>/g
+/**
+ * Any remaining tag: stripped without inserting a break, so inline markup rejoins.
+ *
+ * The attribute run is quote-AWARE — `(?:"[^"]*"|'[^']*'|[^>])*`, not `[^>]*`. A
+ * naive `[^>]*` stops at the first `>`, so an attribute value that itself contains
+ * a `>` (`<span data-note="a > b">`) would end the "tag" early and leak the rest
+ * of the value (`b">`) into the extracted text — text a browser renders as nothing.
+ * On the `url` path that leaked text becomes verifiable "source": the ADR-0019 §4a
+ * anchor would then accept a block quoting attacker-controlled markup no reader
+ * sees. Consuming quoted spans whole keeps a `>` inside an attribute inside the
+ * tag, where it belongs. Same fix on {@link BLOCK_BOUNDARY} for the same reason.
+ */
+const ANY_TAG = /<(?:"[^"]*"|'[^']*'|[^>])*>/g
 
 /**
  * The named entities a recipe page actually reaches for: the five that are

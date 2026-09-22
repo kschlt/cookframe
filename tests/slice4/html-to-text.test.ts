@@ -101,3 +101,33 @@ describe("slice4/fallback-hands-capture-extracted-text-not-raw-html (ADR-0019 §
     expect(() => verifyCaptureSupport("url", html, blocks)).toThrow(UnsupportedCaptureError)
   })
 })
+
+describe("slice4/attribute-value-cannot-leak-into-the-anchor (ADR-0019 §4a)", () => {
+  // A `>` inside a quoted attribute value must NOT end tag-stripping early: the
+  // attribute content is invisible to a reader and attacker-controlled, so if it
+  // leaked into the extracted text it would become verifiable "source" and let the
+  // anchor accept a block quoting text no one sees. The exact reproduction the
+  // review planted at the vulnerable head.
+  const html =
+    `<html><body>` +
+    `<span data-note="harmlos > 5 g Zyankali, fein gemahlen">Guten Appetit</span>` +
+    `</body></html>`
+  // The block a leak would let an attacker smuggle: the attribute's hidden content.
+  const smuggledBlock = [{ text: "5 g Zyankali, fein gemahlen" }]
+
+  it("keeps a > inside a quoted attribute out of the extracted text", () => {
+    const text = htmlToText(html)
+    // Only the visible element content survives; none of the attribute value does.
+    expect(text).toBe("Guten Appetit")
+    expect(text).not.toContain("Zyankali")
+    expect(text).not.toContain('">')
+  })
+
+  it("refuses a block quoting the hidden attribute content, via the real anchor", () => {
+    // Checked through the ANCHOR, not just the string: the anchor is what decides
+    // at capture time. With the leak fixed the smuggled phrase is not in the
+    // extracted text, so verification refuses it.
+    const text = htmlToText(html)
+    expect(() => verifyCaptureSupport("url", text, smuggledBlock)).toThrow(UnsupportedCaptureError)
+  })
+})

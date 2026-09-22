@@ -6,9 +6,9 @@
  * deliberately deferred: it mounts the S5 safe-fetch connector
  * (`src/security/safe-fetch.ts`) behind the pipeline-facing `UrlByteSource`
  * (`src/security/url-byte-source.ts`) and proves the live half of Slice 4 —
- *   - `slice4/security-suite-*`: the fetch goes THROUGH the guard, so the guard's
- *     fail-closed bounds (size, content-type) and scheme refusal decide the
- *     import, and a refused fetch persists nothing;
+ *   - `slice4/bound-violation-fails-import`: the fetch goes THROUGH the guard, so
+ *     the guard's fail-closed bounds (size, content-type) and scheme refusal
+ *     decide the import, and a refused fetch persists nothing;
  *   - `slice4/contract-convergence-with-image-import`: a URL import that clears
  *     the guard produces the same `SourceSnapshot` + `CanonicalRecipe` contract,
  *     on the same `ingest(...)` spine, as any other source.
@@ -168,7 +168,7 @@ describe("slice4/contract-convergence-with-image-import (url import)", () => {
   })
 })
 
-describe("slice4/security-suite (url import goes through the guard)", () => {
+describe("slice4/bound-violation-fails-import (url import goes through the guard)", () => {
   it("refuses a URL whose scheme is off the allowlist, persisting nothing", async () => {
     // A non-http(s) scheme proves the fetch is the guarded connector, not a raw
     // request: only the guard would refuse file:// as SCHEME_NOT_ALLOWED.
