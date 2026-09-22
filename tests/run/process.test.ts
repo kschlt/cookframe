@@ -29,7 +29,8 @@
  */
 import { spawn } from "node:child_process"
 import { randomBytes } from "node:crypto"
-import { readdirSync, readFileSync } from "node:fs"
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "pg"
@@ -60,14 +61,32 @@ function declaredStartCommand(): string {
   return start
 }
 
+/** A new, empty directory for one process to keep its photographs in. */
+const freshVolume = (): string => mkdtempSync(join(tmpdir(), "cookframe-process-volume-"))
+
+/** Every file under `dir`, at any depth. The byte store's layout is its own; this reads none of it. */
+function filesIn(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name))
+}
+
 /**
  * The configuration a started instance needs, and nothing else.
  *
  * `databaseUrl` is separate because two cases here deliberately leave it out:
  * the refusal cases, which must reach a non-zero exit without a server anywhere
  * near them.
+ *
+ * `storageRoot` is a new, empty directory unless a case names one, so no two
+ * processes here keep photographs in the same place and a case that reads the
+ * volume reads only what its own process wrote.
  */
-function environment(port: number, databaseUrl?: string): Record<string, string> {
+function environment(
+  port: number,
+  databaseUrl?: string,
+  storageRoot: string = freshVolume(),
+): Record<string, string> {
   return {
     // `npm` and `node` need these to exist at all; nothing else is inherited.
     PATH: process.env["PATH"] ?? "",
@@ -85,6 +104,7 @@ function environment(port: number, databaseUrl?: string): Record<string, string>
     // URL is built on. It is the real one, so a URL this process mints is a URL
     // this process serves.
     PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
+    STORAGE_ROOT: storageRoot,
     ...(databaseUrl === undefined ? {} : { DATABASE_URL: databaseUrl }),
   }
 }
@@ -285,13 +305,22 @@ describe.skipIf(availability.mode === "skip")("run/the-process-serves-and-stops"
     const schema = await ownSchema()
 
     const port = await freePort()
-    const started = spawnInstance(environment(port, schema.url))
+    const volume = freshVolume()
+    const started = spawnInstance(environment(port, schema.url, volume))
 
     try {
       // The process announces its bound port on one line, which is what makes
       // this proof a wait rather than a poll-until-it-answers loop — the
       // difference between a test and a flaky test.
       await waitFor(started, /cookframe listening on port \d+/)
+
+      // The byte store it built is on the directory STORAGE_ROOT named, and it
+      // was written before the port opened: the startup probe keeps zero bytes.
+      // An empty directory here would mean the process built its store
+      // somewhere else, or never used it, and would still serve everything
+      // below. Nothing about the store's layout is read — only that the
+      // directory the operator named is the one written to.
+      expect(filesIn(volume), "the process wrote nothing under STORAGE_ROOT").not.toEqual([])
 
       // A real request over TCP to a separate operating-system process. No
       // credential, so the answer is the shared miss; that it IS that answer,
@@ -447,6 +476,45 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
     }
   }, 60_000)
 })
+
+describe.skipIf(availability.mode === "skip")(
+  "run/a-volume-that-cannot-be-written-refuses-by-name",
+  () => {
+    it("refuses to start when STORAGE_ROOT cannot hold a photograph, and says which", async () => {
+      // The byte store's half of the start-up reads in `main.ts`. A directory that
+      // cannot be written constructs a store without complaint, so without the
+      // probe this process binds, answers every page, and fails on the first
+      // photograph it is sent — which, since the photo route keeps a photograph
+      // before reading it, is every capture.
+      //
+      // "Cannot be written" is made with a FILE where the directory should be.
+      // Permission bits would be the obvious plant and are the wrong one: this
+      // suite runs as root in some environments, and root writes through them, so
+      // a proof built on them would pass here and measure nothing.
+      const schema = await ownSchema()
+      const blocker = join(freshVolume(), "not-a-directory")
+      writeFileSync(blocker, "")
+
+      const port = await freePort()
+      const started = spawnInstance(environment(port, schema.url, blocker))
+      try {
+        const code = await Promise.race([
+          started.exited,
+          new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
+        ])
+        expect(code, `Output:\n${started.output()}`).not.toBe(0)
+        expect(started.output()).toContain("STORAGE_ROOT cannot be written")
+        // Refused BEFORE the port opened, both halves as for the database: it
+        // never announced one, and nothing answers on it. A process that bound
+        // first and failed after would pass the two lines above.
+        expect(started.output()).not.toContain("listening on port")
+        await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
+      } finally {
+        started.child.kill("SIGKILL")
+      }
+    }, 60_000)
+  },
+)
 
 describe("wire/the-port-opens-only-behind-a-reachable-store", () => {
   it("refuses by name when DATABASE_URL points at nothing, rather than crashing out of the driver", async () => {
