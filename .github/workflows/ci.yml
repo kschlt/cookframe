@@ -210,6 +210,22 @@ jobs:
       - run: npm ci
       - run: npm run test:slice4
 
+  # `test:cooking-ux` arrived on `main` from CFV1-S4 while this branch was open,
+  # with no job of its own — the third instance of the same gap, and the first
+  # one caught on a MERGE rather than in a single branch. Neither side was wrong
+  # alone: S4 added the script, this branch added the guard, and only the merge
+  # result has both. That is precisely the case CFV1-BASE exists for.
+  cooking-ux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:cooking-ux
+
   slice1:
     runs-on: ubuntu-latest
     steps:
