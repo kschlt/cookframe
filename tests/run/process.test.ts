@@ -30,14 +30,12 @@
 import { spawn } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { readdirSync, readFileSync } from "node:fs"
-import { createServer } from "node:net"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "pg"
 import { afterAll, describe, expect, it } from "vitest"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS } from "../../src/http/not-found.js"
 import { createPostgresStore } from "../../src/persistence/index.js"
-import { createCapabilityStore } from "../../src/shopping/capability-token.js"
 import {
   decideDatabaseAvailability,
   isReachable,
@@ -46,7 +44,7 @@ import {
   provisionSchema,
   urlForSchema,
 } from "../persistence/postgres-harness.js"
-import { canonical, INGEST_CREDENTIAL, LIBRARY_CREDENTIAL } from "./harness.js"
+import { canonical, freePort, INGEST_CREDENTIAL, LIBRARY_CREDENTIAL } from "./harness.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
@@ -60,31 +58,6 @@ function declaredStartCommand(): string {
     throw new Error("package.json declares no `start` script, so there is no way to run this")
   }
   return start
-}
-
-/**
- * A port nobody is on, found by binding one and letting go.
- *
- * `PORT=0` would be simpler and is deliberately refused by the configuration: an
- * operator who sets it gets an instance on a port they cannot predict, which is
- * indistinguishable from one that did not start. The proof carries the cost of
- * that strictness rather than loosening the rule to suit itself.
- */
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const probe = createServer()
-    probe.on("error", reject)
-    probe.listen(0, "127.0.0.1", () => {
-      const address = probe.address()
-      if (address === null || typeof address === "string") {
-        probe.close()
-        reject(new Error("could not obtain a free port"))
-        return
-      }
-      const { port } = address
-      probe.close(() => resolve(port))
-    })
-  })
 }
 
 /**
@@ -108,6 +81,10 @@ function environment(port: number, databaseUrl?: string): Record<string, string>
     OPENAI_MODEL: "not-a-real-model",
     COOKFRAME_INGEST_CREDENTIAL: INGEST_CREDENTIAL,
     COOKFRAME_LIBRARY_CREDENTIAL: LIBRARY_CREDENTIAL,
+    // The address this spawned instance answers at, which is what a capability
+    // URL is built on. It is the real one, so a URL this process mints is a URL
+    // this process serves.
+    PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
     ...(databaseUrl === undefined ? {} : { DATABASE_URL: databaseUrl }),
   }
 }
@@ -620,47 +597,62 @@ async function capabilityStatus(port: number, token: string): Promise<number> {
   return res.status
 }
 
+/** Mint a capability URL the way the operator does: through the share route, with the library credential. */
+async function share(port: number, recipeId: string): Promise<string> {
+  const res = await fetch(`http://127.0.0.1:${port}/recipes/${recipeId}/share`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${LIBRARY_CREDENTIAL}` },
+  })
+  expect(res.status).toBe(200)
+  return ((await res.json()) as { token: string }).token
+}
+
+/** Revoke one the same way, and say whether an active grant was revoked. */
+async function revoke(port: number, token: string): Promise<boolean> {
+  const res = await fetch(`http://127.0.0.1:${port}/shares/${token}/revoke`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${LIBRARY_CREDENTIAL}` },
+  })
+  expect(res.status).toBe(200)
+  return ((await res.json()) as { revoked: boolean }).revoked
+}
+
 describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-every-capability-grant", () => {
   it("a URL one process serves, the next process started against the same database still serves", async () => {
-    // OQ-48, measured across a real stop. ADR-0016 made the capability URL
-    // permanent-but-revocable because Bring keeps it and fetches it again
-    // later; ADR-0026 stops the machine when idle. Until ADR-0032 the process
-    // an operator starts kept its grants in memory, so the URL answered 200
-    // before `SIGTERM` and 404 after it, next to a recipe page that still
-    // answered 200. Every in-process proof stayed green through that, which is
-    // why this one spans two processes.
-    //
-    // **What this does NOT do, stated rather than implied:** the grants are
-    // minted through the product's own capability store over the product's own
-    // durable repository — the seam `main.ts` builds — and not through an HTTP
-    // route. What this proof owns is that the process an operator starts
-    // resolves grants from the database, reads them per request, and keeps
-    // them across a restart; how a grant comes to exist is proved where it is
-    // minted.
+    // OQ-48, measured across a real stop and killed there. ADR-0016 made the
+    // capability URL permanent-but-revocable because Bring keeps it and fetches
+    // it again later; ADR-0026 stops the machine when idle. Until ADR-0032 the
+    // process an operator starts kept its grants in memory, so a URL minted
+    // through the share route answered 200 before `SIGTERM` and 404 after it,
+    // next to a recipe page that still answered 200. Every in-process proof
+    // stayed green through that, which is why this one spans two processes and
+    // does every step the way the operator and Bring do: mint and revoke over
+    // the routes, fetch the URL with no credential at all.
     const schema = await ownSchema()
+    const seed = createPostgresStore(schema.url)
+    try {
+      await seed.repository.appendCanonicalVersion(canonical("r-shop", "Linsensuppe"))
+    } finally {
+      await seed.close()
+    }
 
-    const writer = createPostgresStore(schema.url)
-    const granting = createCapabilityStore(writer.repository)
     let first: Started | undefined
     let second: Started | undefined
     try {
-      await writer.repository.appendCanonicalVersion(canonical("r-shop", "Linsensuppe"))
-      const before = await granting.issue("r-shop")
-
       const port = await freePort()
       first = spawnInstance(environment(port, schema.url))
       await waitFor(first, /listening on port/)
-      expect(await capabilityStatus(port, before.token)).toBe(200)
 
-      // Minted and revoked WHILE the first process runs, and required on its
-      // next request. This separates "resolves grants from the database" from
-      // "read the grants once at startup and kept a copy": an instance that
-      // cached them would serve the new URL as a miss and the revoked one as a
-      // hit, and revocation — ADR-0016's kill switch — would wait for a restart.
-      const during = await granting.issue("r-shop")
-      expect(await capabilityStatus(port, during.token)).toBe(200)
-      expect(await granting.revoke(before.token)).toBe(true)
-      expect(await capabilityStatus(port, before.token)).toBe(NOT_FOUND_STATUS)
+      const kept = await share(port, "r-shop")
+      const revoked = await share(port, "r-shop")
+      expect(await capabilityStatus(port, kept)).toBe(200)
+      // Fetched BEFORE it is revoked, and required to stop answering after:
+      // an instance that remembered what it had resolved would keep serving a
+      // URL someone believed exposed until the next restart, and revocation is
+      // ADR-0016's kill switch.
+      expect(await capabilityStatus(port, revoked)).toBe(200)
+      expect(await revoke(port, revoked)).toBe(true)
+      expect(await capabilityStatus(port, revoked)).toBe(NOT_FOUND_STATUS)
 
       // A real stop, the signal a container runtime sends when the machine
       // goes idle, and a clean exit, so what follows is a restart.
@@ -672,21 +664,69 @@ describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-every-capabi
       await waitFor(second, /listening on port/)
       // The asymmetry OQ-48 measured, killed: the recipe survived the restart
       // (it always did), and now the URL Bring kept for it survives too. The
-      // revoked one is still revoked, so both halves of a grant outlived the
-      // process.
+      // revoked one is still revoked, and revoking it again finds nothing
+      // active, so both halves of a grant outlived the process.
       expect(await library(nextPort)).toContain("Linsensuppe")
-      expect(await capabilityStatus(nextPort, during.token)).toBe(200)
-      expect(await capabilityStatus(nextPort, before.token)).toBe(NOT_FOUND_STATUS)
+      expect(await capabilityStatus(nextPort, kept)).toBe(200)
+      expect(await capabilityStatus(nextPort, revoked)).toBe(NOT_FOUND_STATUS)
+      expect(await revoke(nextPort, revoked)).toBe(false)
 
       second.child.kill("SIGTERM")
       expect(await second.exited, `Output:\n${second.output()}`).toBe(0)
     } finally {
       first?.child.kill("SIGKILL")
       second?.child.kill("SIGKILL")
-      await writer.close()
     }
   }, 120_000)
 })
+
+describe.skipIf(availability.mode === "skip")(
+  "run/the-process-hands-out-urls-on-its-configured-address",
+  () => {
+    it("mints a capability URL on PUBLIC_BASE_URL, and serves the token under it", async () => {
+      // The composition root's half of CFV1-SHOP. `shopping-handoff.test.ts`
+      // drives the handoff in process, where the harness supplies the address;
+      // what only a spawned process can show is that `main.ts` passes the
+      // CONFIGURED value through, rather than something it made up or read off a
+      // request.
+      //
+      // Which is why the configured address carries a path prefix no request to
+      // this process ever carries. A base URL taken from the request — its
+      // `Host`, its path — could not produce `/behind-a-proxy`, and ADR-0026's
+      // third cut says the origin comes from configuration and nowhere else. The
+      // prefix is what a reverse proxy in front of the instance would strip, so
+      // the fetch below strips it too and asks the process for the rest.
+      const schema = await ownSchema()
+      const seed = createPostgresStore(schema.url)
+      try {
+        await seed.repository.appendCanonicalVersion(canonical("r-share", "Linsensuppe"))
+      } finally {
+        await seed.close()
+      }
+
+      const port = await freePort()
+      const base = `http://127.0.0.1:${port}/behind-a-proxy`
+      const started = spawnInstance({ ...environment(port, schema.url), PUBLIC_BASE_URL: base })
+      try {
+        await waitFor(started, /listening on port/)
+
+        const minted = await fetch(`http://127.0.0.1:${port}/recipes/r-share/share`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${LIBRARY_CREDENTIAL}` },
+        })
+        expect(minted.status, `Output:\n${started.output()}`).toBe(200)
+        const shared = (await minted.json()) as { token: string; url: string }
+        expect(shared.url).toBe(`${base}/r/${shared.token}`)
+
+        const served = await fetch(`http://127.0.0.1:${port}/r/${shared.token}`)
+        expect(served.status).toBe(200)
+        expect(((await served.json()) as { name?: string }).name).toBe("Linsensuppe")
+      } finally {
+        started.child.kill("SIGKILL")
+      }
+    }, 60_000)
+  },
+)
 
 describe("wire/the-process-runs-the-durable-store", () => {
   it("no module under src/ constructs the provisional store", () => {
