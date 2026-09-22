@@ -32,9 +32,23 @@ import {
   createInMemoryCapabilityStore,
 } from "../../src/shopping/capability-token.js"
 
-/** Two DIFFERENT secrets, because PDR-0003 says the phone's does not open the library. */
-export const INGEST_CREDENTIAL = "ingest-0123456789abcdef0123456789abcdef"
-export const LIBRARY_CREDENTIAL = "library-0123456789abcdef0123456789abcdef"
+/**
+ * Two DIFFERENT secrets, because PDR-0003 says the phone's does not open the
+ * library — ASSEMBLED rather than written down.
+ *
+ * The literals they replace failed `secret-scan` on this branch: gitleaks
+ * matched them as `generic-api-key` at entropy 4.39, and it was right to. A
+ * credential-shaped literal in a public repository is one a scanner cannot tell
+ * from a real secret, which is the same reason the SL5 spike mints its
+ * throwaway credential instead of committing one, and the reason the CI step
+ * that starts the runtime image mints its two. Suppressing the finding would
+ * have taught the scanner to ignore the shape it exists to catch.
+ *
+ * Long enough for `createInstanceCredential` (32), and obviously not secrets.
+ */
+const testCredential = (purpose: string): string => `${purpose}-${"not-a-secret-".repeat(3)}`
+export const INGEST_CREDENTIAL = testCredential("ingest")
+export const LIBRARY_CREDENTIAL = testCredential("library")
 
 /** A complete, schema-valid synthetic Canonical Recipe; `id`/`title` vary per call. */
 export const canonical = (id: string, title: string): CanonicalRecipe =>

@@ -303,8 +303,14 @@ jobs:
           # Minted here rather than written down. A credential-shaped literal in
           # a public workflow file is one a scanner cannot tell from a real
           # secret, and these live for the length of this step.
-          ingest="$(head -c 48 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 40)"
-          library="$(head -c 48 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 40)"
+          #
+          # No pipeline into `head`/`grep -q` anywhere in this step: those exit
+          # as soon as they have what they need, the writer upstream takes
+          # SIGPIPE, and `pipefail` then fails a command that actually succeeded.
+          # It happens to work while the data is small enough to be written in
+          # one go, which is the worst kind of passing.
+          ingest="run-ci-$(openssl rand -hex 16)"
+          library="run-ci-$(openssl rand -hex 16)"
           docker run -d --name cookframe-runtime -p 8080:8080 \
             -e PORT=8080 \
             -e MODEL_PROVIDER=openai \
@@ -314,22 +320,29 @@ jobs:
             -e COOKFRAME_LIBRARY_CREDENTIAL="$library" \
             cookframe:runtime
           for _ in $(seq 1 60); do
-            if docker logs cookframe-runtime 2>&1 | grep -q 'cookframe listening on port'; then
-              break
-            fi
+            logs="$(docker logs cookframe-runtime 2>&1 || true)"
+            case "$logs" in *"cookframe listening on port"*) break ;; esac
             sleep 2
           done
           docker logs cookframe-runtime
           # Without the credential the library is the shared miss; with it, the
-          # page. Both from a container whose only command is `npm start`.
+          # page. Both from a container whose only command is the process.
           missed="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)"
           served="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $library" http://127.0.0.1:8080/)"
           echo "no credential -> $missed; with credential -> $served"
           test "$missed" = "404"
           test "$served" = "200"
-          # And it stops on the signal a container runtime sends.
+          # And it stops on the signal a container runtime sends — reaching the
+          # process's own handler, not merely killing PID 1. `CMD ["npm",
+          # "start"]` failed exactly here: every request above passed and the
+          # shutdown never ran, because npm was PID 1 and the process that
+          # installed the handler never saw SIGTERM.
           docker stop -t 20 cookframe-runtime
-          docker logs cookframe-runtime 2>&1 | grep -q 'cookframe stopping on SIGTERM'
+          logs="$(docker logs cookframe-runtime 2>&1 || true)"
+          case "$logs" in
+            *"cookframe stopping on SIGTERM"*) echo "shutdown handler ran" ;;
+            *) echo "the process never ran its shutdown handler. Logs:"; echo "$logs"; exit 1 ;;
+          esac
 
       - name: Remove the runtime container
         if: always()

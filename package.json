@@ -29,7 +29,7 @@
     "test:cooking-ux": "vitest run tests/cooking-ux",
     "test:run": "vitest run tests/run",
     "test:watch": "vitest",
-    "start": "tsx src/server/main.ts",
+    "start": "node --import tsx src/server/main.ts",
     "eval": "tsx evals/harness.ts",
     "quality": "npm run typecheck && biome ci . && vitest run"
   },

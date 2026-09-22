@@ -97,13 +97,24 @@ describe("run/the-runtime-image-runs-the-process", () => {
     return match[1] as string
   }
 
-  it("the runtime image's command is the declared start command", () => {
+  it("the runtime image's command is the declared start command, token for token", () => {
     // Read off `package.json`, not restated: renaming the start script and
     // leaving the image behind is exactly the drift this checks.
+    //
+    // Compared as ARGV rather than as a substring, because `CMD ["npm",
+    // "start"]` contains the word "start" and is the version that FAILED in CI.
+    // It answered every request correctly and then could not shut down:
+    // `docker stop` signals PID 1, PID 1 was npm, and the process holding the
+    // shutdown handler never saw SIGTERM. The image has to run the same program
+    // the declared command runs, not a wrapper that happens to invoke it.
     const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> })
       .scripts
-    expect(scripts["start"]).toBeTruthy()
-    expect(commandOf(runtime)).toContain("start")
+    const declared = scripts["start"]
+    expect(declared, "package.json declares no start script").toBeTruthy()
+
+    const cmdArgv = JSON.parse(commandOf(runtime)) as string[]
+    expect(cmdArgv).toEqual((declared as string).split(/\s+/))
+    expect(cmdArgv[0]).not.toBe("npm")
     expect(commandOf(runtime)).not.toContain("quality")
   })
 

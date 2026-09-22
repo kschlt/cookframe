@@ -16,6 +16,7 @@ import {
   REQUIRED_CONFIGURATION,
   readConfiguration,
 } from "../../src/server/config.js"
+import { INGEST_CREDENTIAL, LIBRARY_CREDENTIAL } from "./harness.js"
 
 /** A complete, valid environment. Every case below removes or spoils one value. */
 const complete: Environment = {
@@ -23,8 +24,8 @@ const complete: Environment = {
   MODEL_PROVIDER: "openai",
   OPENAI_API_KEY: "not-a-real-key",
   OPENAI_MODEL: "not-a-real-model",
-  COOKFRAME_INGEST_CREDENTIAL: "ingest-0123456789abcdef0123456789abcdef",
-  COOKFRAME_LIBRARY_CREDENTIAL: "library-0123456789abcdef0123456789abcdef",
+  COOKFRAME_INGEST_CREDENTIAL: INGEST_CREDENTIAL,
+  COOKFRAME_LIBRARY_CREDENTIAL: LIBRARY_CREDENTIAL,
 }
 
 /** `complete` without one variable. */
@@ -92,12 +93,10 @@ describe("run/absent-configuration-refuses-by-name", () => {
     // NOT treated this way: trimming a secret would make two different secrets
     // compare equal, which is the opposite trade.
     expect(readConfiguration({ ...complete, PORT: " 8080 " }).port).toBe(8080)
+    const padded = ` ${LIBRARY_CREDENTIAL} `
     expect(
-      readConfiguration({
-        ...complete,
-        COOKFRAME_LIBRARY_CREDENTIAL: " x0123456789abcdef0123456789abcdef ",
-      }).libraryCredential,
-    ).toBe(" x0123456789abcdef0123456789abcdef ")
+      readConfiguration({ ...complete, COOKFRAME_LIBRARY_CREDENTIAL: padded }).libraryCredential,
+    ).toBe(padded)
     // `0` is refused on purpose and not as an accident of the range: it asks the
     // operating system for an arbitrary free port, which for an operator is an
     // instance on an address they cannot reach and cannot distinguish from one
@@ -111,7 +110,7 @@ describe("run/absent-configuration-refuses-by-name", () => {
     // phone's credential would open the library, and losing the device would
     // cost exactly what PDR-0003 says it must not. Nothing else in the system
     // would ever report this.
-    const shared = "shared-0123456789abcdef0123456789abcdef"
+    const shared = INGEST_CREDENTIAL
     expect(() =>
       readConfiguration({
         ...complete,

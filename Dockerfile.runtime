@@ -39,5 +39,20 @@ COPY . .
 # finds out from a proxy that cannot reach it.
 EXPOSE 8080
 
-# The one thing this image does.
-CMD ["npm", "start"]
+# The one thing this image does, and it is the declared start command's own
+# argv rather than `npm start`.
+#
+# Measured on this branch: with `CMD ["npm", "start"]` the container answered
+# every request correctly and then FAILED to shut down. `docker stop` sends
+# SIGTERM to PID 1, PID 1 was npm, npm died, and the process that installed the
+# shutdown handler never saw the signal — so the drain never ran and the
+# container was killed after the timeout instead of stopping. The instance's
+# whole operating model is being stopped as soon as it is idle, so a stop that
+# does not reach the handler is not a detail.
+#
+# `node --import tsx` is ONE process (the tsx CLI would spawn a child and put
+# the same hop back). `tests/run/containment.test.ts` compares this argv with
+# the `start` script in `package.json`, so the two cannot drift; the local proof
+# `run/the-process-serves-and-stops` splits and runs that same declared command
+# for the same reason.
+CMD ["node", "--import", "tsx", "src/server/main.ts"]
