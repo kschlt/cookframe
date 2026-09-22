@@ -21,6 +21,7 @@ Usage: python3 spikes/s1-capture-quality/score.py [--model sonnet]
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import re
 import subprocess
@@ -547,19 +548,31 @@ def selftest_core() -> int:
     return 0 if ok else 1
 
 
-# The exact line the discrimination proof narrows and the narrowing it applies.
-# This is the same mutation `ci/scorer-selftest-discriminates` re-applies in the
-# vitest suite; keeping it here lets `--selftest` enforce the same property in
-# Python, in the one CI job that already runs the self-test, so the vitest skip
-# in the Python-less container image is provably harmless rather than a coverage
-# gap.
-_DISCRIMINATION_MARKER = (
-    'return {k: v for k, v in (truth.get("times") or {}).items() if v}'
-)
+# The narrowing the discrimination proof re-applies, so that `--selftest` can
+# enforce the property in the one CI job that has a pinned Python.
+#
+# The line it REPLACES is deliberately not spelled out here — `_rule_line()`
+# reads it off `selected_truth_times` itself. Writing it out made the same text
+# appear twice in this file, so the mutation rewrote its own marker constant as
+# well as the rule, and it could also name a line the function no longer had.
 _DISCRIMINATION_NARROWING = (
     'return {k: (truth.get("times") or {}).get(k) '
     'for k in ("prep", "cook", "total") if (truth.get("times") or {}).get(k)}'
 )
+
+# The check the mutant MUST be seen to fail. A non-zero exit alone does not show
+# the rule was tested: a mutant that dies of a SyntaxError or a bad import exits
+# non-zero too, and then this proof passed while never reaching the rule at all.
+_MUTANT_MUST_FAIL = "times: selection keeps every key the truth records"
+
+
+def _rule_line() -> str:
+    """The one line of `selected_truth_times` the proof narrows.
+
+    Read off the function rather than restated, so the marker cannot drift from
+    the rule and cannot be rewritten by its own mutation.
+    """
+    return inspect.getsource(selected_truth_times).rstrip().splitlines()[-1].strip()
 
 
 def selftest() -> int:
@@ -581,26 +594,42 @@ def selftest() -> int:
         return core
 
     source = Path(__file__).read_text(encoding="utf8")
-    if _DISCRIMINATION_MARKER not in source:
-        print(
-            "discrimination proof: FAIL "
-            "(the narrowed line moved; update _DISCRIMINATION_MARKER)"
-        )
+    rule = _rule_line()
+    if source.count(rule) != 1:
+        print("discrimination proof: FAIL (the narrowed rule is not in this file exactly once)")
         return 1
 
-    mutated = source.replace(_DISCRIMINATION_MARKER, _DISCRIMINATION_NARROWING)
     with tempfile.TemporaryDirectory(prefix="cipy-selfmut-") as tmp:
         broken = Path(tmp) / "score.py"
-        broken.write_text(mutated, encoding="utf8")
+        broken.write_text(source.replace(rule, _DISCRIMINATION_NARROWING), encoding="utf8")
         result = subprocess.run(
             [sys.executable, str(broken), "--selftest-core"],
             capture_output=True,
             text=True,
         )
-    caught = result.returncode != 0
-    print(f"  {'✓' if caught else '✗ FAIL'}  the narrowing makes the self-test fail")
-    print(f"\ndiscrimination proof: {'PASS' if caught else 'FAIL'}")
-    return 0 if caught else 1
+
+    # The RESULT, not the exit code: the mutant must have RUN its checks to the
+    # end and reported the selection check failing. Anything that merely kills
+    # the process satisfies "non-zero" while proving nothing about the rule.
+    failed = {
+        line.split("✗ FAIL", 1)[1].strip()
+        for line in result.stdout.splitlines()
+        if "✗ FAIL" in line
+    }
+    checks = [
+        ("the mutant exits non-zero", result.returncode != 0),
+        ("the mutant ran its checks to the end", "self-test: FAIL" in result.stdout),
+        (f"it failed AT THE RULE ({_MUTANT_MUST_FAIL})", _MUTANT_MUST_FAIL in failed),
+    ]
+    ok = all(cond for _, cond in checks)
+    print("# discrimination proof (the narrowing must be CAUGHT, not merely fatal)\n")
+    for name, cond in checks:
+        mark = "✓" if cond else "✗ FAIL"
+        print(f"  {mark}  {name}")
+    if not ok and result.stderr.strip():
+        print(f"\n  mutant stderr: {result.stderr.strip().splitlines()[-1]}")
+    print(f"\ndiscrimination proof: {'PASS' if ok else 'FAIL'}")
+    return 0 if ok else 1
 
 
 def main():
