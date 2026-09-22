@@ -1,5 +1,5 @@
 ---
-id: "ADR-0024"
+id: "ADR-0025"
 title: "Deployment: a scale-to-zero machine and a sleeping managed Postgres, behind one platform-aware file"
 status: proposed
 date: 2026-09-22
@@ -59,9 +59,12 @@ a figure being exact. What the two researches agree on is the shape: an applicat
 stops when idle, a managed Postgres that sleeps when idle, and a persistent volume for the images.
 
 Also relevant to the timing: the Postgres persistence of `ADR-0015` and a real server entry point are
-both in flight and unlanded. **Today there is no `listen`, no `serve`, no `start` script, and the
-`Dockerfile` is a CI container.** This record therefore decides the target those two pieces of work
-aim at, and must not pre-empt their internal design.
+both in flight. On `main` as this record is written there is still no `listen`, no `serve`, no
+`start` script, and the `Dockerfile` is a CI container — but `CFV1-PG` and `CFV1-RUN` are open
+against exactly those gaps, and `CFV1-RUN` already carries a runtime image, a composition root and a
+start command. This record therefore decides the target those two units aim at, and must not
+pre-empt their internal design; where it describes the entry point it is describing what that unit
+is building, not proposing a second one.
 
 ## Decision
 
@@ -101,24 +104,31 @@ a project of this shape normally acquires a vendor.
    (`FLY_*` and its equivalents). The entry point reads the port from the environment, binds, and
    hands requests to `app.fetch`; that is the whole of its platform knowledge.
 
-### These cuts are owed a check, and do not have one yet
+### What checks these cuts, and what does not yet
 
 A cut nobody can turn red is an intention, not portability, so each one is stated here as the
 assertion a test has to make — in the form `ADR-0010`'s chokepoint uses, a scan of `src/` with a
-declared inventory of what is exempt, so that a file added later is not exempt by default. **None of
-these tests exists today**, on this branch or on `main`; the entry-point unit owes all four, because
-it is the unit that first makes three of them breakable.
+declared inventory of what is exempt, so that a file added later is not exempt by default.
 
-| cut | what the test asserts over `src/` | true today |
+One of them already exists, and in a better form than this record would have asked for.
+`CFV1-RUN` ships `run/only-the-entry-point-binds`, which refuses the server adapter, a socket
+module, `createServer` and `.listen` anywhere under `src/` except the one named entry-point file,
+and pairs it with a case asserting that the entry point *does* bind — so the rule cannot pass by
+everything having stopped binding. It is anchored on what the code does rather than on the words it
+contains, which a first attempt got wrong. That covers the binding half of cut 4.
+
+| cut | what a test must assert over `src/` | state |
 |---|---|---|
-| 1 | the only database package any module imports is `pg` — no provider-specific driver or HTTP transport | yes, vacuously: no module imports a database package at all, since `ADR-0015`'s store is unlanded and `pg` is still a devDependency |
-| 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own directory | yes: only `src/storage/filesystem-byte-store.ts` |
-| 3 + 4 | no module reads `process.env` or imports `node:process`; configuration is injected | yes: `process.env` appears nowhere under `src/` |
-| 4 | no module names a platform (`FLY_*`, a platform hostname, a platform SDK); the entry point is the declared exception | yes: the only packages `src/` imports are `hono`, `undici` and `ipaddr.js` |
+| 1 | the only database package any module imports is `pg` — no provider-specific driver, no HTTP-over-`fetch` transport | owed. Vacuous on this branch, since no module imports a database package at all; `CFV1-PG` is what first makes it breakable |
+| 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own file | owed. True on this branch: only `src/storage/filesystem-byte-store.ts` |
+| 3 + 4 | `process.env` is read in exactly one file, the entry point's composition root; every other module takes configuration as an argument | owed, and `CFV1-RUN` makes it real rather than vacuous — it puts the one read in `main.ts` and keeps `config.ts` a pure function of an environment mapping, which is the shape this assertion has to pin before a second reader appears |
+| 4 (binding) | nothing outside the entry point names the server adapter, a socket module, `createServer` or `.listen` | **done**, by `run/only-the-entry-point-binds` (`CFV1-RUN`) |
+| 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on this branch: the only packages `src/` imports are `hono`, `undici` and `ipaddr.js` |
 
-Each row was checked against the tree this record was written on and holds. That is what makes the
-tests worth writing now rather than a cleanup later: they start green, so the first thing any of them
-ever catches is a regression.
+Every "true on this branch" above was checked against the tree this record was written on, and three
+of the five rows change as `CFV1-PG` and `CFV1-RUN` land — which is the argument for writing the
+four owed tests with those units rather than after them. They start green, so the first thing any of
+them ever catches is a regression.
 
 Two further commitments, because leaving them implicit is how they get lost:
 
