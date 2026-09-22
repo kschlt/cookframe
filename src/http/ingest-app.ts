@@ -36,6 +36,7 @@
  * why the committed Shortcut carries no instance identifier.
  */
 import { Hono } from "hono"
+import { bodyLimit } from "hono/body-limit"
 import type { RecipeRepository } from "../persistence/index.js"
 import type { BlockIdPolicy } from "../pipeline/block-id-policy.js"
 import { ingest } from "../pipeline/ingest.js"
@@ -62,15 +63,47 @@ export const ACCEPTED_CAPTURE_TYPES: readonly string[] = [
 ]
 
 /**
- * The largest submission accepted, in bytes.
+ * The largest submission accepted, in bytes. Generous next to a phone
+ * photograph — a 12 MP HEIC is a few megabytes.
  *
- * A bound rather than a hope. It is generous next to a phone photograph (a 12 MP
- * HEIC is a few megabytes) and small enough that an unbounded body cannot be
- * used to exhaust a self-hosted instance's memory. Exceeding it aborts the
- * submission; nothing is captured, stored or normalized from a truncated image,
- * because a truncated page is exactly the silent-loss shape this product refuses.
+ * **What the bound does, stated exactly, because the previous wording here
+ * claimed more than the code delivered.** It was written as though the limit
+ * kept an unbounded body out of the instance's memory. It did not: the handler
+ * reached `await c.req.arrayBuffer()` first, so the whole body was already
+ * materialized by the time `byteLength` could be compared. The check was real
+ * and worth having — nothing oversized reached capture, persistence or a paid
+ * model call — but the sentence about memory was a belief about the code rather
+ * than a reading of it. Found by review; no exhaustion was ever measured, and
+ * none is claimed here either.
+ *
+ * It is enforced twice now, and the two do different things:
+ *
+ *  - {@link bodyLimit} runs BEFORE the handler, and answers an over-declared
+ *    `Content-Length` on the header alone; where there is none it counts the
+ *    stream and stops at the limit. Its ordering is what `refuses an
+ *    over-declared submission before the handler runs at all` proves, by giving
+ *    the same request a media type the handler would answer 415 — a 413 can
+ *    then only come from something that ran first.
+ *
+ *    **What is NOT claimed:** that no byte is ever buffered. Measuring that
+ *    here would mean measuring the runtime's request plumbing rather than this
+ *    route, and an unmeasured claim in this comment is the reason the previous
+ *    wording had to be replaced.
+ *  - The comparison inside the handler stays, because `bodyLimit` bounds the
+ *    transport and this route owes an answer about the SUBMISSION. Removing it
+ *    would leave the rule stated in one place only, in middleware, where the
+ *    next reader of this file cannot see it.
+ *
+ * Neither is the operator's first line of defence: PDR-0002 puts the instance
+ * behind their own reverse proxy, which is where a real flood stops.
  */
 export const MAX_CAPTURE_BYTES = 25 * 1024 * 1024
+
+/** The one answer to an oversized submission, whichever bound refuses it. */
+const TOO_LARGE_BODY = {
+  error: "capture_too_large",
+  message: `this instance accepts at most ${MAX_CAPTURE_BYTES} bytes`,
+} as const
 
 /** Identity for one submission. Injected so a proof can make a run reproducible. */
 export interface IngestIdentity {
@@ -110,102 +143,105 @@ const UNAUTHORIZED_BODY = { error: "unauthorized" } as const
 export function createIngestApp(deps: IngestAppDeps): Hono {
   const app = new Hono()
 
-  app.post("/capture", async (c) => {
-    // Absent and wrong are ONE answer. Two would tell someone probing whether a
-    // credential exists at all, which is the same oracle the capability route
-    // closes for tokens (ADR-0016, ADR-0021).
-    if (!deps.credential.accepts(bearerCredential(c.req.header("authorization")))) {
-      return c.json(UNAUTHORIZED_BODY, 401)
-    }
+  app.post(
+    "/capture",
+    // Before the handler, so an oversized body is refused rather than read. The
+    // answer is the same one the handler gives, so which bound fired is not
+    // something a caller can tell — and not something this route's behaviour
+    // depends on.
+    bodyLimit({ maxSize: MAX_CAPTURE_BYTES, onError: (c) => c.json(TOO_LARGE_BODY, 413) }),
+    async (c) => {
+      // Absent and wrong are ONE answer. Two would tell someone probing whether a
+      // credential exists at all, which is the same oracle the capability route
+      // closes for tokens (ADR-0016, ADR-0021).
+      if (!deps.credential.accepts(bearerCredential(c.req.header("authorization")))) {
+        return c.json(UNAUTHORIZED_BODY, 401)
+      }
 
-    // The media type is what the caller knows and the provider cannot reliably
-    // infer; it decides the capture provider's vision path. Parameters (`;
-    // charset=…`) are stripped before matching, never matched with them.
-    const mediaType = (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? ""
-    if (!ACCEPTED_CAPTURE_TYPES.includes(mediaType)) {
-      return c.json(
-        {
-          error: "unsupported_media_type",
-          message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}`,
-        },
-        415,
-      )
-    }
-
-    const body = new Uint8Array(await c.req.arrayBuffer())
-    if (body.byteLength === 0) {
-      return c.json({ error: "empty_capture", message: "the submission carried no image" }, 400)
-    }
-    if (body.byteLength > MAX_CAPTURE_BYTES) {
-      return c.json(
-        {
-          error: "capture_too_large",
-          message: `this instance accepts at most ${MAX_CAPTURE_BYTES} bytes`,
-        },
-        413,
-      )
-    }
-
-    try {
-      const result = await ingest(
-        deps.repo,
-        deps.capture,
-        deps.normalization,
-        deps.policy,
-        body,
-        {
-          snapshotId: deps.identity.newSnapshotId(),
-          snapshotVersion: 0,
-          sourceAdapter: deps.sourceAdapter,
-          adapterVersion: deps.adapterVersion,
-          runId: deps.identity.newCaptureRunId(),
-          sourceMediaType: mediaType,
-        },
-        {
-          runId: deps.identity.newNormalizationRunId(),
-          targetOntologyVersion: deps.targetOntologyVersion,
-        },
-      )
-      // The title travels twice, deliberately: as the declared state PDR-0005
-      // made it, and as the sentence the phone shows. A source that gives no
-      // title yields a sentence ABOUT that absence and no name at all — a
-      // placeholder here would be a manufactured title again, one route further
-      // out, and the person reading it could not tell the difference.
-      const title = result.canonical.recipe.title
-      return c.json(
-        {
-          snapshotId: result.snapshot.id,
-          recipeId: result.canonical.recipeId,
-          version: result.canonical.version,
-          title,
-          message: importWording(title),
-        },
-        201,
-      )
-    } catch (error) {
-      // The refusals a PERSON has to see, answered as themselves. Their fields
-      // are copied off the error rather than restated, so a refusal that grows a
-      // field does not quietly stop reaching the phone.
-      if (error instanceof MultipleRecipesError) {
+      // The media type is what the caller knows and the provider cannot reliably
+      // infer; it decides the capture provider's vision path. Parameters (`;
+      // charset=…`) are stripped before matching, never matched with them.
+      const mediaType =
+        (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? ""
+      if (!ACCEPTED_CAPTURE_TYPES.includes(mediaType)) {
         return c.json(
           {
-            reasonCode: error.reasonCode,
-            recipeCount: error.recipeCount,
-            recipeTitles: error.recipeTitles,
-            message: refusalWording(error),
+            error: "unsupported_media_type",
+            message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}`,
           },
-          422,
+          415,
         )
       }
-      if (error instanceof UnknownRecipeCountError) {
-        return c.json({ reasonCode: error.reasonCode, message: refusalWording(error) }, 422)
+
+      const body = new Uint8Array(await c.req.arrayBuffer())
+      if (body.byteLength === 0) {
+        return c.json({ error: "empty_capture", message: "the submission carried no image" }, 400)
       }
-      // Everything else is this instance's fault and says nothing further: a
-      // stack or a message from inside would be the one place this endpoint
-      // leaks what it knows to an unauthenticated-adjacent caller.
-      return c.json({ error: "capture_failed" }, 500)
-    }
-  })
+      if (body.byteLength > MAX_CAPTURE_BYTES) {
+        return c.json(TOO_LARGE_BODY, 413)
+      }
+
+      try {
+        const result = await ingest(
+          deps.repo,
+          deps.capture,
+          deps.normalization,
+          deps.policy,
+          body,
+          {
+            snapshotId: deps.identity.newSnapshotId(),
+            snapshotVersion: 0,
+            sourceAdapter: deps.sourceAdapter,
+            adapterVersion: deps.adapterVersion,
+            runId: deps.identity.newCaptureRunId(),
+            sourceMediaType: mediaType,
+          },
+          {
+            runId: deps.identity.newNormalizationRunId(),
+            targetOntologyVersion: deps.targetOntologyVersion,
+          },
+        )
+        // The title travels twice, deliberately: as the declared state PDR-0005
+        // made it, and as the sentence the phone shows. A source that gives no
+        // title yields a sentence ABOUT that absence and no name at all — a
+        // placeholder here would be a manufactured title again, one route further
+        // out, and the person reading it could not tell the difference.
+        const title = result.canonical.recipe.title
+        return c.json(
+          {
+            snapshotId: result.snapshot.id,
+            recipeId: result.canonical.recipeId,
+            version: result.canonical.version,
+            title,
+            message: importWording(title),
+          },
+          201,
+        )
+      } catch (error) {
+        // The refusals a PERSON has to see, answered as themselves. Their fields
+        // are copied off the error rather than restated, so a refusal that grows a
+        // field does not quietly stop reaching the phone.
+        if (error instanceof MultipleRecipesError) {
+          return c.json(
+            {
+              reasonCode: error.reasonCode,
+              recipeCount: error.recipeCount,
+              recipeTitles: error.recipeTitles,
+              message: refusalWording(error),
+            },
+            422,
+          )
+        }
+        if (error instanceof UnknownRecipeCountError) {
+          return c.json({ reasonCode: error.reasonCode, message: refusalWording(error) }, 422)
+        }
+        // Everything else is this instance's fault and says nothing further: a
+        // stack or a message from inside would be the one place this endpoint
+        // leaks what it knows to an unauthenticated-adjacent caller.
+        return c.json({ error: "capture_failed" }, 500)
+      }
+    },
+  )
 
   return app
 }

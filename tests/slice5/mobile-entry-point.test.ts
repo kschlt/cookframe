@@ -35,7 +35,7 @@ import {
   createIngestApp,
   MAX_CAPTURE_BYTES,
 } from "../../src/http/ingest-app.js"
-import { createIngestCredential } from "../../src/http/ingest-credential.js"
+import { bearerCredential, createIngestCredential } from "../../src/http/ingest-credential.js"
 import type { RecipeRepository } from "../../src/persistence/index.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
 import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
@@ -305,6 +305,31 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
     expect((await submit(h.app, { body: atLimit })).status).toBe(201)
   })
 
+  it("refuses an over-declared submission before the handler runs at all", async () => {
+    // The half the docstring used to claim and the code did not do. `bodyLimit`
+    // sits in front of the handler and answers on `Content-Length` alone.
+    //
+    // Proved by ORDER rather than by asserting the stream was untouched: the
+    // request below also carries an unsupported media type, which the handler
+    // answers 415. A 413 can therefore only come from something that ran
+    // BEFORE the handler — the handler's own size comparison is four
+    // statements past the point where this request would already have been
+    // refused. Swap the order and this goes red.
+    const h = harness()
+    const res = await h.app.request("/capture", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${CREDENTIAL}`,
+        "content-type": "application/pdf",
+        "content-length": String(MAX_CAPTURE_BYTES + 1),
+      },
+      body: PAGE,
+    })
+    expect(res.status).toBe(413)
+    expect(((await res.json()) as { error: string }).error).toBe("capture_too_large")
+    expect(h.seen.bytes, "an over-declared body reached capture").toBeUndefined()
+  })
+
   it("answers with every field the committed Shortcut reads, on every outcome", async () => {
     // The client and this endpoint are two halves of one contract, and only one
     // half is a TypeScript file. The keys are read out of the committed
@@ -374,6 +399,34 @@ describe("slice5/ingest-requires-instance-credential", () => {
     }
   })
 
+  it("takes the value verbatim, and the scheme name case-insensitively", async () => {
+    // Two claims the docstring makes, neither of which had a proof. The second
+    // is RFC 7235: the scheme name is case-insensitive and a phone's HTTP
+    // client is not this project's to specify.
+    expect(bearerCredential(`bearer ${CREDENTIAL}`)).toBe(CREDENTIAL)
+    expect(bearerCredential(`BEARER ${CREDENTIAL}`)).toBe(CREDENTIAL)
+
+    // The first is the one review found false. `/^Bearer (.+)$/` matches before
+    // a final newline unless `m` is set, so it returned a value the header did
+    // not carry — the one case where "unchanged" was not true. Nothing was at
+    // risk, because a value with a newline is a different value and is refused
+    // either way; what was wrong was a comment promising something the code
+    // did not do, which is this repository's recurring defect in miniature.
+    expect(bearerCredential(`Bearer ${CREDENTIAL}\n`)).toBe(`${CREDENTIAL}\n`)
+    expect(bearerCredential(`Bearer  ${CREDENTIAL}`)).toBe(` ${CREDENTIAL}`)
+    expect(bearerCredential("Bearer ")).toBeUndefined()
+    expect(bearerCredential("Bearer")).toBeUndefined()
+    expect(bearerCredential(undefined)).toBeUndefined()
+
+    // Asserted on the function and NOT end to end, deliberately: measured here,
+    // `new Headers({ authorization: "Bearer abc\n" }).get(...)` yields
+    // `"Bearer abc"`, so the header layer strips the newline before this
+    // function ever sees it. An end-to-end case would pass whatever this
+    // function does — it would be measuring undici, not the route. Which also
+    // bounds what the advisory was worth: over real HTTP the input cannot
+    // arrive. The fix is for the docstring's claim, not for a reachable bug.
+  })
+
   it("refuses to be constructed with a credential short enough to guess", () => {
     // Fail closed at startup rather than serve an endpoint anyone can reach.
     expect(() => createIngestCredential("changeme")).toThrow(/at least 32 characters/)
@@ -384,8 +437,14 @@ describe("slice5/ingest-credential-is-submission-only", () => {
   it("offers exactly one route, and it is a submission", () => {
     // The route table is read OFF the app, so a read route added later fails a
     // proof written before it existed.
+    //
+    // Deduplicated, because Hono lists one entry per HANDLER and this address
+    // carries a `bodyLimit` middleware in front of its handler. What the
+    // criterion is about is the set of addresses this app answers on, and that
+    // set is what is compared: a second path, or a second method on this path,
+    // still fails.
     const h = harness()
-    const routes = h.app.routes.map((r) => `${r.method} ${r.path}`)
+    const routes = [...new Set(h.app.routes.map((r) => `${r.method} ${r.path}`))].sort()
     expect(routes).toEqual(["POST /capture"])
   })
 
