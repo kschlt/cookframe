@@ -93,7 +93,7 @@ export function composeInstance(deps: InstanceDeps): Hono {
   // capability route and the pages use. An unknown path, an unknown token, a
   // recipe that does not exist and a library request with no credential are
   // byte-identical, which is what keeps a caller who holds nothing from learning
-  // which recipe ids exist (ADR-0016, ADR-0021, ADR-0023).
+  // which recipe ids exist (ADR-0016, ADR-0021, ADR-0024).
   app.notFound((c) => c.body(NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders()))
 
   app.route(

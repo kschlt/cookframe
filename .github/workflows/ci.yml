@@ -226,6 +226,17 @@ jobs:
       - run: npm ci
       - run: npm run test:cooking-ux
 
+  slice6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:slice6
+
   # CFV1-RUN. The unit that gave the instance a process and the library an
   # address. Its proofs spawn the declared start command and bind real sockets,
   # so they are slower than an in-process suite and belong in a job whose name

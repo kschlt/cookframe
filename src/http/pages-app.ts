@@ -1,6 +1,6 @@
 /**
  * The library and the recipe page, given addresses for the first time
- * (CFV1-RUN, ADR-0023).
+ * (CFV1-RUN, ADR-0024).
  *
  * Slice 2 rendered both of these nineteen pull requests ago, and until this file
  * existed they were reachable from no HTTP path at all: `renderLibraryPage` and

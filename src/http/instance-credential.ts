@@ -28,7 +28,7 @@
  * distinct secrets that share this one mechanism, and each names itself at
  * construction so a misconfiguration says which one is wrong. See
  * `src/http/pages-app.ts`, where the rule is stated beside the route it guards,
- * and `docs/adr/ADR-0023-*` for the decision.
+ * and `docs/adr/ADR-0024-*` for the decision.
  */
 import { createHash, timingSafeEqual } from "node:crypto"
 

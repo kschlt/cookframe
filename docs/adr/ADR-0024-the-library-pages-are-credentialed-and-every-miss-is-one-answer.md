@@ -1,5 +1,5 @@
 ---
-id: "ADR-0023"
+id: "ADR-0024"
 title: "The library pages are credentialed with their own secret, and every miss is one answer"
 status: accepted
 date: 2026-09-22

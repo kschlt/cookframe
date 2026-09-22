@@ -10,5 +10,6 @@
 
 export * from "./canonical-recipe.js"
 export * from "./common.js"
+export * from "./cooking-plan.js"
 export * from "./source-snapshot.js"
 export { SCHEMA_VERSION, type SchemaVersion } from "./version.js"

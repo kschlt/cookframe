@@ -43,3 +43,14 @@ recipe, or a working exploit against anything outside this repository.
 |---|---|---|
 | `two-yields-nutrition.json` | future-readiness (two contextual yields, ambiguous nutrition basis) | synthetic |
 | `ranges-and-qualitative.json` | non-scalar quantities (range, qualitative, approximate, open-ended duration, no author) | synthetic |
+| `s4-bell-pepper-rice-skillet.json` | cooking plan (a prerequisite the step performs itself, a unit whose amounts are all qualitative) | self-authored |
+| `s4-spaghetti-alla-nerano.json` | cooking plan (a split amount, a reserved amount, a prerequisite the first unit needs) | self-authored |
+
+The two `s4-*` fixtures carry the **shapes** the CFV1-S4 real-device evaluation
+found on a phone (`spikes/s4-cooking-ux/README.md`), so the Slice 6 derivation is
+exercised against the cases that actually broke rather than against invented
+ones. Their instruction text is written here, not transcribed: what is carried
+over is functional — which use is a split, which prerequisite a step performs
+itself, where a reserved amount sits — and the titles are common dish names. Like
+every fixture above they name `Cookframe Fixtures` as their source and record
+`example.invalid` URLs, which `tests/fixtures/public-fixtures.test.ts` enforces.
