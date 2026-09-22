@@ -529,6 +529,57 @@ describe("CI workflow (ci.yml)", () => {
     ).toMatch(/tests\/persistence/)
   })
 
+  it("run/ci-provides-the-database — the run job and the runtime-image step both reach a real PostgreSQL", () => {
+    // The same hole `pg/ci-provides-the-database` closes, in the place CFV1-PG's
+    // merge opened it. `tests/run/process.test.ts` now skips its serving cases
+    // when DATABASE_URL is absent, borrowing the persistence harness's rule; a
+    // skip is honest only where some job always sets the variable. Without this
+    // assertion, removing the service from the `run` job leaves every process
+    // proof skipped and the build green — the exact shape that cost this project
+    // a gate once already.
+    const run = workflow.jobs["run"] as
+      | { services?: Record<string, { image?: string }>; env?: Record<string, string> }
+      | undefined
+    expect(run, "no `run` job in CI").toBeTruthy()
+    expect(run?.services?.postgres?.image, "the run job has no postgres service").toMatch(
+      /^postgres:/,
+    )
+    expect(
+      run?.env?.DATABASE_URL,
+      "the run job does not point the tests at the service, so its serving proofs would skip",
+    ).toContain("postgres://")
+
+    // The container job's runtime-image step starts the real composition root,
+    // which reads a database before it binds. Three things have to be true
+    // together, and each is separately easy to drop: a service to reach, the
+    // migration applied with the command an operator is given, and the URL
+    // handed to the container. A step missing any of them fails at runtime
+    // rather than silently, but it fails as "the image is broken" — which is
+    // what this project keeps paying for.
+    const container = workflow.jobs["container"] as
+      | { services?: Record<string, { image?: string }> }
+      | undefined
+    expect(
+      container?.services?.postgres?.image,
+      "the container job has no postgres service",
+    ).toMatch(/^postgres:/)
+    const containerRuns = (workflow.jobs["container"]?.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    expect(
+      containerRuns,
+      "the container job never applies the migration, so the image starts against empty tables",
+      // `psql`, then any shell line-continuations, then the migration file. Not
+      // "psql appears somewhere and the filename appears somewhere": those match
+      // two unrelated commands, which is how this kind of guard stops guarding.
+    ).toMatch(/psql(?:[^\n]*\\\n)*[^\n]*-f migrations\/0001-the-recipe-store\.sql/)
+    expect(
+      containerRuns,
+      "the runtime container is given no DATABASE_URL, so it cannot come up at all",
+    ).toMatch(/-e DATABASE_URL=/)
+  })
+
   it("pg/the-driver-is-a-runtime-dependency — `pg` is not a devDependency the instance would not get", () => {
     // It was a devDependency while it belonged to the DBQ spike, which was
     // right. It is now the store's driver, and `npm ci --omit=dev` on a

@@ -78,6 +78,23 @@ describe("run/only-the-entry-point-binds", () => {
     expect(read(join("src", "server", "main.ts"))).not.toMatch(/@hono\/node-server/)
   })
 
+  it("the composition root hands the store's own close to the instance", () => {
+    // A TEXT assertion, and it says so rather than reading like a behavioural
+    // one. `run/a-stop-leaves-nothing-half-written` proves the ORDER — the
+    // server drains before `closeStore` runs — but it does so against the test
+    // harness's counter, because nothing outside the process can observe
+    // `main.ts`'s own wiring: the stop handler calls `process.exit(0)`, so a
+    // pool that was never drained and one that was look identical from a socket,
+    // an exit code and a log line.
+    //
+    // So what this guards is exactly that the hook is connected to the real
+    // store, and it does not guard that the pool is drained. That distinction is
+    // the defect this repository keeps finding, and writing it down is cheaper
+    // than finding it again.
+    const entry = read(join("src", "server", "main.ts"))
+    expect(entry).toMatch(/closeStore:\s*\(\)\s*=>\s*store\.close\(\)/)
+  })
+
   it("the adapter is a declared dependency, not a transitive accident", () => {
     const manifest = JSON.parse(read("package.json")) as {
       dependencies?: Record<string, string>
