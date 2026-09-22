@@ -36,6 +36,7 @@ import { createUrlCaptureProvider } from "../pipeline/url-capture.js"
 import { createDeterministicUrlCaptureProvider } from "../pipeline/url-jsonld-adapter.js"
 import { createSafeUrlByteSource } from "../security/url-byte-source.js"
 import { createInMemoryCapabilityStore } from "../shopping/capability-token.js"
+import { createFilesystemByteStore } from "../storage/index.js"
 import { readConfiguration } from "./config.js"
 import { startInstance } from "./instance.js"
 
@@ -131,6 +132,34 @@ async function main(): Promise<void> {
     )
   }
 
+  // Where photographs are kept (ADR-0009): the byte store, on the directory
+  // configuration names — on a deployment, the mounted volume (ADR-0026). This
+  // file hands the store its directory and nothing else; the path is never
+  // joined, read or written here, which is the line
+  // `slice1/storage-identity-confinement` draws around the composition root.
+  const scanStore = createFilesystemByteStore(config.storageRoot)
+
+  // And, like the database above, USED once before the port is bound.
+  //
+  // A directory that cannot be written constructs a store perfectly and fails
+  // on the first photograph, and since the photo route keeps the photograph
+  // before reading it, that first capture would be the one that finds out. The
+  // probe is the operation a capture performs — `put` — on the one input that
+  // costs nothing to keep: zero bytes. The store is content-addressed, so every
+  // start writes the SAME empty file rather than a new one: the first start
+  // adds one file of no size, and every later one leaves the volume as it
+  // found it.
+  try {
+    await scanStore.put(new Uint8Array(0))
+  } catch (error) {
+    await store.close().catch(() => {})
+    throw new Error(
+      `STORAGE_ROOT cannot be written, so the instance has nowhere to keep a photograph: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
+
   // No options, deliberately: the loopback and resolver seams the connector
   // accepts are test-only, and passing none is what gets the fail-closed
   // defaults ADR-0010 specifies. A production instance that could be talked into
@@ -180,6 +209,7 @@ async function main(): Promise<void> {
       targetOntologyVersion: TARGET_ONTOLOGY_VERSION,
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
+      scanStore,
       byteSource,
       // The composite from CFV1-SL4, on the path at last: deterministic reader
       // first, `modelCapture` only for a page whose structured data is missing

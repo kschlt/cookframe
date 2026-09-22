@@ -47,6 +47,7 @@ import { createPagesApp } from "../http/pages-app.js"
 import type { RecipeRepository } from "../persistence/index.js"
 import type { UrlByteSource } from "../security/url-byte-source.js"
 import { type CapabilityStore, capabilityUrl } from "../shopping/capability-token.js"
+import type { ByteStore } from "../storage/index.js"
 
 /**
  * Everything the composed instance runs on. Every collaborator is injected
@@ -78,6 +79,13 @@ export interface InstanceDeps {
   readonly targetOntologyVersion: string
   readonly sourceAdapter: string
   readonly adapterVersion: string
+  /**
+   * Where a submitted photograph is kept: the byte store on the volume
+   * `STORAGE_ROOT` names. `main.ts` builds it; the photo route keeps each
+   * photograph there before capture reads it (`src/http/ingest-app.ts` says
+   * why that order).
+   */
+  readonly scanStore: ByteStore
   /**
    * The egress seam a URL import fetches through. Injected like everything else
    * here; `main.ts` builds the safe-fetch-backed one with production defaults,
@@ -141,6 +149,7 @@ export function composeInstance(deps: InstanceDeps): Hono {
       targetOntologyVersion: deps.targetOntologyVersion,
       sourceAdapter: deps.sourceAdapter,
       adapterVersion: deps.adapterVersion,
+      scanStore: deps.scanStore,
       byteSource: deps.byteSource,
       urlCapture: deps.urlCapture,
       urlSourceAdapter: deps.urlSourceAdapter,
