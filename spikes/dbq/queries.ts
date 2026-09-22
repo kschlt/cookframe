@@ -77,6 +77,33 @@ const SHOPPING_AGGREGATE = `
  * makes a difference in *cost* between them meaningful rather than a difference
  * in what they answer.
  */
+/**
+ * The shopping query over an extracted `ingredient` table.
+ *
+ * Used by BOTH the hybrid and the relational shape — see the note at their
+ * entries in {@link SHOPPING_SQL}.
+ */
+const EXTRACTED_SHOPPING_SQL = `
+    with latest as (
+      select distinct on (recipe_id) recipe_id, version
+      from recipe_version
+      order by recipe_id, version desc
+    ),
+    ingredients as (
+      select
+        i.recipe_id,
+        i.name,
+        i.unit,
+        i.val_kind        as kind,
+        i.val_value       as value,
+        i.val_source_text as qty_source_text,
+        i.source_text
+      from ingredient i
+      join latest l on l.recipe_id = i.recipe_id and l.version = i.version
+    ),
+    projected as (${SHOPPING_PROJECTION})
+    ${SHOPPING_AGGREGATE}`
+
 export const SHOPPING_SQL: Record<string, string> = {
   // The `latest` CTE selects IDENTIFIERS and joins the document back, rather
   // than carrying `doc` as a column. That is not style. Carrying a ~20 KB jsonb
@@ -107,46 +134,22 @@ export const SHOPPING_SQL: Record<string, string> = {
     ),
     projected as (${SHOPPING_PROJECTION})
     ${SHOPPING_AGGREGATE}`,
-  hybrid: `
-    with latest as (
-      select distinct on (recipe_id) recipe_id, version
-      from recipe_version
-      order by recipe_id, version desc
-    ),
-    ingredients as (
-      select
-        i.recipe_id,
-        i.name,
-        i.unit,
-        i.val_kind        as kind,
-        i.val_value       as value,
-        i.val_source_text as qty_source_text,
-        i.source_text
-      from ingredient i
-      join latest l on l.recipe_id = i.recipe_id and l.version = i.version
-    ),
-    projected as (${SHOPPING_PROJECTION})
-    ${SHOPPING_AGGREGATE}`,
-  relational: `
-    with latest as (
-      select distinct on (recipe_id) recipe_id, version
-      from recipe_version
-      order by recipe_id, version desc
-    ),
-    ingredients as (
-      select
-        i.recipe_id,
-        i.name,
-        i.unit,
-        i.val_kind        as kind,
-        i.val_value       as value,
-        i.val_source_text as qty_source_text,
-        i.source_text
-      from ingredient i
-      join latest l on l.recipe_id = i.recipe_id and l.version = i.version
-    ),
-    projected as (${SHOPPING_PROJECTION})
-    ${SHOPPING_AGGREGATE}`,
+  // The hybrid and the relational shape run the SAME shopping query, from one
+  // constant rather than two copies. That is a RESULT, not a tidy-up.
+  //
+  // For this query the two shapes have converged: the hybrid's extracted
+  // ingredient projection is, in the columns this aggregation reads, the
+  // relational shape's `ingredient` table. So the shopping row of ADR-0015's
+  // table (1.08 ms against 1.11 ms) is one query over two tables that carry the
+  // same columns — which is why those two numbers sit within noise of each
+  // other, and why that row is not evidence about document-versus-relational.
+  // The row that carries the comparison is the run comparison, and ADR-0015
+  // rests its decision there and on the structural table.
+  //
+  // Two byte-identical copies invited reading them as two independent
+  // measurements. One constant cannot be read that way.
+  hybrid: EXTRACTED_SHOPPING_SQL,
+  relational: EXTRACTED_SHOPPING_SQL,
 }
 
 export async function shoppingRequirements(
@@ -180,7 +183,22 @@ export interface RunComparison {
 }
 
 /** Flatten a recipe to JSON Pointer → scalar, so two runs can be set-compared. */
-export function flatten(value: unknown, prefix = "", into = new Map<string, string>()): Map<string, string> {
+/**
+ * One scalar at one JSON Pointer, with its JSON type kept beside its text.
+ *
+ * The type is not decoration. Leaves were compared as `String(value)` alone,
+ * so `4` and `"4"`, `null` and `"null"`, `true` and `"true"` all read as no
+ * difference at all — a run that changed a field's TYPE reported as identical.
+ * The text is what a reader sees; the type is what makes the comparison true.
+ */
+export interface Leaf {
+  /** `"string"`, `"number"`, `"boolean"`, `"null"`, `"undefined"`. */
+  readonly type: string
+  /** The value as it is displayed, unchanged from before. */
+  readonly text: string
+}
+
+export function flatten(value: unknown, prefix = "", into = new Map<string, Leaf>()): Map<string, Leaf> {
   if (Array.isArray(value)) {
     for (const [i, v] of value.entries()) flatten(v, `${prefix}/${i}`, into)
   } else if (value !== null && typeof value === "object") {
@@ -188,7 +206,7 @@ export function flatten(value: unknown, prefix = "", into = new Map<string, stri
       flatten(v, `${prefix}/${k}`, into)
     }
   } else {
-    into.set(prefix, String(value))
+    into.set(prefix, { type: value === null ? "null" : typeof value, text: String(value) })
   }
   return into
 }
@@ -201,8 +219,20 @@ export function diffRecipes(a: CanonicalRecipe, b: CanonicalRecipe): Omit<RunCom
   for (const path of new Set([...fa.keys(), ...fb.keys()])) {
     const x = fa.get(path)
     const y = fb.get(path)
-    if (x === y) same += 1
-    else differences.push({ path, a: x, b: y })
+    // Type AND text. Text alone made a type change invisible — see `Leaf`.
+    if (x?.type === y?.type && x?.text === y?.text) {
+      same += 1
+    } else {
+      // When only the TYPE differs, the two texts are identical and a bare
+      // `4` against `4` reads as a reporting bug. Name the type in that case
+      // and only that case, so every other difference prints as it always did.
+      const typed = x !== undefined && y !== undefined && x.type !== y.type && x.text === y.text
+      differences.push({
+        path,
+        a: typed && x !== undefined ? `${x.text} (${x.type})` : x?.text,
+        b: typed && y !== undefined ? `${y.text} (${y.type})` : y?.text,
+      })
+    }
   }
   differences.sort((p, q) => (p.path < q.path ? -1 : p.path > q.path ? 1 : 0))
   return { same, differences }

@@ -348,6 +348,21 @@ describe("CI workflow (ci.yml)", () => {
       .filter((r): r is string => typeof r === "string")
       .join("\n")
     expect(runs).toMatch(/npm run test:dbq/)
+
+    // ...and that `test:dbq` still RUNS the dbq tests. Asserting the invocation
+    // alone left a hole: a `test:dbq` script redefined to point somewhere else
+    // keeps this green while the dbq proofs run nowhere, which is the exact
+    // failure this whole test exists to prevent.
+    const scripts = (
+      JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
+        scripts?: Record<string, string>
+      }
+    ).scripts
+    expect(scripts?.["test:dbq"], "no `test:dbq` script for the CI job to run").toBeTruthy()
+    expect(
+      scripts?.["test:dbq"],
+      "`test:dbq` does not run the dbq tests, so the CI job proves nothing",
+    ).toMatch(/tests\/dbq/)
   })
 
   it("slice0/secret-scan-fails-build — a secret scan runs and blocks on a finding", () => {
