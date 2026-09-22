@@ -186,7 +186,7 @@ describe.skipIf(needsDb)("CFV1-DBQ query evaluation", () => {
     }
   })
 
-  it("dbq/results-reported-per-query-and-shape — every shape answers each query identically", async () => {
+  it("dbq/shapes-agree-on-every-query — every shape answers each query identically", async () => {
     const byShape = async <T>(fn: (s: Shape) => Promise<T>): Promise<Record<string, T>> => {
       const out: Record<string, T> = {}
       for (const shape of SHAPES) {
@@ -200,8 +200,12 @@ describe.skipIf(needsDb)("CFV1-DBQ query evaluation", () => {
     const shopping = await byShape((s) => shoppingRequirements(db(), s))
     const comparisons = await byShape((s) => compareRuns(STORES[s](db()), "r-1", 1, 2))
 
-    // Reported per query AND per shape — three results per query, one per shape,
-    // never collapsed into one aggregate verdict (the acceptance criterion).
+    // Agreement, which is what makes a cost difference mean anything: three
+    // results per query, one per shape, and all three identical.
+    //
+    // This is NOT the "reported per query and per shape" criterion, though it
+    // carried that name until a review pointed out that it never touches the
+    // reporting code. `tests/dbq/report.test.ts` proves that one.
     for (const [label, results] of [
       ["library list", libraries],
       ["shopping", shopping],
