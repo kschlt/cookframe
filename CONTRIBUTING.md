@@ -5,7 +5,8 @@ few rules that keep the project coherent.
 
 ## Setup
 
-Requires Node 22 or newer.
+Requires Node 26 — the version `package.json` declares and the one CI and both
+containers run.
 
 ```bash
 npm ci
@@ -51,9 +52,18 @@ You do not apply the migration yourself for the tests — they apply
 `migrations/0001-the-recipe-store.sql` into each throwaway schema, which is also how that file
 stays the only declaration of the store's shape.
 
-CI runs six check jobs (typecheck, lint, unit, schema-contract, normalization-invariant,
-url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for the store proofs
-(`persistence`) and the DBQ spike (`dbq`). A failure in any one fails the build.
+In CI these are split differently, so do not read the table above as a list of jobs. Most test
+directories have a job of their own, a few have none and run only inside the whole-suite
+`npm run quality` that `container` and `merge-gate` each execute, and the job list in
+`.github/workflows/ci.yml` is the only current answer. A failure in any one fails the build.
+
+Do not keep a second copy of that list here. This paragraph has already been wrong twice in one
+day — once by going stale, once by generalizing without counting — and both times a contributor
+would have believed it.
+
+One job is not like the others: `merge-gate` runs the full gate against the *result* of merging
+your branch into `main`, not against your branch (`ADR-0022`). Two pull requests that are each
+green can still break `main` together, and that job is what catches it.
 
 ## Rules that are easy to miss
 
@@ -67,8 +77,24 @@ url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for t
   Copy `.env.example` to `.env` and fill it locally.
 - **Private eval fixtures stay private.** Real photos and personal recipes live under
   `evals/fixtures/private/`, which is git-ignored. Commit only `evals/fixtures/public/`.
-- **Architecture and product decisions are records.** See `docs/adr/` and `docs/pdr/`. An
+- **Architecture and product decisions are records.** See `docs/adr/` and `docs/product-decisions/`. An
   accepted record is never rewritten; it is superseded by a new one.
+
+## License and contributions
+
+Cookframe is under the [GNU Affero General Public License, version 3 or later](LICENSE), and the
+project's copyright is held by its maintainer alone. That single ownership is what leaves the door
+open to licensing the same code commercially later, and one merged outside contribution closes it,
+because the contributor then owns their part and nobody can license it without asking them.
+
+So there is one condition on a change from outside: **it is merged only once its author has said,
+in the pull request, that the maintainer may also license their contribution on other terms,
+including commercially.** One sentence in the description is enough. Nobody is asked to give up
+anything they keep — the contribution stays theirs and stays under the AGPL for everyone else.
+
+This is the light form on purpose. If the project ever becomes a real business it will need a
+proper contributor agreement; until then, this sentence is what keeps the option from being lost by
+accident.
 
 ## Pull requests
 

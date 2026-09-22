@@ -17,9 +17,11 @@ V1 is not a hosted multi-tenant SaaS and should not inherit SaaS complexity.
 
 ### License
 
-Cookframe is released under the **MIT License**.
+Cookframe is released under the **GNU Affero General Public License, version 3 or later**.
 
-The project intentionally favors low-friction use, modification, redistribution and commercial reuse over reciprocal/copy-left obligations. The public repository must include the license from its first public baseline commit.
+Superseded on 2026-09-22 by [`PDR-0006`](product-decisions/PDR-0006-the-project-is-licensed-under-the-agpl.md), which replaced the MIT License this section previously named. The reciprocal obligation is now deliberate: someone who changes Cookframe and offers it to others over a network must offer their changed source too. The public repository must include the license from its first public baseline commit.
+
+Copyright is held by the maintainer alone, which leaves the same code available to be licensed on other terms as well. `CONTRIBUTING.md` carries the condition that protects that.
 
 ### Public repository starts with a clean history
 
@@ -27,7 +29,7 @@ Discovery/workbench material may be developed privately first, but the public pr
 
 Do not convert the private workbench repository into the public product repository.
 
-The first public commit should contain only curated, public-safe baseline artifacts and the MIT license. From that point onward, product development should happen in the public repository unless material is explicitly private instance state or non-public eval data.
+The first public commit should contain only curated, public-safe baseline artifacts and the license. From that point onward, product development should happen in the public repository unless material is explicitly private instance state or non-public eval data.
 
 ## 2. Public core vs. private instance state
 
