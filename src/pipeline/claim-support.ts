@@ -20,45 +20,25 @@
  * quotation, and CFV1-S1 measured exactly that divergence — so this verifies the
  * one field the ontology defines as verbatim.
  *
- * **The threshold is a measured decision, not a default.** See
- * `spikes/inj-threshold/CALIBRATION.md` for the runs, both tables and the
- * ordering. In short: the rule is normalized character containment, with a
- * token-coverage relaxation at {@link SUPPORT_COVERAGE_THRESHOLD} for the two
- * classes of legitimate divergence the corpus actually contains (a printed line
- * break hyphenating a word, and a model lemmatising an inflected adjective).
- * Over 696 claims from 20 real conversions, every threshold from 0.60 to 1.00
- * refuses the same two claims — the relaxation changes nothing on the corpus it
- * was calibrated against, which is the evidence that it was not fitted to it. It
- * is bounded rather than open because at 0.50 a legitimate short claim and a
- * fabrication that borrows half its vocabulary both score exactly 0.50, and no
- * threshold can admit one without admitting the other.
+ * **The rule is containment, and there is no threshold left.** Both stages
+ * require the normalized text to be contained outright, per cited block, never
+ * across their concatenation. `spikes/inj-threshold/CALIBRATION.md` keeps the
+ * whole sequence: a token-coverage relaxation was chosen, measured, defended —
+ * and then found to be the wrong SHAPE of rule, because a coverage score's
+ * meaning depends on how much text it is given and the model chose that at every
+ * level available to it, first by citing more blocks and then by capturing
+ * coarser. Containment removes the dependency: a larger haystack cannot
+ * manufacture a contiguous substring.
+ *
+ * The cost was measured on 696 claims from 20 real conversions before any
+ * candidate was tested against the attack. The relaxation bought exactly one
+ * claim that containment refuses, and that claim scores 1.000 — every word
+ * present, in order, with a gap, which is the recombination attack's own
+ * signature. No rule can accept it and refuse the attack. At capture it cost
+ * nothing at all: 191 of 191 real blocks are contained verbatim.
  */
 import type { CanonicalRecipe, SourceRef, SourceSnapshot, SourceType } from "../../schema/index.js"
 
-/**
- * How much of a claim's word sequence must appear, in order, in the cited text
- * when the claim is not contained in it outright.
- *
- * **0.70, chosen from a measured flat region rather than from the first value
- * that passed.** Over 696 claims from 20 real conversions every value from 0.60
- * to 1.00 refuses the same two claims and accepts the same 0.21% of null-model
- * claims; 0.50 is where it breaks, admitting 2.72%. 0.70 sits in that flat
- * region, so the guarantee does not balance on a knife edge.
- *
- * The flatness is the point. A threshold with no effect on the data it was
- * calibrated against cannot have been fitted to it; it is here for the case the
- * corpus is thin in and a fetched page will not be — a long quotation carrying
- * one lemmatised word, which scores about 0.91.
- *
- * 0.50 is the only value that would refuse nothing, and it is refused precisely
- * for that reason: a two-word claim with one word inflected and a fabricated
- * claim that borrows half its vocabulary BOTH score 0.50, so the populations
- * collide there. Two words with one of them wrong is not evidence.
- *
- * The calibration corpus is photographs, which carry OCR hyphenation a fetched
- * HTML page will not. It is therefore a HARDER population than the one this rule
- * governs, which is the conservative direction to be wrong in.
- */
 /**
  * Retained for DIAGNOSIS, and no longer a decision input anywhere.
  *
