@@ -15,10 +15,7 @@
 import type { Hono } from "hono"
 import { createInstanceCredential } from "../../src/http/instance-credential.js"
 import { createPagesApp, type PagesAppDeps } from "../../src/http/pages-app.js"
-import {
-  capabilityUrl,
-  createInMemoryCapabilityStore,
-} from "../../src/shopping/capability-token.js"
+import { capabilityUrl, createCapabilityStore } from "../../src/shopping/capability-token.js"
 
 /** Long enough for `createInstanceCredential` (32), and obviously not a secret. */
 export const PAGES_CREDENTIAL = `library-${"not-a-secret-".repeat(3)}`
@@ -45,7 +42,7 @@ export type PagesAppTestDeps = Omit<
 /** The pages app under this suite's credential. */
 export const pagesApp = (deps: PagesAppTestDeps): Hono =>
   createPagesApp({
-    capabilityStore: createInMemoryCapabilityStore(),
+    capabilityStore: createCapabilityStore(deps.repo),
     capabilityUrlFor: (token) => capabilityUrl(PAGES_BASE_URL, token),
     ...deps,
     credential: createInstanceCredential(PAGES_CREDENTIAL, "library credential"),

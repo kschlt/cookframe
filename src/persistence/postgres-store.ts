@@ -21,6 +21,7 @@ import { Pool } from "pg"
 import type { CanonicalRecipe, CookingPlan, SourceSnapshot } from "../../schema/index.js"
 import {
   type CanonicalVersion,
+  type CapabilityGrantRecord,
   type LibraryEntry,
   type RecipeRepository,
   RecipeVersionNotFoundError,
@@ -278,6 +279,45 @@ class PostgresStore implements RecipeRepository {
     return row === undefined ? undefined : validateCookingPlan(row.doc)
   }
 
+  async storeCapabilityGrant(grant: CapabilityGrantRecord): Promise<boolean> {
+    // `on conflict do nothing`, and the row count says which happened: one
+    // statement, so no gap between a check and a write in which a second grant
+    // for the same digest could land (ADR-0032). A held digest — active or
+    // revoked — is never overwritten; the caller mints another token.
+    const result = await this.#pool
+      .query(
+        `insert into capability_grant (token_digest, recipe_id) values ($1, $2)
+         on conflict (token_digest) do nothing`,
+        [grant.tokenDigest, grant.recipeId],
+      )
+      .catch(translate)
+    return result.rowCount === 1
+  }
+
+  async resolveCapabilityGrant(tokenDigest: string): Promise<string | undefined> {
+    // Unknown and revoked are one answer, filtered in the query rather than
+    // after it, so a revoked grant's recipe id never reaches this process.
+    const result = await this.#pool
+      .query<{ recipe_id: string }>(
+        "select recipe_id from capability_grant where token_digest = $1 and not revoked",
+        [tokenDigest],
+      )
+      .catch(translate)
+    return result.rows[0]?.recipe_id
+  }
+
+  async revokeCapabilityGrant(tokenDigest: string): Promise<boolean> {
+    // An update, never a delete: the kept row is what makes this digest
+    // un-mintable for good (ADR-0016 point 5). `and not revoked` makes a second
+    // revocation touch nothing, which is how it reports `false`.
+    const result = await this.#pool
+      .query("update capability_grant set revoked = true where token_digest = $1 and not revoked", [
+        tokenDigest,
+      ])
+      .catch(translate)
+    return result.rowCount === 1
+  }
+
   async readTwoRuns(
     recipeId: string,
     versionA: number,
@@ -312,10 +352,10 @@ class PostgresStore implements RecipeRepository {
  * A constructed store together with the two things a durable store owns that an
  * in-memory one does not.
  *
- * {@link RecipeRepository} stays at the eight operations ADR-0003, ADR-0018 and
- * ADR-0025 fixed: a connection pool's lifetime and a derived table's rebuild are not
- * persistence operations, and putting them on the interface would have made
- * every caller carry them. Neither member names a PostgreSQL type, so the
+ * {@link RecipeRepository} stays at the eleven operations ADR-0003, ADR-0018,
+ * ADR-0025 and ADR-0032 fixed: a connection pool's lifetime and a derived
+ * table's rebuild are not persistence operations, and putting them on the
+ * interface would have made every caller carry them. Neither member names a PostgreSQL type, so the
  * confinement holds.
  */
 export interface PostgresStoreHandle {
