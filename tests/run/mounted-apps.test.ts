@@ -65,13 +65,39 @@
  * violation is a guard somebody switches off, so the binding is followed rather
  * than the syntax being dictated.
  *
+ * **A guard's AIM was pinned here; its BREADTH was not.** Everything above says
+ * what this scan recognises, and the tree executed none of it: narrowing the
+ * return-type test back to the literal word `Hono`, or stopping the directory
+ * walk at one level, ran green. The forms are held now by
+ * `serve/the-factory-scan-is-precise` — a table of nine sources the scan must
+ * see and ten neighbours it must spare, driven through `appFactoriesIn`, which
+ * is a pure function of TEXT for exactly that reason. Separating detection from
+ * the file walk is what made the table possible; before it there was no seam to
+ * hand a fixture to.
+ *
+ * Two of those neighbours are there because planting found them missing: a type
+ * that merely MENTIONS `Hono` (`readonly Hono[]`) and a module-level const that
+ * is not exported. Without them, widening the type test to any mention of the
+ * word, and dropping the export requirement, both survived — a negative table
+ * that spares every case for a structural reason measures nothing about the
+ * property it is supposed to be about.
+ *
  * The second rule below still reads route declarations with a regular
  * expression, and its limits are stated where it is defined. That is left as it
  * is deliberately: a duplicate address costs a dead handler, while an unmounted
  * app costs a page nobody can reach, and only the second one has happened.
  */
-import { readdirSync, readFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
@@ -87,14 +113,40 @@ const FACTORY_NAME = /^create[A-Za-z0-9]*App$/
 /** `app.get("/path"` and friends, tolerating the newline a long call puts after the paren. */
 const ROUTE = /\bapp\.(get|post|put|patch|delete|all)\(\s*"([^"]+)"/g
 
-/** Parse one file into a syntax tree, positions kept so `getText()` works. */
+/** Parse source TEXT into a syntax tree, positions kept so `getText()` works. */
+function parseText(fileName: string, source: string): ts.SourceFile {
+  return ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, /* setParentNodes */ true)
+}
+
+/** Parse one file on disk. A thin caller: every rule below decides on TEXT. */
 function parse(path: string): ts.SourceFile {
-  return ts.createSourceFile(
-    path,
-    readFileSync(path, "utf8"),
-    ts.ScriptTarget.Latest,
-    /* setParentNodes */ true,
-  )
+  return parseText(path, readFileSync(path, "utf8"))
+}
+
+/**
+ * Every `.ts` under a directory, RECURSIVELY, sorted.
+ *
+ * Recursively, because the first version of this proof read `src/http/` one
+ * level deep. The layer is flat today, so that was invisible — and it means the
+ * day someone groups the pages app into `src/http/pages/`, every factory in it
+ * stops being seen and `an app nobody mounts serves nothing` passes over a tree
+ * it can no longer read. A guard whose coverage depends on nobody making a
+ * directory is not a guard, so `serve/the-factory-scan-is-precise` builds a
+ * two-level fixture tree and requires the walk to reach into it.
+ */
+function sourceFilesUnder(dir: string): string[] {
+  const out: string[] = []
+  for (const name of readdirSync(dir).sort()) {
+    const full = join(dir, name)
+    if (statSync(full).isDirectory()) out.push(...sourceFilesUnder(full))
+    else if (name.endsWith(".ts")) out.push(full)
+  }
+  return out
+}
+
+/** A path as a reader should see it: repo-relative, forward slashes. */
+function where(path: string): string {
+  return relative(repoRoot, path).split(sep).join("/")
 }
 
 /** Is this declaration exported? */
@@ -105,66 +157,114 @@ function isExported(node: ts.Node): boolean {
   )
 }
 
-/** Does this function say it returns a Hono app? */
-function returnsHono(node: { readonly type?: ts.TypeNode | undefined }): boolean {
-  return node.type !== undefined && node.type.getText().trim() === "Hono"
+/**
+ * Does this type annotation describe a Hono app?
+ *
+ * The text has to END in `Hono`, optionally with type arguments: `Hono`,
+ * `Hono<Env>`, and — for an annotation carried by the variable rather than by
+ * the function — `() => Hono<Env>`. `Promise<Hono>` is not one, because the
+ * word is not what the annotation resolves to.
+ *
+ * Two corrections live in that sentence, both of them gaps found by reading the
+ * shipped proof rather than by a failure. The return-type test compared the
+ * text to the literal string `"Hono"`, so a **generic** annotation was not a
+ * Hono return as far as it was concerned — and paired with a name outside the
+ * `create…App` convention it walked past BOTH nets at once. Hono's own type
+ * parameters are how an app carries its bindings, so the generic form is the
+ * one a later author is most likely to reach for. The variable-annotation test
+ * used `endsWith("Hono")`, which has the same hole one level in.
+ *
+ * One predicate now serves both positions, which is also what lets
+ * `serve/the-factory-scan-is-precise` hand the scan a deliberately narrow one
+ * and require the fixtures to survive it.
+ */
+const HONO_TYPE = /\bHono\s*(?:<[\s\S]*>)?$/
+
+function honoTyped(text: string | undefined): boolean {
+  return text !== undefined && HONO_TYPE.test(text.trim())
 }
 
 /**
- * Every app factory the HTTP layer exports, with the file that exports it.
+ * Every app factory ONE SOURCE TEXT exports, by name.
  *
- * A factory is an exported declaration whose RETURN TYPE is `Hono` — written as
- * a function or as a const, because which of the two an author picks is a style
- * choice and this rule is not about style. The naming convention is a second
- * net: a factory that drops the annotation but keeps the name is still found.
+ * A pure function of text, and that is the point rather than tidiness: the rule
+ * used to read the directory and decide in one pass, so there was no seam to
+ * hand a fixture to, and nothing in the tree ever executed it against a
+ * violation. Detection and the file walk are separate now, so the table in
+ * `serve/the-factory-scan-is-precise` can drive this directly.
+ *
+ * A factory is an exported declaration whose RETURN TYPE is a Hono app —
+ * written as a function or as a const, because which of the two an author picks
+ * is a style choice and this rule is not about style. The naming convention is
+ * a second net: a factory that drops the annotation but keeps the name is still
+ * found.
+ *
+ * `isHono` is injected so a narrower reference can be measured against the same
+ * fixtures; production always takes the default.
  */
-function appFactories(): { name: string; file: string }[] {
-  const found: { name: string; file: string }[] = []
-  for (const file of readdirSync(httpDir).sort()) {
-    if (!file.endsWith(".ts")) continue
-    const where = `src/http/${file}`
-    const source = parse(join(httpDir, file))
-    for (const node of source.statements) {
-      if (ts.isFunctionDeclaration(node) && isExported(node) && node.name !== undefined) {
-        const name = node.name.text
-        if (returnsHono(node) || FACTORY_NAME.test(name)) found.push({ name, file: where })
-        continue
-      }
-      if (!ts.isVariableStatement(node) || !isExported(node)) continue
-      for (const declared of node.declarationList.declarations) {
-        if (!ts.isIdentifier(declared.name)) continue
-        const name = declared.name.text
-        const init = declared.initializer
-        const annotated =
-          init !== undefined &&
-          (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) &&
-          returnsHono(init)
-        // `const createFooApp: () => Hono = …` annotates the variable instead.
-        const onTheVariable = declared.type?.getText().trim().endsWith("Hono") === true
-        if (annotated || onTheVariable || FACTORY_NAME.test(name)) {
-          found.push({ name, file: where })
-        }
+function appFactoriesIn(
+  fileName: string,
+  source: string,
+  isHono: (text: string | undefined) => boolean = honoTyped,
+): string[] {
+  const found: string[] = []
+  for (const node of parseText(fileName, source).statements) {
+    if (ts.isFunctionDeclaration(node) && isExported(node) && node.name !== undefined) {
+      const name = node.name.text
+      if (isHono(node.type?.getText()) || FACTORY_NAME.test(name)) found.push(name)
+      continue
+    }
+    if (!ts.isVariableStatement(node) || !isExported(node)) continue
+    for (const declared of node.declarationList.declarations) {
+      if (!ts.isIdentifier(declared.name)) continue
+      const name = declared.name.text
+      const init = declared.initializer
+      const annotated =
+        init !== undefined &&
+        (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) &&
+        isHono(init.type?.getText())
+      // `const createFooApp: () => Hono = …` annotates the variable instead.
+      if (annotated || isHono(declared.type?.getText()) || FACTORY_NAME.test(name)) {
+        found.push(name)
       }
     }
   }
   return found
 }
 
-/** Every method-and-path an app file declares, with the file that declares it.
+/** Every app factory the HTTP layer exports, with the file that exports it. */
+function appFactories(): { name: string; file: string }[] {
+  const found: { name: string; file: string }[] = []
+  for (const path of sourceFilesUnder(httpDir)) {
+    const file = where(path)
+    for (const name of appFactoriesIn(file, readFileSync(path, "utf8"))) found.push({ name, file })
+  }
+  return found
+}
+
+/** Every method-and-path ONE SOURCE TEXT declares.
  *
  * Still a regular expression, and so blind to a path written as a template
  * literal, a variable, or declared through `app.on("GET", …)`. Nothing in
  * `src/http/` uses any of those, and the cost of the blindness is a dead
- * handler rather than an unserved page — which is why widening it is not part
- * of this unit. */
+ * handler rather than an unserved page — which is why widening it, and pinning
+ * the breadth of the widening, is not part of this unit. It is split out of the
+ * file walk anyway, so the day it is widened there is somewhere to put the
+ * table. */
+function declaredRoutesIn(source: string): string[] {
+  const found: string[] = []
+  for (const match of source.matchAll(ROUTE)) {
+    found.push(`${(match[1] as string).toUpperCase()} ${match[2]}`)
+  }
+  return found
+}
+
+/** Every method-and-path an app file declares, with the file that declares it. */
 function declaredRoutes(): { route: string; file: string }[] {
   const found: { route: string; file: string }[] = []
-  for (const file of readdirSync(httpDir).sort()) {
-    if (!file.endsWith(".ts")) continue
-    const text = readFileSync(join(httpDir, file), "utf8")
-    for (const match of text.matchAll(ROUTE)) {
-      found.push({ route: `${(match[1] as string).toUpperCase()} ${match[2]}`, file })
-    }
+  for (const path of sourceFilesUnder(httpDir)) {
+    const file = where(path)
+    for (const route of declaredRoutesIn(readFileSync(path, "utf8"))) found.push({ route, file })
   }
   return found
 }
@@ -268,6 +368,186 @@ describe("serve/every-app-is-mounted", () => {
     expect(names).toContain("createPagesApp")
     expect(names).toContain("createIngestApp")
     expect(names).toContain("createCapabilityApp")
+  })
+})
+
+/**
+ * Sources the factory scan MUST see, with the name it must find in each.
+ *
+ * Every entry is a form a factory can actually be written in. The point of the
+ * table is not that these nine are exhaustive — it is that the scan's BREADTH
+ * is executed by the tree rather than asserted in a comment. Narrowing the
+ * return-type test back to the bare word `Hono` runs green without it; with it,
+ * `a narrower return-type test misses what this scan catches` goes red and
+ * names each form that was lost.
+ */
+const MUST_FLAG: { why: string; source: string; name: string }[] = [
+  {
+    why: "the plain form: an exported function annotated Hono",
+    source: "export function createPagesApp(): Hono { return app }",
+    name: "createPagesApp",
+  },
+  {
+    why: "arrow-declared const — the form pageHeaders in this layer already uses",
+    source: "export const createOrphanApp = (): Hono => app",
+    name: "createOrphanApp",
+  },
+  {
+    why: "a name outside the create…App convention, caught by the return type alone",
+    source: "export function buildOrphanRoutes(): Hono { return app }",
+    name: "buildOrphanRoutes",
+  },
+  {
+    why: "a GENERIC return type plus a non-conventional name walks past both nets",
+    source: "export function mountTheThing(): Hono<Env> { return app }",
+    name: "mountTheThing",
+  },
+  {
+    why: "the same, arrow-declared and spaced out, since whitespace is a style choice",
+    source: "export const attachRoutes = (): Hono< Env > => app",
+    name: "attachRoutes",
+  },
+  {
+    why: "the annotation carried by the variable rather than by the function",
+    source: "export const createThingApp: () => Hono = () => app",
+    name: "createThingApp",
+  },
+  {
+    why: "carried by the variable AND generic — the same hole one level in",
+    source: "export const buildThing: () => Hono<Env> = () => app",
+    name: "buildThing",
+  },
+  {
+    why: "a factory that drops the annotation but keeps the name",
+    source: "export function createLibraryApp() { return app }",
+    name: "createLibraryApp",
+  },
+  {
+    why: "a function expression, because the declaration form is not the rule",
+    source: "export const createThatApp = function (): Hono { return app }",
+    name: "createThatApp",
+  },
+]
+
+/**
+ * Neighbours the scan MUST spare, each close enough that sparing it is a
+ * decision rather than an accident.
+ *
+ * A negative fixture spared for the wrong reason is worse than none: it reads
+ * as precision and measures nothing. So none of these is an arbitrary string —
+ * each one sits one property away from an entry above. `pageHeaders` is a real
+ * exported arrow const from this very layer; the import line carries the exact
+ * name of the first positive; the inner const is a factory in every respect
+ * except that it is not the module's.
+ */
+const MUST_SPARE: { why: string; source: string }[] = [
+  {
+    why: "not exported: a factory the module keeps to itself is nobody's to mount",
+    source: "function createLocalApp(): Hono { return app }",
+  },
+  {
+    why: "an exported arrow const that returns something else — pageHeaders, verbatim",
+    source: "export const pageHeaders = (): Record<string, string> => ({})",
+  },
+  {
+    why: "an exported function with a non-conventional name and a non-Hono return",
+    source: 'export function renderRecipe(): string { return "" }',
+  },
+  {
+    why: "an annotation on the variable that resolves to something else",
+    source: "export const notAnApp: () => Response = () => new Response()",
+  },
+  {
+    why: "a type alias ENDING in Hono declares no app, so the tail match alone is not the rule",
+    source: "export type AppFactory = () => Hono",
+  },
+  {
+    why: "importing a factory is not exporting one, or every mounting file would be a violation",
+    source: 'import { createPagesApp } from "./pages-app.js"',
+  },
+  {
+    why: "a factory bound inside a function body is not one of the module's exports",
+    source: "function outer() { const createInnerApp = (): Hono => app; return createInnerApp }",
+  },
+  {
+    why: "the word Hono as a VALUE: this reads the syntax tree, not the text",
+    source: 'export const HONO_HEADER = "Hono"',
+  },
+  {
+    // Found by planting: widening the type test to any MENTION of Hono survived
+    // the table as it first stood, because every negative in it was spared for
+    // a structural reason and none for the shape of its annotation.
+    why: "a type that MENTIONS Hono without resolving to one — a list of apps is not a factory",
+    source: "export const mountedApps: readonly Hono[] = []",
+  },
+  {
+    // Found by planting too: dropping the export requirement survived, because
+    // the only unexported fixture was a FUNCTION and the only inner one was not
+    // a module statement at all. A module-level const is the case that reaches
+    // the second branch.
+    why: "a module-level factory nobody exports is a factory composeInstance cannot reach",
+    source: "const createPrivateApp = (): Hono => app",
+  },
+]
+
+describe("serve/the-factory-scan-is-precise", () => {
+  it("every form an app factory is written in is seen", () => {
+    for (const { why, source, name } of MUST_FLAG) {
+      expect(appFactoriesIn("fixture.ts", source), why).toContain(name)
+    }
+  })
+
+  it("a neighbour that is not an app factory is spared", () => {
+    for (const { why, source } of MUST_SPARE) {
+      expect(appFactoriesIn("fixture.ts", source), why).toEqual([])
+    }
+  })
+
+  it("a narrower return-type test misses what this scan catches", () => {
+    // The shipped version before this one: a type was a Hono app when its text
+    // ended in the bare word. That is the LOOSER of the two tests it used — the
+    // return-type path compared to the literal string — so what it misses here
+    // is a floor, not a ceiling.
+    const endsInTheBareWord = (text: string | undefined): boolean =>
+      text?.trim().endsWith("Hono") === true
+    const missed = MUST_FLAG.filter(
+      ({ source, name }) => !appFactoriesIn("fixture.ts", source, endsInTheBareWord).includes(name),
+    )
+    expect(
+      missed.map((m) => m.why),
+      "the narrow reference passes the whole table, so the table pins no breadth",
+    ).toHaveLength(3)
+  })
+
+  it("a one-level directory walk misses a factory grouped into a subdirectory", () => {
+    // The scan's breadth is two things, and the table above holds only one of
+    // them: what it recognises, and where it looks. `src/http/` is flat today,
+    // so the walk's depth is invisible in the tree it actually guards — which
+    // is exactly the condition under which it was wrong and green.
+    const root = mkdtempSync(join(tmpdir(), "factory-scan-"))
+    try {
+      writeFileSync(join(root, "flat.ts"), "export function createFlatApp(): Hono { return app }")
+      mkdirSync(join(root, "grouped"))
+      writeFileSync(
+        join(root, "grouped", "nested.ts"),
+        "export function createNestedApp(): Hono { return app }",
+      )
+
+      const oneLevel = readdirSync(root)
+        .filter((name) => name.endsWith(".ts"))
+        .map((name) => join(root, name))
+      expect(
+        oneLevel,
+        "the narrow reference already sees the nested file, so this pins nothing",
+      ).toEqual([join(root, "flat.ts")])
+
+      expect(
+        sourceFilesUnder(root),
+        "a factory grouped into a subdirectory is still the layer's to mount",
+      ).toEqual([join(root, "flat.ts"), join(root, "grouped", "nested.ts")])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
