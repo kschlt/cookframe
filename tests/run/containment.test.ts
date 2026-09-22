@@ -155,17 +155,32 @@ describe("run/the-runtime-image-runs-the-process", () => {
 })
 
 /**
+ * Every way a line can get at the process environment.
+ *
+ * `process.env` was the whole pattern once, and a review planted the hole:
+ * `const env = process["env"]` in an undeclared module read the real
+ * environment and this check stayed green. Property access has two spellings
+ * in JavaScript and a guard that knows only one is a guard against typing
+ * style. The third alternative catches the alias — `const { env } = process`,
+ * or `const p = process` — by matching an assignment of `process` ITSELF, with
+ * nothing following it, since every read through the alias happens on some
+ * later line this pattern would never see.
+ */
+const ENVIRONMENT_READ =
+  /process\s*\.\s*env\b|process\s*\[\s*(?:"env"|'env'|`env`)\s*\]|=\s*process\b(?![.[])/
+
+/**
  * A line that reads the environment, ignoring the ones that only talk about it.
  *
  * Crude on purpose: a line whose first non-space characters are `//` or `*` is
- * prose, and three of the five mentions of `process.env` under `src/` are
- * exactly that — comments explaining why the seam below them takes a parameter.
- * A stripper that understood TypeScript would be a second parser to keep
- * correct; this one is wrong only in ways that make the check STRICTER (a real
- * read hidden at the end of a comment line would still be reported).
+ * prose, and most mentions of `process.env` under `src/` are exactly that —
+ * comments explaining why the seam below them takes a parameter. A stripper
+ * that understood TypeScript would be a second parser to keep correct; this one
+ * is wrong only in ways that make the check STRICTER (a real read hidden at the
+ * end of a comment line would still be reported).
  */
 const readsTheEnvironment = (text: string): boolean =>
-  text.split("\n").some((line) => /process\.env\b/.test(line) && !/^\s*(?:\/\/|\*|\/\*)/.test(line))
+  text.split("\n").some((line) => ENVIRONMENT_READ.test(line) && !/^\s*(?:\/\/|\*|\/\*)/.test(line))
 
 describe("run/configuration-arrives-only-through-declared-seams", () => {
   // ADR-0026's cut, declared as an inventory rather than described in prose,

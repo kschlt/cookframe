@@ -56,8 +56,11 @@ start when it fails.**
   a driver's complaint about a relation.
 - Anything else is wrapped as "the database at DATABASE_URL could not be read", with the driver's
   message kept as the cause.
-- The pool is closed before either refusal, so a refusing process exits rather than lingering on an
-  open handle.
+- The pool is closed before either refusal. Said plainly because the distinction keeps costing this
+  project: **nothing holds this bullet.** `main().catch` calls `process.exit(1)` immediately after,
+  so a released pool and a leaked one are indistinguishable from outside — same exit code, same
+  absence of a listener, same output. Removing the close leaves the whole gate green. It is here
+  because it is the right thing for the code to do, not because a proof requires it.
 - `DATABASE_URL` is **not** added to `REQUIRED_CONFIGURATION`. The store's own seam already refuses
   it by name and additionally rejects a URL no PostgreSQL driver could connect with, which a list of
   required names cannot check. One variable refused in two places is two places to keep in step.
@@ -106,9 +109,15 @@ here can.
 
 **Probe with `select 1`.** Cheaper and reachable without the repository, and it proves the pool can
 connect — which is not the claim. It passes against an empty database, the likeliest
-misconfiguration of the two. It is also not available to the composition root: `ADR-0003` keeps
-`pg` out of it, so the only reads it can make are the repository's own. That confinement is what
-makes the weak version of this check unbuildable rather than merely unwise.
+misconfiguration of the two, so the instance would bind and 500 exactly as it does with no probe at
+all.
+
+`ADR-0003` keeps `pg` out of the composition root, but that is a convention rather than a wall: a
+direct `import { Client } from "pg"` there typechecks and lints. So the weak probe is buildable, and
+this record first claimed otherwise. It was planted, measured, and
+`run/an-unmigrated-database-refuses-by-name` goes red on it — `select 1` succeeds against an empty
+schema, the process binds, and the case's `not.toContain("listening on port")` line reports it. The
+alternative is rejected on its merits and the rejection is guarded.
 
 **Put `DATABASE_URL` in `REQUIRED_CONFIGURATION` as well.** It would group the refusal with the
 others, at the price of two independent rules for one variable. The one that drifts is always the

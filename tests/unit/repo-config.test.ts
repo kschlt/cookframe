@@ -559,10 +559,16 @@ describe("CI workflow (ci.yml)", () => {
     const container = workflow.jobs["container"] as
       | { services?: Record<string, { image?: string }> }
       | undefined
+    // Asserted as a string FIRST, then matched. `toMatch` on `undefined` throws
+    // its own type error before the message attaches, so with the service
+    // removed this failed as "toMatch() expects to receive a string, but got
+    // undefined" and "the container job has no postgres service" never reached
+    // the reader — which is the only reason the message is written.
     expect(
-      container?.services?.postgres?.image,
+      typeof container?.services?.postgres?.image,
       "the container job has no postgres service",
-    ).toMatch(/^postgres:/)
+    ).toBe("string")
+    expect(container?.services?.postgres?.image).toMatch(/^postgres:/)
     const containerRuns = (workflow.jobs["container"]?.steps ?? [])
       .map((s) => s.run)
       .filter((r): r is string => typeof r === "string")

@@ -401,7 +401,7 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
   }, 60_000)
 })
 
-describe("run/an-unreachable-database-refuses-by-name", () => {
+describe("wire/the-port-opens-only-behind-a-reachable-store", () => {
   it("refuses by name when DATABASE_URL points at nothing, rather than crashing out of the driver", async () => {
     // The third operator mistake, and the only one of the three that needs no
     // database to prove: a URL that is set and wrong — the wrong host, the wrong
