@@ -2,9 +2,10 @@
 
 > Every recipe you keep, in one shape you can actually cook from.
 
-Cookframe is an open-source, self-hosted recipe system. You point it at a recipe — a photograph of
-a cookbook page, a handwritten card, a recipe website — and it converts that source into one
-consistent recipe model, then shows you the part of it you need for what you are doing right now.
+Cookframe is a recipe system. You point it at a recipe — a photograph of a cookbook page, a
+handwritten card, a recipe website — and it converts that source into one consistent recipe, then
+shows you the part of it you need for what you are doing right now: deciding, shopping, getting
+ready, or standing at the stove with your hands full.
 
 **This is work in progress, built in the open.** See [Status](#status) before you try to use it.
 
@@ -48,10 +49,10 @@ providers, hosting and external schemas are adapters around it, not part of it. 
 said is kept alongside the recipe drawn from it, so a better model or a newer ontology can re-convert
 a library you already have — without you photographing anything twice.
 
-**Your instance is yours.** Cookframe is built for one person running one instance, with their own
-credentials, their own database, and their recipes on their own machine — not a service you sign
-up for. The mobile client is [an iOS Shortcut in this repository](shortcut/), and it carries no
-credential and no instance address until you fill them in yourself.
+**One recipe, four different questions.** "Do I want to cook this?", "what do I need to buy?",
+"what has to start early?" and "what do I do right now?" each want a different part of the same
+recipe. Cookframe derives each of them from the one canonical recipe, rather than handing you a
+single page and letting you read it four ways.
 
 ## Status
 
@@ -60,8 +61,8 @@ follows is where it stood on 2026-09-22.
 
 An instance runs as a process, keeps its library in PostgreSQL across a restart, and serves three
 pages behind a credential: the library, a recipe, and a cooking view derived from that recipe. You
-capture into it by photographing a page with the Shortcut, which posts the image to your instance
-and gets back the recipe it saved.
+capture into it by photographing a page with [the iOS Shortcut in this repository](shortcut/),
+which posts the image to your instance and gets back its title and where to find it.
 
 The scan-to-shop path has been measured end to end against real photographs rather than estimated —
 eleven pages through a real model, a median of about 20 seconds from submission to a shopping
@@ -98,7 +99,7 @@ Start at [`docs/README.md`](docs/README.md), which indexes the rest. The short v
 | why the cooking view looks the way it does | [`docs/cooking-ux.md`](docs/cooking-ux.md) |
 | how sources and outputs plug in | [`docs/adapter-architecture.md`](docs/adapter-architecture.md) |
 | how a model is used, and how stored sources are re-converted | [`docs/ai-processing-and-reprocessing.md`](docs/ai-processing-and-reprocessing.md) |
-| what stays public and what never leaves your instance | [`docs/open-source-self-hosting-principles.md`](docs/open-source-self-hosting-principles.md) |
+| what is public in this repository and what never leaves an instance | [`docs/open-source-self-hosting-principles.md`](docs/open-source-self-hosting-principles.md) |
 | how a claim about this system gets to count as proven | [`docs/validation-and-evaluation.md`](docs/validation-and-evaluation.md) |
 | why something is built the way it is | [`docs/adr/`](docs/adr/) and [`docs/product-decisions/`](docs/product-decisions/) |
 | what is still undecided, and what would decide it | [`docs/open-questions.md`](docs/open-questions.md) |
@@ -112,8 +113,9 @@ record can name the question it closes.
 
 You need Node 26, a PostgreSQL database and an OpenAI API key. Copy
 [`.env.example`](.env.example) and fill it in. There are no defaults: an instance that is missing
-configuration refuses to start and names every variable at fault, instead of guessing one. Then
-apply both migrations, in order, and start it:
+configuration refuses to start and names every variable at fault in one message, with the database
+URL refused a line later by the store's own seam, which also rejects a URL no PostgreSQL driver
+could connect with. Then apply both migrations, in order, and start it:
 
 ```bash
 npm ci
@@ -130,6 +132,11 @@ port, so a database it cannot reach, or one whose migrations have not been appli
 message saying so — instead of an instance that comes up fine and then answers every page with an
 error. It also refuses to start if the phone's credential and the library's are the same value,
 which would let a lost phone open your library while every route still behaved correctly.
+
+To capture into it from a phone, import [`shortcut/Capture Recipe.plist`](shortcut/). It asks for
+your instance's address and its ingest credential on first run and keeps them in your own copy —
+the file in this repository carries neither, and the credential it asks for reaches nothing but the
+capture endpoint.
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) has the setup in full, including how to run the checks.
 
