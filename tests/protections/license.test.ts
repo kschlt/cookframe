@@ -432,7 +432,7 @@ const NAMES_KNOWN: ReadonlyArray<readonly [string, string]> = [
 const NAMES_UNKNOWN: ReadonlyArray<readonly [string, string]> = [
   ["permissively licensed / otherwise safe to redistribute", "a licence talked about, none named"],
   ["SUBMITTED FOR REVIEW", "MIT inside a word: the boundary on `\\bMIT\\b` is what spares it"],
-  ["the form was submitted", "lower-case: `MIT` is matched case-sensitively on purpose"],
+  ["ein Rezept mit Foto", "the German word `mit`: only matching `MIT` case-sensitively spares it"],
   ["ISCSI storage", "ISC inside a word, the same boundary"],
   // DELIBERATELY OUT OF REACH, and pinned so that the paragraph on
   // `mentionsALicense` in `license.ts`, and the matching sentence in ADR-0030,
