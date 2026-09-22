@@ -28,6 +28,29 @@ export type Shape = "document" | "relational" | "hybrid"
 
 export const SHAPES: readonly Shape[] = ["document", "relational", "hybrid"]
 
+/**
+ * The only way a shape name reaches SQL.
+ *
+ * Every `search_path` statement interpolates its identifier — parameters cannot
+ * carry one — so what stands between a caller and an injected identifier is
+ * this check. It was previously done by asking whether a SQL constant had a key
+ * of that name, which is not the same question: `LIBRARY_SQL["constructor"]` is
+ * `Object`'s constructor, not `undefined`, so `constructor`, `toString`,
+ * `valueOf`, `hasOwnProperty` and `__proto__` all passed that guard and were
+ * interpolated. Not reachable today — every caller passes a `SHAPES` constant —
+ * but the guard did not hold the property its callers relied on.
+ *
+ * Membership in the declared list, which is the contract, rather than a
+ * property lookup on an object that inherits five.
+ */
+export function assertShape(name: string): Shape {
+  const shape = SHAPES.find((s) => s === name)
+  if (shape === undefined) {
+    throw new Error(`not a known shape: ${JSON.stringify(name)} (expected one of ${SHAPES.join(", ")})`)
+  }
+  return shape
+}
+
 export function databaseUrl(): string {
   return process.env.DATABASE_URL ?? DEFAULT_URL
 }
@@ -48,7 +71,8 @@ export async function connect(): Promise<Client | undefined> {
  * Drop and recreate `shape`'s schema, then apply its DDL. Every run starts from
  * an empty shape, so a measurement can never be a leftover from the last one.
  */
-export async function resetShape(client: Client, shape: Shape): Promise<void> {
+export async function resetShape(client: Client, shapeName: Shape): Promise<void> {
+  const shape = assertShape(shapeName)
   const ddl = readFileSync(join(here, `schema-${shape}.sql`), "utf8")
   await client.query(`drop schema if exists ${shape} cascade`)
   await client.query(`create schema ${shape}`)
@@ -57,6 +81,6 @@ export async function resetShape(client: Client, shape: Shape): Promise<void> {
 }
 
 /** Point the session at one shape's schema. */
-export async function useShape(client: Client, shape: Shape): Promise<void> {
-  await client.query(`set search_path to ${shape}`)
+export async function useShape(client: Client, shapeName: Shape): Promise<void> {
+  await client.query(`set search_path to ${assertShape(shapeName)}`)
 }

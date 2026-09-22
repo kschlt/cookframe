@@ -129,3 +129,78 @@ export function runOutcome(agreement: Readonly<Record<string, boolean>>): RunOut
   const disagreeing = QUERY_LABELS.filter((q) => agreement[q] !== true)
   return { exitCode: disagreeing.length === 0 ? 0 : 3, disagreeing }
 }
+
+/** One query's measurement for one shape, as the run collects it. */
+export interface QueryTiming {
+  readonly count: number
+  readonly ms: number
+  readonly statements: number
+}
+
+/**
+ * What a run has measured for one shape, before it becomes a row.
+ *
+ * Every part is explicitly `| undefined`: absence is the case this type exists
+ * to make visible, not one to be papered over at the point of use.
+ */
+export interface RawMeasurements {
+  readonly library: QueryTiming | undefined
+  readonly shopping: QueryTiming | undefined
+  readonly comparison: QueryTiming | undefined
+  readonly librarySqlChars: number | undefined
+  readonly shoppingSqlChars: number | undefined
+}
+
+/**
+ * The parts, read off the contract rather than hand-listed.
+ *
+ * Typed as a total record over `RawMeasurements`'s own keys, so adding a part
+ * to that interface without listing it here does not compile, and a key that is
+ * absent from the object altogether is still checked — which `Object.entries`
+ * would have missed.
+ */
+const RAW_PARTS = Object.keys({
+  library: true,
+  shopping: true,
+  comparison: true,
+  librarySqlChars: true,
+  shoppingSqlChars: true,
+} satisfies Record<keyof RawMeasurements, true>) as readonly (keyof RawMeasurements)[]
+
+/**
+ * One shape's row inputs, or an error — never a plausible-looking zero.
+ *
+ * The assembly used to sit in `evaluate.ts` as eleven `?? 0` defaults. A shape
+ * whose query never ran therefore rendered `0 rows`, `0.00` ms and `0` SQL
+ * chars: a full row of measurements, correctly labelled, measuring nothing. The
+ * table is quoted into a decision record, and `0.00 ms` reads as "fastest", so
+ * the failure mode of that default is a wrong conclusion rather than a gap.
+ *
+ * Fails CLOSED, like `runOutcome`: a missing part stops the report instead of
+ * being rendered as a number.
+ */
+export function toReading(shape: string, m: RawMeasurements): ShapeReading {
+  const missing = RAW_PARTS.filter((k) => m[k] === undefined)
+  if (missing.length > 0) {
+    throw new Error(
+      `no reading for ${shape}: ${missing.join(", ")} never recorded — ` +
+        `a row of zeroes would read as a measurement`,
+    )
+  }
+  const library = m.library as QueryTiming
+  const shopping = m.shopping as QueryTiming
+  const comparison = m.comparison as QueryTiming
+  return {
+    libraryRows: library.count,
+    libraryStatements: library.statements,
+    libraryMs: library.ms,
+    librarySqlChars: m.librarySqlChars as number,
+    shoppingLines: shopping.count,
+    shoppingStatements: shopping.statements,
+    shoppingMs: shopping.ms,
+    shoppingSqlChars: m.shoppingSqlChars as number,
+    comparisonDifferences: comparison.count,
+    comparisonStatements: comparison.statements,
+    comparisonMs: comparison.ms,
+  }
+}
