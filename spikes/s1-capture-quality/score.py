@@ -202,6 +202,32 @@ def times_match(truth_times: dict, cap_times: dict) -> bool:
     return all(norm_str(cap_times.get(k)) == norm_str(v) for k, v in truth_times.items())
 
 
+# A source LABEL key masquerading as a time — `prep_label`, `cook_label`. These
+# carry the printed heading ("VORBEREITUNG"), not a duration, so they are not the
+# `time` field and must never sit inside `times`.
+_TIME_LABEL_KEY = re.compile(r"_label$", re.IGNORECASE)
+
+
+def time_labels_in_times(truth: dict) -> list[str]:
+    """The label keys wrongly recorded inside `times` (CFV1-S1 VERDICT item 3).
+
+    `times` holds DURATIONS only. A `*_label` key is source metadata — the
+    printed heading beside a time, not a time — and belongs in the separate
+    `time_labels` field, never inside `times`. Left there it is a truth-FORMAT
+    defect with two faces: under the honest all-keys rule it makes `time` an
+    automatic miss (no capture returns a heading as a time), and it is exactly
+    the pollution whose post-hoc removal this spike had to revert (see the note
+    at the `selected_truth_times` call site). So it is caught at the FORMAT gate
+    instead: a truth carrying one is malformed, and a malformed truth blocks a
+    PASS rather than being scored either way.
+
+    Named and returned rather than inlined for the same reason `times_match` and
+    `selected_truth_times` are — a rule that lives only inside `score()` is a
+    rule `--selftest` cannot prove discriminates.
+    """
+    return [k for k in (truth.get("times") or {}) if _TIME_LABEL_KEY.search(str(k))]
+
+
 def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = None):
     FIX = fixtures_dir or (HERE / "fixtures")
     RUNS = runs_dir or (HERE / "runs")
@@ -221,6 +247,11 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     captures_present = 0
     identical_to_truth = 0
     unmeasured: dict[str, list[str]] = {}
+    # Truth-FORMAT defects (as opposed to capture misses or unmeasured fields):
+    # a `*_label` key found inside `times`, which VERDICT item 3 requires fixed
+    # BEFORE the next run. Recorded per field and, like an unmeasured field,
+    # fail-closed — a malformed truth cannot yield a PASS.
+    format_errors: dict[str, list[str]] = {}
 
     for entry in manifest["fixtures"]:
         fid, cls = entry["id"], entry["class"]
@@ -279,9 +310,19 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         # after seeing a result. The verdict records both numbers and leans on
         # neither, and lists the truth-format defect as something to fix BEFORE
         # the next run rather than after it.
-        tt = selected_truth_times(truth)
-        if tt:
-            check("time", times_match(tt, cap.get("times") or {}))
+        #
+        # FORMAT gate first: a `*_label` key inside `times` is a malformed truth
+        # (VERDICT item 3), not a capture result. It is recorded and blocks a
+        # PASS, and the field is not scored for this fixture — a format defect
+        # must not be reported as a capture hit or a capture miss in either
+        # direction. Labels belong in the separate `time_labels` field.
+        label_keys = time_labels_in_times(truth)
+        if label_keys:
+            format_errors.setdefault("time", []).append(fid)
+        else:
+            tt = selected_truth_times(truth)
+            if tt:
+                check("time", times_match(tt, cap.get("times") or {}))
 
         # temperatures (incl ranges)
         t_temps = [norm_qty(x) for x in (truth.get("temperatures") or [])]
@@ -406,7 +447,11 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     # PASS exactly as a failing field does (THRESHOLD.md: PASS only if EVERY bar
     # is met). It is reported separately from a failure, because "we did not
     # measure this" and "capture got this wrong" are different facts.
-    verdict = "PASS" if not failing and not missing_runs and not unmeasured else "FAIL"
+    verdict = (
+        "PASS"
+        if not failing and not missing_runs and not unmeasured and not format_errors
+        else "FAIL"
+    )
 
     # Circularity override: if every present capture is byte-identical to its
     # truth, the numeric bars are tautological and a PASS would be meaningless.
@@ -429,6 +474,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         "identical_to_truth": identical_to_truth,
         "circular": circular,
         "unmeasured": unmeasured,
+        "format_errors": format_errors,
         "field_scores": field_rates,
         "edge_class_scores": edge_rates,
         "per_class_scores": class_rates,
@@ -476,6 +522,14 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
                 f"\nNOT MEASURED: '{field}' on {len(ids)} fixture(s) ({', '.join(ids)}) — the truth "
                 "files record it in a form the pre-registered rule cannot compare. This is a harness\n"
                 "limitation, NOT a capture result; a critical field left unmeasured blocks a PASS."
+            )
+    if format_errors:
+        for field, ids in sorted(format_errors.items()):
+            print(
+                f"\nMALFORMED TRUTH: '{field}' on {len(ids)} fixture(s) ({', '.join(ids)}) — a "
+                "'*_label' key sits inside `times`, which holds durations only. Move it to the\n"
+                "separate `time_labels` field (VERDICT item 3). A truth-format defect blocks a PASS "
+                "and is fixed BEFORE the next run, never scored around after it."
             )
     print(f"\nVERDICT (OQ-14): {verdict}")
     if failing:
@@ -542,6 +596,23 @@ def selftest_core() -> int:
         (
             "times: every truth key counts, not just the first",
             not times_match({"prep": "20 min", "cook": "40 min"}, {"prep": "20 min", "cook": "45 min"}),
+        ),
+        # the truth-FORMAT gate (VERDICT item 3): a `*_label` key inside `times`
+        # is caught, a clean durations-only `times` passes, and the catch does
+        # not depend on letter case. The violation is planted, not assumed.
+        (
+            "time-format: a _label key inside times is caught",
+            time_labels_in_times({"times": {"prep": "20 min", "prep_label": "VORBEREITUNG"}})
+            == ["prep_label"],
+        ),
+        (
+            "time-format: durations-only times passes the gate",
+            time_labels_in_times({"times": {"prep": "20 min", "cook": "40 min", "total": "60 min"}})
+            == [],
+        ),
+        (
+            "time-format: the gate is case-insensitive",
+            time_labels_in_times({"times": {"Prep_Label": "VORBEREITUNG"}}) == ["Prep_Label"],
         ),
     ]
     ok = True
