@@ -48,6 +48,7 @@ import {
 } from "../../src/pipeline/recipe-inventory.js"
 import { createCapabilityStore } from "../../src/shopping/capability-token.js"
 import { unsuppliedByteSource, unsuppliedUrlCapture } from "../security/unsupplied-byte-source.js"
+import { scratchByteStore } from "../support/scratch-byte-store.js"
 import { dictionaryKeysRead, parsePlist } from "./plist.js"
 
 /**
@@ -151,6 +152,7 @@ function harness(capture?: CaptureProvider): Harness {
     targetOntologyVersion: "1.0.0",
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
+    scanStore: scratchByteStore().store,
     byteSource: unsuppliedByteSource(),
     urlCapture: unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",

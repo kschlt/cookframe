@@ -27,6 +27,7 @@ const complete: Environment = {
   COOKFRAME_INGEST_CREDENTIAL: INGEST_CREDENTIAL,
   COOKFRAME_LIBRARY_CREDENTIAL: LIBRARY_CREDENTIAL,
   PUBLIC_BASE_URL: "https://cookframe.test",
+  STORAGE_ROOT: "/var/lib/cookframe",
 }
 
 /** `complete` without one variable. */
@@ -42,6 +43,7 @@ describe("run/absent-configuration-refuses-by-name", () => {
     expect(config.port).toBe(8080)
     expect(config.ingestCredential).toBe(complete["COOKFRAME_INGEST_CREDENTIAL"])
     expect(config.libraryCredential).toBe(complete["COOKFRAME_LIBRARY_CREDENTIAL"])
+    expect(config.storageRoot).toBe(complete["STORAGE_ROOT"])
   })
 
   it("refuses EVERY required variable when it is absent, naming it", () => {

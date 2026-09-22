@@ -30,7 +30,9 @@ import {
   startInstance,
 } from "../../src/server/instance.js"
 import { type CapabilityStore, createCapabilityStore } from "../../src/shopping/capability-token.js"
+import type { ByteStore } from "../../src/storage/index.js"
 import { unsuppliedByteSource, unsuppliedUrlCapture } from "../security/unsupplied-byte-source.js"
+import { scratchByteStore } from "../support/scratch-byte-store.js"
 
 /**
  * Two DIFFERENT secrets, because PDR-0003 says the phone's does not open the
@@ -165,6 +167,12 @@ export interface TestInstanceOptions {
    * is exactly what the review's BLOCK was about.
    */
   readonly urlCapture?: CaptureProvider
+  /**
+   * Where the photo route keeps what it is sent. The default is the shipped
+   * filesystem store on a directory of its own (`tests/support/scratch-byte-store.ts`);
+   * a proof about keeping photographs passes a store on a directory it reads.
+   */
+  readonly scanStore?: ByteStore
 }
 
 /**
@@ -235,6 +243,7 @@ export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanc
     targetOntologyVersion: "1.0.0",
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
+    scanStore: options.scanStore ?? scratchByteStore().store,
     byteSource: options.byteSource ?? unsuppliedByteSource(),
     urlCapture: options.urlCapture ?? unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",

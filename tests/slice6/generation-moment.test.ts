@@ -30,6 +30,7 @@ import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-p
 import { createFakeNormalizationProvider } from "../../src/pipeline/fake-providers.js"
 import type { CaptureProvider, CaptureResult } from "../../src/pipeline/providers.js"
 import { unsuppliedByteSource, unsuppliedUrlCapture } from "../security/unsupplied-byte-source.js"
+import { scratchByteStore } from "../support/scratch-byte-store.js"
 import { bellPepper } from "./fixtures.js"
 import { getPage, pagesApp } from "./pages.js"
 
@@ -79,6 +80,7 @@ function harness(
     targetOntologyVersion: "1.0.0",
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
+    scanStore: scratchByteStore().store,
     byteSource: unsuppliedByteSource(),
     urlCapture: unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",
@@ -135,6 +137,7 @@ describe("slice6/background-does-not-delay-response", () => {
       targetOntologyVersion: "1.0.0",
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
+      scanStore: scratchByteStore().store,
       byteSource: unsuppliedByteSource(),
       urlCapture: unsuppliedUrlCapture(),
       urlSourceAdapter: "url-import",
