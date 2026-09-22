@@ -70,6 +70,22 @@ url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for t
 - **Architecture and product decisions are records.** See `docs/adr/` and `docs/pdr/`. An
   accepted record is never rewritten; it is superseded by a new one.
 
+## License and contributions
+
+Cookframe is under the [GNU Affero General Public License, version 3 or later](LICENSE), and the
+project's copyright is held by its maintainer alone. That single ownership is what leaves the door
+open to licensing the same code commercially later, and one merged outside contribution closes it,
+because the contributor then owns their part and nobody can license it without asking them.
+
+So there is one condition on a change from outside: **it is merged only once its author has said,
+in the pull request, that the maintainer may also license their contribution on other terms,
+including commercially.** One sentence in the description is enough. Nobody is asked to give up
+anything they keep — the contribution stays theirs and stays under the AGPL for everyone else.
+
+This is the light form on purpose. If the project ever becomes a real business it will need a
+proper contributor agreement; until then, this sentence is what keeps the option from being lost by
+accident.
+
 ## Pull requests
 
 Keep a change to a single concern with its tests. Describe what a reader would see before
