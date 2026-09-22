@@ -103,6 +103,16 @@ export function checkSubject(subject: string): SubjectVerdict {
   return { ok: true }
 }
 
+/**
+ * Judge a pull request's title. The merge step uses it as the subject of the
+ * merge commit on `main`, so it is held to exactly the subject rule and gets NO
+ * merge exemption: a title has no parents to qualify, and a title that reads
+ * like a merge would put that text on `main` unchecked.
+ */
+export function checkTitle(title: string): SubjectVerdict {
+  return checkSubject(title)
+}
+
 /** One commit as the range check needs it. */
 export interface Commit {
   readonly sha: string

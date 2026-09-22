@@ -35,6 +35,7 @@ import {
   type Commit,
   checkRange,
   checkSubject,
+  checkTitle,
   describeViolations,
   listCommits,
   listRangeShas,
@@ -96,6 +97,26 @@ describe("commits/subject-rule", () => {
         verdict.ok ? "" : verdict.reason,
         `"${subject}" was refused for the wrong reason`,
       ).toMatch(why)
+    }
+  })
+
+  it("commits/title-has-no-merge-exemption — a title is held to exactly the subject rule", () => {
+    // The title becomes a commit subject on `main`, so it must be no looser than
+    // any commit. The two standard merge texts are the ones a commit may carry
+    // under the exception; as a title each is refused.
+    for (const title of [
+      "Merge branch 'main' into claude/some-branch",
+      "Merge pull request #95 from kschlt/claude/some-branch",
+    ]) {
+      expect(checkTitle(title).ok, `the title "${title}" was accepted`).toBe(false)
+    }
+    for (const subject of MUST_PASS) {
+      expect(checkTitle(subject), `"${subject}" should be accepted as a title`).toEqual({
+        ok: true,
+      })
+    }
+    for (const [subject] of MUST_FAIL) {
+      expect(checkTitle(subject).ok, `"${subject}" should be refused as a title`).toBe(false)
     }
   })
 
@@ -325,7 +346,7 @@ describe("commits/this-pull-request", () => {
 
   it.skipIf(!asked)("the pull request's title is conventional", () => {
     expect(title, "PR_TITLE is not set").toBeTruthy()
-    const verdict = checkSubject(title as string)
+    const verdict = checkTitle(title as string)
     expect(
       verdict,
       `the pull request title "${title}" is not a Conventional Commit subject`,

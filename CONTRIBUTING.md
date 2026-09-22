@@ -112,7 +112,7 @@ optional `!` after the type or scope for a breaking change.
   the one exception, and only on a commit that really has two parents.
 
 The `commits` job checks this on every pull request, against the base as it stands when the job
-runs (`tests/commits/`, `ADR-0030`). Nothing checks history that is already on `main`, and it is
+runs (`tests/commits/`, `ADR-0031`). Nothing checks history that is already on `main`, and it is
 not rewritten.
 
 ## Pull requests

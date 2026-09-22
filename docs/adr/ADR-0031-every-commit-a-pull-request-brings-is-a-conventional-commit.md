@@ -1,5 +1,5 @@
 ---
-id: "ADR-0030"
+id: "ADR-0031"
 title: "Every commit a pull request brings is a Conventional Commit, and CI refuses one that is not"
 status: accepted
 date: 2026-09-22
