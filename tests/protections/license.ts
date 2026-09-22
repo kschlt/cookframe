@@ -102,11 +102,22 @@ import { posix } from "node:path"
 /**
  * Licence names, and the family each one belongs to.
  *
- * Ordered, and the order is load-bearing: "GNU Affero General Public License"
- * must be tried before the GPL patterns, and the SPDX spellings before the
- * prose ones, because a prose pattern is the looser of the two.
+ * This list is the breadth of the whole module. It decides what counts as a
+ * licence name at all, so it stands under the declaration rule and under the
+ * census alike, and a row deleted here makes both of them read less. That is
+ * why `license.test.ts` holds it with a table of its own: one name per row,
+ * each asserted to reach its family, and a check that every row here is
+ * reached by some name in that table.
+ *
+ * The order is NOT load-bearing, and that is held rather than hoped. No two
+ * patterns here match the same name: `\bGPL-3.0` cannot match inside
+ * `AGPL-3.0`, because `A` and `G` are both word characters and there is no
+ * boundary between them, and the GPL prose pattern needs "GNU" directly before
+ * "General", which the AGPL's name never has. The table asserts that each of
+ * its names matches exactly one row, so a pattern added later that overlaps
+ * another goes red there before an order could begin to matter.
  */
-const FAMILIES: ReadonlyArray<readonly [RegExp, string]> = [
+export const FAMILIES: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bAGPL-3\.0(?:-or-later|-only)?\b/i, "AGPL-3.0"],
   [/GNU\s+Affero\s+General\s+Public\s+License/i, "AGPL-3.0"],
   [/\bGPL-3\.0(?:-or-later|-only)?\b/i, "GPL-3.0"],
@@ -234,6 +245,19 @@ export function declarationsIn(path: string, text: string): Declaration[] {
  * mention a licence — so that a declaration written in a shape
  * {@link declarationsIn} cannot see shows up as a file that has to be
  * classified, rather than as silence.
+ *
+ * "Knows" is the whole limit, and it is a real one. A file declaring the
+ * project under a licence {@link FAMILIES} has never heard of — the Blue Oak
+ * Model License, say — in a sentence with no link is invisible to BOTH halves:
+ * the rule does not read it, and this function does not see a licence in it.
+ * The review of #92 measured exactly that, green. It is kept as a stated limit
+ * rather than closed with a name-agnostic pattern (`licen[cs]e` near a
+ * capitalised phrase), because such a pattern is a per-document heuristic of
+ * the kind this module exists not to have, and it would fire on half the prose
+ * in `docs/`. What the limit costs is a licence nobody has ever named; what
+ * closing it would cost is the argument the rule rests on. The table in
+ * `license.test.ts` pins the Blue Oak sentence as unseen, so this paragraph
+ * cannot be quietly contradicted in either direction.
  */
 export function mentionsALicense(text: string): boolean {
   return familyOf(text) !== null

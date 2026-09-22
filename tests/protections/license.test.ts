@@ -5,20 +5,23 @@
  * The rule itself is in `./license.ts`; this file is its proof, and it is in
  * three parts that do different jobs:
  *
- * 1. **The discrimination table.** Written-out strings, never the tree, so that
- *    what the rule tells apart stays pinned after every real file is correct.
- *    Each spared row is followed by the question ADR-0029 makes mandatory —
- *    *which entry dies if this condition is dropped?* — answered by running the
- *    same table through a rule with that condition removed and naming the row
- *    that then fails.
+ * 1. **The discrimination tables.** Written-out strings, never the tree, so
+ *    that what the rule tells apart stays pinned after every real file is
+ *    correct. Each spared row is followed by the question ADR-0029 makes
+ *    mandatory — *which entry dies if this condition is dropped?* — answered by
+ *    running the same table through a rule with that condition removed and
+ *    naming the row that then fails. A second table holds `FAMILIES`, the list
+ *    of licence names underneath everything else, one name per row.
  * 2. **The agreement proof.** Every declaration site in the tree, named, with
  *    the licence it states. This is where a drift like the one that started the
  *    item goes red.
- * 3. **The census.** Every file in the tree that so much as names a licence,
- *    named, and split into the ones that declare and the ones that mention.
- *    Part 2 cannot see a declaration written in a shape the rule does not
- *    recognise; this part makes such a file arrive as a classification to make
- *    rather than as silence.
+ * 3. **The census.** Every file in the tree that names a licence this module
+ *    knows, named, and split into the ones that declare and the ones that
+ *    mention. Part 2 cannot see a declaration written in a shape the rule does
+ *    not recognise; this part makes such a file arrive as a classification to
+ *    make rather than as silence — for a licence whose NAME the module knows. A
+ *    declaration under a name it has never heard of is invisible to both parts,
+ *    and the names table pins that as a stated limit.
  *
  * ## Why the licence is a constant here and not read from one of the places
  *
@@ -97,7 +100,14 @@ import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { filesUnder } from "../support/tree.js"
-import { type Declaration, declarationsIn, mentionsALicense, STRUCTURED_SITES } from "./license.js"
+import {
+  type Declaration,
+  declarationsIn,
+  FAMILIES,
+  familyOf,
+  mentionsALicense,
+  STRUCTURED_SITES,
+} from "./license.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
@@ -391,6 +401,92 @@ describe("protections/the-licence-rule-discriminates", () => {
 })
 
 /* ------------------------------------------------------------------ *
+ * 1b. THE NAMES TABLE
+ * ------------------------------------------------------------------ */
+
+/**
+ * One name per row of `FAMILIES`, and the family it must reach.
+ *
+ * The review of #92 found this was the one list in the module with no table:
+ * deleting seven of its twelve rows, or reversing it, left every proof green.
+ * It is the breadth of all three parts, because it decides what a licence name
+ * IS — a row gone here is a licence the declaration rule reads as unrecognised
+ * and the census does not see at all.
+ */
+const NAMES_KNOWN: ReadonlyArray<readonly [string, string]> = [
+  ["AGPL-3.0-or-later", "AGPL-3.0"],
+  ["GNU Affero General Public License, version 3 or later", "AGPL-3.0"],
+  ["GPL-3.0-only", "GPL-3.0"],
+  ["GNU General Public License, version 3", "GPL-3.0"],
+  ["MIT License", "MIT"],
+  ["Apache-2.0", "Apache-2.0"],
+  ["Apache License, Version 2.0", "Apache-2.0"],
+  ["MPL-2.0", "MPL-2.0"],
+  ["Mozilla Public License 2.0", "MPL-2.0"],
+  ["BSD-3-Clause", "BSD-3-Clause"],
+  ["BSD-2-Clause", "BSD-2-Clause"],
+  ["ISC", "ISC"],
+]
+
+/** Text that must NOT read as naming any licence, each for a reason. */
+const NAMES_UNKNOWN: ReadonlyArray<readonly [string, string]> = [
+  ["permissively licensed / otherwise safe to redistribute", "a licence talked about, none named"],
+  ["SUBMITTED FOR REVIEW", "MIT inside a word: the boundary on `\\bMIT\\b` is what spares it"],
+  ["the form was submitted", "lower-case: `MIT` is matched case-sensitively on purpose"],
+  ["ISCSI storage", "ISC inside a word, the same boundary"],
+  // DELIBERATELY OUT OF REACH, and pinned so that the paragraph on
+  // `mentionsALicense` in `license.ts`, and the matching sentence in ADR-0030,
+  // cannot be quietly contradicted. A licence nobody has put in `FAMILIES` is
+  // invisible to the rule AND to the census; the review of #92 measured this
+  // sentence green in a new document. If a later change sees it ON PURPOSE,
+  // this row and both of those sentences change together.
+  [
+    "Cookframe is released under the Blue Oak Model License 1.0.0.",
+    "a licence FAMILIES has never heard of — the stated limit",
+  ],
+]
+
+describe("protections/every-licence-name-the-rule-claims-to-know-is-held", () => {
+  it("reaches its family for every name, one row each, and none for the rest", () => {
+    // NON-VACUITY, as in the other tables.
+    expect(NAMES_KNOWN.length).toBeGreaterThan(0)
+    expect(NAMES_UNKNOWN.length).toBeGreaterThan(0)
+
+    // Each name reaches its family. A row deleted from `FAMILIES` makes the
+    // name it served fail HERE, by name, rather than leaving the file green.
+    const wrong = NAMES_KNOWN.filter(([name, family]) => familyOf(name) !== family).map(
+      ([name]) => name,
+    )
+    expect(wrong).toEqual([])
+
+    // And none of the others does.
+    const seen = NAMES_UNKNOWN.filter(([text]) => mentionsALicense(text)).map(([text]) => text)
+    expect(seen).toEqual([])
+  })
+
+  it("matches each name with exactly one row, so the order of FAMILIES is free", () => {
+    // What makes the order irrelevant, held rather than asserted in a comment:
+    // no name here is matched by two rows. Reversing `FAMILIES` is therefore a
+    // no-op, and a pattern added later that overlaps another fails this row
+    // before an order could start to matter.
+    const overlapping = NAMES_KNOWN.filter(
+      ([name]) => FAMILIES.filter(([pattern]) => pattern.test(name)).length !== 1,
+    ).map(([name]) => name)
+    expect(overlapping).toEqual([])
+  })
+
+  it("has a name for every row, so a row added without one is red", () => {
+    // The other direction. The first case holds the table's names against the
+    // list; this holds the list against the table. A `FAMILIES` row that no name
+    // here reaches is a row nothing tests, and it is named by its pattern.
+    const untested = FAMILIES.filter(
+      ([pattern]) => !NAMES_KNOWN.some(([name]) => pattern.test(name)),
+    ).map(([pattern]) => String(pattern))
+    expect(untested).toEqual([])
+  })
+})
+
+/* ------------------------------------------------------------------ *
  * 2. THE AGREEMENT PROOF
  * ------------------------------------------------------------------ */
 
@@ -492,8 +588,10 @@ describe("protections/every-file-naming-a-licence-is-accounted-for", () => {
     // places its rule recognises. A declaration written some other way — a
     // sentence in a new document, a field in a new manifest — would be invisible
     // to it and would stay invisible while it went green. It cannot be invisible
-    // here: naming a licence at all puts a file in this list, and the only way
-    // out is to appear in one of the two lists below by name.
+    // here: naming a licence this module knows puts a file in this list, and
+    // the only way out is to appear in one of the two lists below by name. A
+    // licence whose name `FAMILIES` does not carry is the limit — see the
+    // names table, which pins it.
     const declaring = [...new Set(declarationsInTree().map((d) => d.path))]
     expect(filesNamingALicense()).toEqual([...declaring, ...Object.keys(MENTIONS_ONLY)].sort())
   })
