@@ -280,6 +280,17 @@ const TALLY_ROWS: readonly TallyRow[] = [
   ["a refusal", reportOf(["killed", "killed"], 1), 3, { killed: 2, notKilled: 1 }],
   ["every mutation refused", reportOf([], 3), 3, { killed: 0, notKilled: 3 }],
   ["a refused baseline, which ran none", reportOf([], 0, false), 3, { killed: 0, notKilled: 3 }],
+  // A report that arrives despite a refused baseline, and accounts for every
+  // mutation: none of it counts, because a kill against a baseline that was not
+  // green is not attributable to the mutation. Without this row the baseline
+  // branch in tallyGroup is deletable — the row above has no results, so the
+  // accounting check beneath it returns the same answer.
+  [
+    "a refused baseline whose report nevertheless accounts for every mutation",
+    reportOf(["killed", "killed", "killed"], 0, false),
+    3,
+    { killed: 0, notKilled: 3 },
+  ],
   ["a report that lost a mutation", reportOf(["killed", "killed"]), 3, { killed: 0, notKilled: 3 }],
   [
     "a report with more than was planned",
@@ -342,6 +353,11 @@ describe("protections/the-majors-run-counts-what-it-planned", () => {
           report.baseline.usable
             ? { killed: kills(report), notKilled: report.results.length - kills(report) }
             : { killed: 0, notKilled: planned },
+      ],
+      [
+        "trusting a report that arrives despite a refused baseline",
+        (report, planned) =>
+          tallyGroup({ ...report, baseline: { usable: true, summary: "trusted" } }, planned),
       ],
       [
         "not counting a refused baseline",
