@@ -51,11 +51,35 @@
  * identifier — a module const or `let`, an import, or a factory-scoped binding one
  * function out — is shared, and is flagged. A factory call (`pageHeaders()`), an
  * inline literal, and a spread into a new literal (`{ ...H }`) each construct a
- * fresh object and are not bare identifiers, so none is flagged. Aliasing a shared
- * record to a per-request local (`const h = SHARED`) and the `{ headers: H }`
- * response-init form are deliberately out of scope: no code here uses either and
- * their behaviour was not measured, and a guard that flags what it has not
- * measured is the over-claim this repository keeps deleting.
+ * fresh object and are not bare identifiers, so none is flagged.
+ *
+ * ## Aliasing follows the chain to a fixpoint
+ *
+ * A local binding is not fresh merely because it is local. Review's second round
+ * found the hole: `const h = SHARED_404; c.body(body, status, h)` binds `h` in the
+ * handler, so a naive "is it local?" calls it fresh — yet `h` is the shared record
+ * under another name, and planted on the one-key 404 path over a real socket it
+ * answers `[404, 500, 500]`, the original defect exactly. The suite is named
+ * `are-fresh-per-response`, and an aliased record is not fresh, so this cannot be
+ * out of scope. So {@link bindsFreshly} follows the alias chain: where a local
+ * binding's initializer is itself a bare identifier, it resolves through it and
+ * decides freshness at the END of the chain — fresh only if the chain terminates
+ * at a per-request construction (a non-identifier initializer, or a parameter),
+ * shared if it ever reaches a name not bound in the handler. `const a = { ... };
+ * const h = a` stays spared (the chain ends at a per-request literal); `const h =
+ * SHARED` is flagged.
+ *
+ * Two neighbours are deliberately NOT flagged, and this is measured, not assumed:
+ *  - The `{ headers: H }` response-INIT form (`c.body(body, { status, headers: H })`)
+ *    cannot carry the defect. Planted on the same one-key 404 record over a real
+ *    socket it answers `[404, 404, 404]`: Hono builds a `Headers` object from the
+ *    init's `headers` and never writes back into the caller's record. So it is left
+ *    alone on purpose — flagging a form that cannot break would be the over-claim
+ *    this repository keeps deleting.
+ *  - Aliasing established by a later ASSIGNMENT rather than the declaration's
+ *    initializer (`let h = fresh(); h = SHARED`) is not followed. No code here uses
+ *    it and its behaviour was not measured; the chain resolves declaration
+ *    initializers only, matching what round two proved.
  *
  * It scans all of `src/`, so it is the guard the coordinator meant when it said a
  * cooking page reintroducing the constant would trip here: this file has no
@@ -161,10 +185,63 @@ function localBindings(fn: ts.Node): Set<string> {
 }
 
 /**
+ * If `name` is bound in `fn`'s own scope by a `const`/`let`/`var` whose initializer
+ * is itself a bare identifier (`const h = SHARED`), the name that initializer
+ * refers to; otherwise `undefined`. Only the declaration's initializer is followed
+ * — a parameter, an object literal, a factory call, a spread, or a later
+ * assignment all return `undefined`, ending the chain at a per-request value.
+ */
+function aliasTarget(fn: ts.Node, name: string): string | undefined {
+  const body = (fn as ts.FunctionLikeDeclaration).body
+  if (body === undefined) return undefined
+  let target: string | undefined
+  const walk = (node: ts.Node): void => {
+    if (node !== body && isFunctionLike(node)) return
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name &&
+      node.initializer !== undefined
+    ) {
+      let init: ts.Expression = node.initializer
+      while (ts.isAsExpression(init) || ts.isParenthesizedExpression(init)) init = init.expression
+      target = ts.isIdentifier(init) ? init.text : undefined
+    }
+    ts.forEachChild(node, walk)
+  }
+  walk(body)
+  return target
+}
+
+/**
+ * Whether `name`, used as a header record inside `fn`, is genuinely fresh for each
+ * response — following the alias chain to a fixpoint. A name is fresh only if it is
+ * bound in `fn`'s own scope AND the chain of `const x = y` aliases starting from it
+ * terminates at a per-request construction (a non-identifier initializer or a
+ * parameter). It is NOT fresh — and so the record is shared — the moment the chain
+ * reaches a name not bound in `fn` (a module const/`let`, an import, or a
+ * factory-scoped binding). A cycle fails closed (not fresh).
+ */
+function bindsFreshly(fn: ts.Node, name: string): boolean {
+  const local = localBindings(fn)
+  const seen = new Set<string>()
+  let current = name
+  while (!seen.has(current)) {
+    seen.add(current)
+    if (!local.has(current)) return false
+    const next = aliasTarget(fn, current)
+    if (next === undefined) return true
+    current = next
+  }
+  return false
+}
+
+/**
  * Every response builder in `source` handed a header record that is not fresh for
  * the one response — a bare identifier in the headers slot (arg 2) that is NOT
- * bound within the handler the call sits in. The single detector both the
- * enforcement scan and its own precision proof run, so the two cannot drift.
+ * fresh in the handler the call sits in (see {@link bindsFreshly}: bound locally
+ * and not an alias of anything shared). The single detector both the enforcement
+ * scan and its own precision proof run, so the two cannot drift.
  *
  * The body (arg 0) and status (arg 1) are not the headers slot: a shared object
  * handed as a JSON BODY is serialized, never mutated, and must not be flagged (see
@@ -184,7 +261,7 @@ function sharedHeaderFindings(source: string, fileName = "in-memory.ts"): Findin
       const headers = node.arguments[2]
       if (headers !== undefined && ts.isIdentifier(headers)) {
         const fn = nearestFunction(headers)
-        const fresh = fn !== undefined && localBindings(fn).has(headers.text)
+        const fresh = fn !== undefined && bindsFreshly(fn, headers.text)
         if (!fresh) {
           const { line } = sf.getLineAndCharacterOfPosition(headers.getStart(sf))
           out.push({ name: headers.text, line: line + 1 })
@@ -242,6 +319,11 @@ describe("http/shared-header-detector-is-precise", () => {
       'let H = { a: 1 }\napp.get("/", (c) => c.body(x, 200, H))',
       // a record built in an OUTER handler is not fresh for an inner handler's call
       'app.get("/", (outer) => {\n  const H = { a: 1 }\n  app.get("/x", (inner) => inner.body(x, 200, H))\n})',
+      // ALIAS: a shared module const aliased to a per-request local is not fresh —
+      // round two's blocking finding, the original defect on the 404 path
+      'const SHARED_404 = { "content-type": "text/plain" }\napp.get("/", (c) => {\n  const h = SHARED_404\n  return c.body(NOT_FOUND_BODY, 404, h)\n})',
+      // ALIAS CHAIN: follow x -> a -> SHARED to the end; still shared
+      'const SHARED = { a: 1 }\napp.get("/", (c) => {\n  const a = SHARED\n  const h = a\n  return c.body(x, 200, h)\n})',
     ]
     for (const s of mustFlag) {
       expect(sharedHeaderFindings(s).length, s).toBeGreaterThan(0)
@@ -267,6 +349,12 @@ describe("http/shared-header-detector-is-precise", () => {
       'const TOO_LARGE_BODY = { error: "too_large" } as const\napp.get("/", (c) => c.json(TOO_LARGE_BODY, 413))',
       // the object constant exists but is never handed to a response builder
       "const H = { a: 1 }\nconst other = H\nreturn other",
+      // an ALIAS of a per-request local is still fresh: the chain ends at a literal
+      // built inside the handler, so aliasing it changes nothing
+      'app.get("/", (c) => {\n  const a = { "content-type": "text/plain" }\n  const h = a\n  return c.body(x, 200, h)\n})',
+      // the { headers: H } response-INIT form cannot carry the defect — Hono builds
+      // a Headers object from it and never writes back (measured [404, 404, 404])
+      'const SHARED = { "content-type": "text/plain" }\napp.get("/", (c) => c.body(x, { status: 404, headers: SHARED }))',
     ]
     for (const s of mustNotFlag) {
       expect(sharedHeaderFindings(s), s).toEqual([])
