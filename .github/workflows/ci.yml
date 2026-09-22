@@ -198,6 +198,67 @@ jobs:
       - run: npm ci
       - run: npm run test:persistence
 
+  # CFV1-SL5's proofs run here rather than only inside `quality`. `quality` lives
+  # in the `container` job, whose job is proving the image builds — a slice going
+  # red there reads as a container failure, which cost a CI cycle once already
+  # (see the `lint` job's comment). A named job is also what branch protection
+  # can require by name.
+  slice5:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:slice5
+
+  # `slice3` and `slice4` were declared as npm scripts and run by no job: their
+  # tests reached CI only inside `quality`, in the `container` job. They were not
+  # unrun, but a failure in either reported as a container failure, and a check
+  # that cannot be named cannot be required by branch protection. Found by the
+  # guard in `tests/unit/repo-config.test.ts` that every `test:` script is run by
+  # a named job here — a guard added for `slice5` that turned out to have two
+  # older gaps behind it.
+  slice3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:slice3
+
+  slice4:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:slice4
+
+  # `test:cooking-ux` arrived on `main` from CFV1-S4 while this branch was open,
+  # with no job of its own — the third instance of the same gap, and the first
+  # one caught on a MERGE rather than in a single branch. Neither side was wrong
+  # alone: S4 added the script, this branch added the guard, and only the merge
+  # result has both. That is precisely the case CFV1-BASE exists for.
+  cooking-ux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:cooking-ux
+
   slice1:
     runs-on: ubuntu-latest
     steps:
