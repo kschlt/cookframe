@@ -20,13 +20,17 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import { typeScriptFilesUnder, where } from "./configured-database.js"
+import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
+import { where } from "./configured-database.js"
 import { ingestEntryPointsIn, namesCalledIn } from "./ingest-entry-points.js"
 
-// The file walk is imported rather than written again. It is proved in
-// `configured-database.test.ts` — including that it descends, which was a
-// survivor there — and a second walk in this file would be a second unproved
-// one, which is how a scan comes to read no file at all and report all-clear.
+// The file walk is imported rather than written again, and it is the walk
+// ADR-0029 names: `filesUnder` with `SOURCE_EXTENSIONS`, whose own breadth is
+// held by `tests/support/tree.test.ts`. This guard asserts that a set of
+// violations is EMPTY, so a walk that reads fewer files can only make it easier
+// — exactly the shape that ADR is about. An earlier draft of this file walked
+// `.ts` only; a `.mts` entry point would have been invisible to it and the
+// guard would have reported all-clear.
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 /** Each entry says what it stops, so a deletion has to argue with a sentence. */
@@ -226,16 +230,16 @@ describe("serve/every-ingest-entry-point-is-reachable", () => {
    * an empty list, and every assertion resting on it was green.
    */
   it("every way into the pipeline is called from the HTTP layer", () => {
-    const entryPoints = typeScriptFilesUnder(join(repoRoot, "src", "pipeline")).flatMap((path) =>
-      ingestEntryPointsIn(readFileSync(path, "utf8"), where(repoRoot, path)),
-    )
+    const entryPoints = filesUnder(join(repoRoot, "src", "pipeline"), {
+      match: SOURCE_EXTENSIONS,
+    }).flatMap((path) => ingestEntryPointsIn(readFileSync(path, "utf8"), where(repoRoot, path)))
     expect(
       entryPoints.map((e) => e.name).sort(),
       "a scan that finds nothing satisfies the rule below without reading a thing",
     ).toEqual(["importFromUrl", "ingest"])
 
     const called = new Set<string>()
-    for (const path of typeScriptFilesUnder(join(repoRoot, "src", "http"))) {
+    for (const path of filesUnder(join(repoRoot, "src", "http"), { match: SOURCE_EXTENSIONS })) {
       for (const name of namesCalledIn(readFileSync(path, "utf8"), where(repoRoot, path))) {
         called.add(name)
       }

@@ -112,7 +112,16 @@ describe("run/a-link-can-be-imported-from-a-running-instance", () => {
     // stored nothing would pass a status assertion and fail this one.
     const stored = await instance.repo.loadSnapshot(body.snapshotId)
     expect(stored?.id).toBe(body.snapshotId)
-    expect(instance.repo.listLibrary()).resolves.toBeDefined()
+
+    // And the LIBRARY, which is a different read off a different map: the
+    // snapshot is what came in, the library row is what a person opens. A route
+    // that captured and never normalised would satisfy the snapshot assertion
+    // above and leave this listing empty.
+    const library = await instance.repo.listLibrary()
+    expect(library.map((entry) => entry.recipeId)).toContain(body.recipeId)
+    expect(library.find((entry) => entry.recipeId === body.recipeId)?.title).toBe(
+      "Synthetic Test Loaf",
+    )
   })
 
   it("stores the snapshot under the URL entry's own adapter identity", async () => {
