@@ -71,10 +71,18 @@ describe("slice6/no-amount-changes", () => {
     for (const forbidden of ["value", "minValue", "maxValue"]) {
       expect([...keys], `the plan contract exposes ${forbidden}`).not.toContain(forbidden)
     }
-    // The walk must be able to see a key it should reject, or the loop above is
-    // satisfied by a walk that sees nothing.
-    expect([...keys]).toContain("sourceRefs")
-    expect([...keys]).toContain("measurable")
+    // Two floors, and a measurement that says which one does the work. The size
+    // bound above catches a walk that recognises NOTHING; it does not catch one
+    // that recognises most of it. Planted: reading the wrapper keys as v3 named
+    // them leaves the walk finding nineteen keys — past `> 15` — having stopped
+    // descending into arrays. `measurable` is a field of `PlanAmount`, and a
+    // unit's amounts are an array, so it is the key that turns that partial
+    // walk red. `sourceRefs` is reachable without one, and stays as the coarser
+    // of the two.
+    expect([...keys], "the walk no longer reaches a key behind a plain object").toContain(
+      "sourceRefs",
+    )
+    expect([...keys], "the walk no longer descends into arrays").toContain("measurable")
   })
 
   it("carries only wordings the canonical itself states", () => {
