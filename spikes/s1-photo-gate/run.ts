@@ -161,6 +161,10 @@ async function main(): Promise<void> {
           runId: `${id}-capture`,
           captureModel: MODEL,
           capturePromptVersions: ["capture/v1"],
+          // A photographed recipe page: the vision path, exempt from source-text
+          // verification (ADR-0019). Provenance earns the exemption; the media
+          // type only encodes the image bytes.
+          sourceProvenance: "photo",
           sourceMediaType: mediaType,
         },
         {
