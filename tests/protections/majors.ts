@@ -40,7 +40,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import type { Mutation } from "./mutation.js"
+import type { HarnessReport, Mutation } from "./mutation.js"
 
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
@@ -472,4 +472,52 @@ export function rotIn(harness: MajorHarness, read: ReadFile): Rot[] {
     }
   }
   return found
+}
+
+// --- The run's arithmetic ---------------------------------------------------
+
+/** How many of a group's planned mutations were killed, and how many were not. */
+export interface Tally {
+  readonly killed: number
+  readonly notKilled: number
+}
+
+/**
+ * Count one group's report against the mutations it PLANNED.
+ *
+ * Only a `killed` verdict counts as a kill. Everything else a planned mutation
+ * can become is "not killed", and each of them is one: a survivor, an
+ * inconclusive run, a refusal (the list no longer describes the tree), and every
+ * mutation of a group whose baseline was refused, which ran none of them.
+ *
+ * The count is taken against `planned`, not against what the report happens to
+ * contain, so a mutation the report lost is not killed rather than absent. A
+ * report that accounts for a different number than was planned — results plus
+ * refusals — is not a reading of this group at all, and none of it counts as a
+ * kill.
+ */
+export function tallyGroup(report: HarnessReport, planned: number): Tally {
+  if (!report.baseline.usable) return { killed: 0, notKilled: planned }
+  if (report.results.length + report.refusals.length !== planned) {
+    return { killed: 0, notKilled: planned }
+  }
+  const killed = report.results.filter((r) => r.verdict.outcome === "killed").length
+  return { killed, notKilled: planned - killed }
+}
+
+/** The tallies of a whole run, added up. */
+export function sumTallies(tallies: readonly Tally[]): Tally {
+  return tallies.reduce(
+    (sum, t) => ({ killed: sum.killed + t.killed, notKilled: sum.notKilled + t.notKilled }),
+    { killed: 0, notKilled: 0 },
+  )
+}
+
+/**
+ * The exit code of `npm run majors`: 0 only when every planned mutation was
+ * killed AND at least one was. A run that killed nothing and missed nothing ran
+ * nothing, and that is the one result an exit code must never report as a pass.
+ */
+export function exitCodeFor(total: Tally): 0 | 1 {
+  return total.notKilled === 0 && total.killed > 0 ? 0 : 1
 }
