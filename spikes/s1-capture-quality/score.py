@@ -21,9 +21,12 @@ Usage: python3 spikes/s1-capture-quality/score.py [--model sonnet]
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -174,6 +177,23 @@ class Tally:
         return (self.hit / self.total) if self.total else None
 
 
+def selected_truth_times(truth: dict) -> dict:
+    """Which of the truth's recorded times the comparison is run over.
+
+    EVERY key the truth records that carries a value, and no subset of them.
+
+    This selection — not the comparison below — is the line that was narrowed
+    after the run had been scored: filtering the truth's keys down to
+    ("prep", "cook", "total") dropped the `*_label` keys from an `all(...)`
+    conjunction, which can only turn misses into hits, and it moved `time` from
+    0/2 to 2/2. Extracting only the COMPARATOR left this half unguarded, so the
+    same narrowing could be re-applied and `--selftest` would still print PASS.
+    It is named here for exactly the reason `times_match` is: a rule that lives
+    only inside `score()` is a rule nothing checks.
+    """
+    return {k: v for k, v in (truth.get("times") or {}).items() if v}
+
+
 def times_match(truth_times: dict, cap_times: dict) -> bool:
     """A capture's times are correct only if EVERY present truth time matches.
 
@@ -259,7 +279,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         # after seeing a result. The verdict records both numbers and leans on
         # neither, and lists the truth-format defect as something to fix BEFORE
         # the next run rather than after it.
-        tt = {k: v for k, v in (truth.get("times") or {}).items() if v}
+        tt = selected_truth_times(truth)
         if tt:
             check("time", times_match(tt, cap.get("times") or {}))
 
@@ -459,7 +479,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     return 0
 
 
-def selftest() -> int:
+def selftest_core() -> int:
     """Discrimination proof: the scorer's field comparators must reject wrong
     captures, so a 100% result means the captures were right, not that the scorer
     passes everything (the S1 analog of S5's permissive-reference check).
@@ -494,6 +514,26 @@ def selftest() -> int:
             "times: a key the capture lacks is caught",
             not times_match({"prep": "20 min", "prep_label": "VORBEREITUNG"}, {"prep": "20 min"}),
         ),
+        # The selection half. Without these, re-applying the narrowing at the
+        # call site leaves every other check green — which is what a review
+        # found after the comparator alone had been extracted.
+        (
+            "times: selection keeps every key the truth records",
+            selected_truth_times({"times": {"prep": "20 min", "prep_label": "VORBEREITUNG"}})
+            == {"prep": "20 min", "prep_label": "VORBEREITUNG"},
+        ),
+        (
+            "times: selection drops only keys with no value",
+            selected_truth_times({"times": {"prep": "20 min", "cook": "", "total": None}})
+            == {"prep": "20 min"},
+        ),
+        (
+            "times: selection and comparison together still catch a missing key",
+            not times_match(
+                selected_truth_times({"times": {"prep": "20 min", "prep_label": "VORBEREITUNG"}}),
+                {"prep": "20 min"},
+            ),
+        ),
         (
             "times: every truth key counts, not just the first",
             not times_match({"prep": "20 min", "cook": "40 min"}, {"prep": "20 min", "cook": "45 min"}),
@@ -508,13 +548,104 @@ def selftest() -> int:
     return 0 if ok else 1
 
 
+# The narrowing the discrimination proof re-applies, so that `--selftest` can
+# enforce the property in the one CI job that has a pinned Python.
+#
+# The line it REPLACES is deliberately not spelled out here — `_rule_line()`
+# reads it off `selected_truth_times` itself. Writing it out made the same text
+# appear twice in this file, so the mutation rewrote its own marker constant as
+# well as the rule, and it could also name a line the function no longer had.
+_DISCRIMINATION_NARROWING = (
+    'return {k: (truth.get("times") or {}).get(k) '
+    'for k in ("prep", "cook", "total") if (truth.get("times") or {}).get(k)}'
+)
+
+# The check the mutant MUST be seen to fail. A non-zero exit alone does not show
+# the rule was tested: a mutant that dies of a SyntaxError or a bad import exits
+# non-zero too, and then this proof passed while never reaching the rule at all.
+_MUTANT_MUST_FAIL = "times: selection keeps every key the truth records"
+
+
+def _rule_line() -> str:
+    """The one line of `selected_truth_times` the proof narrows.
+
+    Read off the function rather than restated, so the marker cannot drift from
+    the rule and cannot be rewritten by its own mutation.
+    """
+    return inspect.getsource(selected_truth_times).rstrip().splitlines()[-1].strip()
+
+
+def selftest() -> int:
+    """Run the discrimination checks, then PROVE they discriminate.
+
+    A self-test that only prints PASS on the shipped scorer proves nothing: it
+    has to fail on a broken one. So this runs the pure checks (`--selftest-core`)
+    on the shipped file, then copies the file with the one narrowing this spike's
+    extraction commit exists to catch re-applied, runs the copy with
+    `--selftest-core`, and REQUIRES it to fail. The shipped file must pass and the
+    mutant must fail, or this returns non-zero — the same property the vitest
+    proof checks, enforced here in the `unit` CI job that already runs the
+    self-test, independent of whether any JS suite runs.
+    """
+    core = selftest_core()
+    print()
+    if core != 0:
+        print("discrimination proof: SKIPPED (core checks already fail)")
+        return core
+
+    source = Path(__file__).read_text(encoding="utf8")
+    rule = _rule_line()
+    if source.count(rule) != 1:
+        print("discrimination proof: FAIL (the narrowed rule is not in this file exactly once)")
+        return 1
+
+    with tempfile.TemporaryDirectory(prefix="cipy-selfmut-") as tmp:
+        broken = Path(tmp) / "score.py"
+        broken.write_text(source.replace(rule, _DISCRIMINATION_NARROWING), encoding="utf8")
+        result = subprocess.run(
+            [sys.executable, str(broken), "--selftest-core"],
+            capture_output=True,
+            text=True,
+        )
+
+    # The RESULT, not the exit code: the mutant must have RUN its checks to the
+    # end and reported the selection check failing. Anything that merely kills
+    # the process satisfies "non-zero" while proving nothing about the rule.
+    failed = {
+        line.split("✗ FAIL", 1)[1].strip()
+        for line in result.stdout.splitlines()
+        if "✗ FAIL" in line
+    }
+    checks = [
+        ("the mutant exits non-zero", result.returncode != 0),
+        ("the mutant ran its checks to the end", "self-test: FAIL" in result.stdout),
+        (f"it failed AT THE RULE ({_MUTANT_MUST_FAIL})", _MUTANT_MUST_FAIL in failed),
+    ]
+    ok = all(cond for _, cond in checks)
+    print("# discrimination proof (the narrowing must be CAUGHT, not merely fatal)\n")
+    for name, cond in checks:
+        mark = "✓" if cond else "✗ FAIL"
+        print(f"  {mark}  {name}")
+    if not ok and result.stderr.strip():
+        print(f"\n  mutant stderr: {result.stderr.strip().splitlines()[-1]}")
+    print(f"\ndiscrimination proof: {'PASS' if ok else 'FAIL'}")
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--selftest", action="store_true", help="prove the scorer discriminates")
+    ap.add_argument(
+        "--selftest-core",
+        action="store_true",
+        help="run only the pure discrimination checks (used by --selftest's mutation proof)",
+    )
     ap.add_argument("--fixtures", default=None, help="fixture directory (default: ./fixtures)")
     ap.add_argument("--runs", default=None, help="run directory (default: ./runs)")
     args = ap.parse_args()
+    if args.selftest_core:
+        return selftest_core()
     if args.selftest:
         return selftest()
     return score(

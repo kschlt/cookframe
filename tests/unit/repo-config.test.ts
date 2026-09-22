@@ -5,7 +5,17 @@
  * protection, Dependabot, branch protection) and this instance's `commands.*`
  * seams are CFV1-PROT and are deliberately not asserted here.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
@@ -110,6 +120,213 @@ describe("CI workflow (ci.yml)", () => {
       .filter((r): r is string => typeof r === "string")
       .join("\n")
     expect(runs, "no CI job runs the S1 scorer's self-test").toMatch(/score\.py --selftest/)
+  })
+
+  it("ci/scorer-selftest-job-exists — the self-test runs unconditionally, under a Python pinned in that same job", () => {
+    // CFV1-CIPY. The self-test is the scorer's discrimination proof, and it is
+    // Python under `spikes/`, so no npm script reaches it. A step must run it,
+    // a non-zero exit must fail the build, and the step must actually RUN — a
+    // job that skips is worse than none, because it reports success.
+    //
+    // Both halves of that were asserted too loosely at first, and a review
+    // caught it by mutation. The Python pin was searched for across EVERY job,
+    // so moving `setup-python` from `unit` to `lint` left all tests green while
+    // the self-test ran under whatever interpreter the runner happened to
+    // carry — and the pin is the one constraint this item states explicitly.
+    // And only `continue-on-error` was asserted, never `if`, so `if: false` on
+    // the step also left every test green, while in CI the step would be
+    // skipped and the job would still report success — precisely the failure
+    // this comment claims to rule out. Both are now tied to the ONE job that
+    // carries the step, and both mutations turn this red.
+    const carries = (j: { steps?: Array<Record<string, unknown>> }) =>
+      (j.steps ?? []).some((s) => typeof s.run === "string" && /score\.py --selftest/.test(s.run))
+    const entry = Object.entries(workflow.jobs).find(([, j]) => carries(j))
+    expect(entry, "no CI job runs `score.py --selftest`").toBeTruthy()
+    const [jobName, job] = entry as [string, { steps?: Array<Record<string, unknown>> }]
+    const steps = job.steps ?? []
+    const step = steps.find(
+      (s) => typeof s.run === "string" && /score\.py --selftest/.test(s.run),
+    ) as Record<string, unknown>
+
+    expect(
+      step["continue-on-error"] ?? false,
+      `the self-test step in \`${jobName}\` may fail without failing the build`,
+    ).toBe(false)
+    // A step or job that never runs reports success, which is the failure mode
+    // this proof exists to exclude. Neither may be conditional.
+    expect(
+      step["if"],
+      `the self-test step in \`${jobName}\` is conditional, so it can be skipped and still pass`,
+    ).toBeUndefined()
+    expect(
+      (job as Record<string, unknown>)["if"],
+      `the job \`${jobName}\` that runs the self-test is conditional, so it can be skipped and still pass`,
+    ).toBeUndefined()
+
+    // The Python is pinned IN THE SAME JOB. A pin in some other job does not
+    // reach this one — each job is a fresh runner.
+    const pin = steps.find(
+      (s) => typeof s.uses === "string" && (s.uses as string).startsWith("actions/setup-python"),
+    )
+    expect(
+      pin,
+      `the job \`${jobName}\` that runs the self-test does not pin its Python`,
+    ).toBeTruthy()
+    expect(
+      (pin as { with?: Record<string, unknown> }).with?.["python-version"],
+      `setup-python in \`${jobName}\` names no version`,
+    ).toBeTruthy()
+  })
+
+  it("ci/scorer-selftest-enforces-discrimination — `--selftest` fails unless a broken scorer fails AT THE RULE", () => {
+    // Why the container may skip the Python-gated proof below without leaving a
+    // gap: `score.py --selftest` enforces the discrimination itself. This reads
+    // the source and pins that machinery, and it runs in EVERY environment,
+    // Python present or not, because it only reads the file the `unit` job runs.
+    const source = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "score.py"), "utf8")
+
+    // The line the mutation replaces is DERIVED from `selected_truth_times`, not
+    // restated. Restating it put the same text in the file twice, so the
+    // mutation rewrote its own marker constant alongside the rule.
+    expect(source, "`--selftest` no longer derives the rule line from the function").toMatch(
+      /inspect\.getsource\(selected_truth_times\)/,
+    )
+    const rule = source.match(/\ndef selected_truth_times\([\s\S]*?\n( {4}return [^\n]*)\n/)?.[1]
+    expect(rule, "cannot find the rule line in `selected_truth_times`").toBeTruthy()
+    const occurrences = source.split((rule as string).trim()).length - 1
+    expect(
+      occurrences,
+      "the rule line appears more than once, so the mutation rewrites its own marker",
+    ).toBe(1)
+
+    expect(source, "`--selftest` no longer re-applies the narrowing it exists to catch").toContain(
+      'for k in ("prep", "cook", "total")',
+    )
+    expect(source, "`--selftest` does not run the mutant under --selftest-core").toContain(
+      "--selftest-core",
+    )
+    expect(source, "score.py exposes no --selftest-core entry point").toMatch(/args\.selftest_core/)
+
+    // A non-zero exit is NOT enough, and pinning only that is what let a mutant
+    // die of a SyntaxError while the proof printed PASS. The proof must require
+    // the mutant to have RUN its checks and to have failed at the rule itself.
+    expect(source, "`--selftest` does not gate on the mutant's exit code").toMatch(
+      /returncode\s*!=\s*0/,
+    )
+    expect(
+      source,
+      "`--selftest` does not require the mutant to have run its checks to the end",
+    ).toContain("self-test: FAIL")
+    expect(
+      source,
+      "`--selftest` does not require the mutant to fail at the rule, only to die",
+    ).toMatch(/_MUTANT_MUST_FAIL/)
+  })
+
+  const python3 = spawnSync("python3", ["--version"], { encoding: "utf8" })
+  const hasPython3 = python3.error === undefined && python3.status === 0
+
+  it.skipIf(!hasPython3)(
+    "ci/scorer-selftest-discriminates — a broken scorer fails the self-test rather than passing it",
+    () => {
+      // "The self-test passes" means nothing unless a broken scorer makes it
+      // fail. This runs it twice: on the shipped file, which must pass, and on a
+      // COPY with the narrowing re-applied, which must fail.
+      //
+      // Both mutation strings are asked of score.py itself rather than written
+      // out here. An earlier version hardcoded them, so this proof and the
+      // Python one carried two copies of the same strings with nothing asserting
+      // they agreed — a rename on one side would have left this exercising a
+      // scorer it no longer reached.
+      const scorerDir = join(repoRoot, "spikes", "s1-capture-quality")
+      const scorer = join(scorerDir, "score.py")
+      const ask = spawnSync(
+        "python3",
+        [
+          "-c",
+          "import sys;sys.path.insert(0,sys.argv[1]);import score;" +
+            "print(score._rule_line());print(score._DISCRIMINATION_NARROWING)",
+          scorerDir,
+        ],
+        { encoding: "utf8" },
+      )
+      expect(ask.status, `could not read the mutation from score.py: ${ask.stderr}`).toBe(0)
+      const [rule, narrowing] = ask.stdout.trimEnd().split("\n")
+      expect(rule, "score.py reported no rule line").toBeTruthy()
+      expect(narrowing, "score.py reported no narrowing").toBeTruthy()
+
+      const source = readFileSync(scorer, "utf8")
+      expect(source, "the rule score.py names is not in the file").toContain(rule as string)
+
+      const runSelftest = (file: string) =>
+        spawnSync("python3", [file, "--selftest"], { encoding: "utf8" })
+      const pristine = runSelftest(scorer)
+      expect(pristine.status, "the shipped scorer's self-test does not pass").toBe(0)
+
+      const dir = mkdtempSync(join(tmpdir(), "cipy-mut-"))
+      try {
+        const broken = join(dir, "score.py")
+        writeFileSync(broken, source.replace(rule as string, narrowing as string))
+        const mutated = runSelftest(broken)
+        expect(
+          mutated.status,
+          "the narrowing the self-test exists to catch did NOT make it fail",
+        ).not.toBe(0)
+        // and it failed BECAUSE of the rule, not because the copy would not run
+        expect(
+          mutated.stdout,
+          "the mutant died without running its checks, so the rule was never tested",
+        ).toContain("self-test: FAIL")
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+
+  it("ci/scorer-rules-unchanged — the scorer's pre-registered bars are byte-identical to THRESHOLD.md's", () => {
+    // CFV1-CIPY makes the scorer RUN; it must not change what the scorer
+    // MEASURES. The bars are pre-registered, so a silent edit to one is the same
+    // failure shape as relaxing a threshold after seeing a score. Pinning the
+    // exact numbers here makes any such edit a red test with a diff, rather than
+    // a number that drifts unnoticed.
+    const source = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "score.py"), "utf8")
+    const barsOf = (name: string): Record<string, number> => {
+      const body = source.match(new RegExp(`${name} = \\{([^}]*)\\}`, "s"))?.[1]
+      expect(body, `${name} not found in the scorer`).toBeTruthy()
+      const bars: Record<string, number> = {}
+      for (const [, key, value] of (body as string).matchAll(/"([^"]+)":\s*([0-9.]+)/g)) {
+        if (key !== undefined) bars[key] = Number(value)
+      }
+      return bars
+    }
+    // Read the pre-registration itself, rather than a copy of its numbers kept
+    // here. The criterion says "byte-identical to THRESHOLD.md's", and a test
+    // that never opens THRESHOLD.md cannot say that: editing a bar in BOTH
+    // places would have stayed green.
+    const md = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "THRESHOLD.md"), "utf8")
+    const registered = (): { field: Record<string, number>; edge: Record<string, number> } => {
+      const field: Record<string, number> = {}
+      const edge: Record<string, number> = {}
+      for (const line of md.split("\n")) {
+        const f = line.match(
+          /^\|\s*\d+\s*\|\s*`([^`]+)`[^|]*\|[^|]*\|\s*\**\s*≥\s*(\d+)%\s*\**\s*\|$/,
+        )
+        if (f?.[1] !== undefined && f[2] !== undefined) {
+          field[f[1]] = Number(f[2]) / 100
+          continue
+        }
+        const e = line.match(/^\|\s*`([^`]+)`[^|]*\|\s*\**\s*≥\s*(\d+)%\s*\**\s*\|$/)
+        if (e?.[1] !== undefined && e[2] !== undefined) edge[e[1]] = Number(e[2]) / 100
+      }
+      return { field, edge }
+    }
+    const reg = registered()
+    expect(Object.keys(reg.field).length, "parsed no field bars from THRESHOLD.md").toBe(14)
+    expect(Object.keys(reg.edge).length, "parsed no edge bars from THRESHOLD.md").toBe(4)
+    expect(barsOf("FIELD_BARS"), "the scorer's field bars differ from THRESHOLD.md").toEqual(
+      reg.field,
+    )
+    expect(barsOf("EDGE_BARS"), "the scorer's edge bars differ from THRESHOLD.md").toEqual(reg.edge)
   })
 
   it("dbq/ci-provides-the-database — the dbq job runs against a real PostgreSQL service", () => {
