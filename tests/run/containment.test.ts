@@ -167,7 +167,7 @@ describe("run/the-runtime-image-runs-the-process", () => {
  * later line this pattern would never see.
  */
 const ENVIRONMENT_READ =
-  /process\s*\.\s*env\b|process\s*\[\s*(?:"env"|'env'|`env`)\s*\]|=\s*process\b(?![.[])/
+  /\bprocess\s*\.\s*env\b|\bprocess\s*\[\s*(?:"env"|'env'|`env`)\s*\]|=\s*process\b(?![.[])/
 
 /**
  * A line that reads the environment, ignoring the ones that only talk about it.
@@ -181,6 +181,138 @@ const ENVIRONMENT_READ =
  */
 const readsTheEnvironment = (text: string): boolean =>
   text.split("\n").some((line) => ENVIRONMENT_READ.test(line) && !/^\s*(?:\/\/|\*|\/\*)/.test(line))
+
+/**
+ * The spellings this guard must catch, and the near neighbours it must spare.
+ *
+ * ## Why this table exists at all
+ *
+ * `ENVIRONMENT_READ` was widened in CFV1-WIRE from `/process\.env\b/` to cover
+ * `process["env"]` and the alias forms, and the widening was proved by planting
+ * each spelling in a real module and watching the scan go red. **That proof left
+ * with the session.** Measured afterwards on `main`: narrowing the pattern back
+ * to its one original spelling leaves the whole gate green, byte for byte. The
+ * guard's AIM is pinned — the reader set must equal the seam inventory — but its
+ * BREADTH was held by nothing a later reader executes.
+ *
+ * So the spellings are fixtures now, and `run/the-seam-detector-is-precise`
+ * below runs the same `readsTheEnvironment` the enforcement scan runs, so the
+ * two cannot drift apart.
+ *
+ * ## Why the spare list is the dangerous half
+ *
+ * A guard that flagged every line would satisfy every MUST_FLAG entry and be
+ * useless. The spare list is what stops that — and it is only worth anything if
+ * each entry sits CLOSE to a flagged one, so that sparing it is a decision the
+ * guard makes rather than an accident of distance. `"a recipe"` is spared by any
+ * guard ever written and proves nothing. `my_process.env` is one word boundary
+ * away from a real read, and `// process.env` is a real read with two slashes in
+ * front of it. Those are the ones worth writing down.
+ */
+const MUST_FLAG: readonly { readonly line: string; readonly why: string }[] = [
+  { line: 'const a = process.env["PORT"]', why: "the ordinary dotted read" },
+  {
+    // No `=` beside it, deliberately: with one, the alias branch below
+    // (`=\s*process\b`) also matches this line, so removing the whitespace
+    // tolerance from the dotted branch left the line flagged and the mutation
+    // green. A planted violation has to fail at the branch it is named for.
+    line: "readPort(process . env.PORT)",
+    why: "whitespace around the dot, where only the dotted branch can catch it",
+  },
+  { line: 'const a = process["env"]["PORT"]', why: "bracket access, double quotes" },
+  { line: "const a = process['env']['PORT']", why: "bracket access, single quotes" },
+  { line: "const a = process[`env`].PORT", why: "bracket access, backtick" },
+  { line: "const { env } = process", why: "destructured off process" },
+  { line: "const { env: here } = process", why: "destructured and renamed" },
+  { line: "const p = process", why: "aliased whole, read on some later line" },
+]
+
+const MUST_SPARE: readonly { readonly line: string; readonly why: string }[] = [
+  {
+    line: "  // const a = process.env.PORT",
+    why: "a commented-out read — the flagged line with two slashes in front",
+  },
+  {
+    line: "   * takes `process.env` as a parameter so tests can inject one",
+    why: "a doc comment explaining a seam, which is why three of src/'s mentions exist",
+  },
+  {
+    line: 'const a = my_process.env["PORT"]',
+    why: "a different receiver whose name ENDS in process — one word boundary from a real read",
+  },
+  {
+    line: "const processed = envOf(request)",
+    why: "the letters of both words, in neither shape",
+  },
+  {
+    line: "const a = process.argv[2]",
+    why: "process, read, but not the environment — the receiver alone must not be enough",
+  },
+  {
+    line: "const env = readConfiguration(injected)",
+    why: "a binding NAMED env that never touches process — the seam pattern itself",
+  },
+]
+
+describe("run/the-seam-detector-is-precise", () => {
+  // The guard above is only as wide as this predicate, and this is the only
+  // place that says how wide that is.
+
+  it("flags every spelling of an environment read", () => {
+    for (const { line, why } of MUST_FLAG) {
+      expect(readsTheEnvironment(line), `${why}: ${line}`).toBe(true)
+    }
+  })
+
+  it("spares the near neighbours that only look like one", () => {
+    for (const { line, why } of MUST_SPARE) {
+      expect(readsTheEnvironment(line), `${why}: ${line}`).toBe(false)
+    }
+  })
+
+  it("a narrower reference misses what this guard catches", () => {
+    // The discrimination proof, and the reason the two tables above are not
+    // decoration. `narrowReference` is this guard as it was BEFORE CFV1-WIRE
+    // widened it — one spelling, which is what someone simplifying the regex
+    // would arrive back at. It must fail the table: if it passed, every entry
+    // beyond the first would be describing a breadth the tree does not require,
+    // and narrowing the real pattern back would again be a green change.
+    //
+    // Asserted as a COUNT of what it misses rather than "it misses something",
+    // so that deleting fixtures to make a change pass shows up here.
+    const narrowReference = (text: string): boolean =>
+      text
+        .split("\n")
+        .some((line) => /process\.env\b/.test(line) && !/^\s*(?:\/\/|\*|\/\*)/.test(line))
+
+    const missed = MUST_FLAG.filter(({ line }) => !narrowReference(line))
+    expect(
+      missed.map((m) => m.why),
+      "the narrow reference passes the whole table, so the table pins no breadth",
+      // Seven of the eight. The one it does catch is the plain dotted read,
+      // which is the spelling it was written for; everything else in the table
+      // — including `process . env`, whitespace being enough to hide a read
+      // from it — is breadth this guard gained and nothing else records.
+    ).toHaveLength(7)
+
+    // And it is narrower rather than merely different: everything it catches,
+    // the real guard catches too. A "wider" reference that simply disagreed
+    // would prove nothing about breadth.
+    for (const { line, why } of MUST_FLAG) {
+      if (narrowReference(line)) expect(readsTheEnvironment(line), why).toBe(true)
+    }
+  })
+
+  it("the enforcement scan and this table run the same predicate", () => {
+    // Stated as an assertion rather than as a comment, because the failure it
+    // guards against is silent: a second, looser copy of the rule written for
+    // the fixtures would let the table pass while the scan kept its old hole.
+    // Planting a flagged spelling in a real module must reach the scan, so the
+    // scan is run here over a source text that is not a file on disk.
+    const planted = `import { x } from "./y.js"\nexport const a = process["env"]["PORT"]\n`
+    expect(readsTheEnvironment(planted)).toBe(true)
+  })
+})
 
 describe("run/configuration-arrives-only-through-declared-seams", () => {
   // ADR-0026's cut, declared as an inventory rather than described in prose,
