@@ -17,7 +17,7 @@
  *    is proved by putting the same bytes through both entries and requiring the
  *    persisted results to be identical, not by reading this file.
  *  - **Submission only.** The credential the phone holds decides one thing:
- *    whether this submission is accepted (`ingest-credential.ts`). There is no
+ *    whether this submission is accepted (`instance-credential.ts`). There is no
  *    read route here, no listing, and nothing that takes the ingest credential
  *    and yields another — PDR-0003's "grants no access to the library beyond
  *    submission", and PDR-0001 invariant 8 for the model credential, which no
@@ -43,8 +43,8 @@ import { ingest } from "../pipeline/ingest.js"
 import type { CaptureProvider, NormalizationProvider } from "../pipeline/providers.js"
 import { MultipleRecipesError, UnknownRecipeCountError } from "../pipeline/recipe-inventory.js"
 import { importWording, refusalWording } from "./capture-wording.js"
-import type { IngestCredential } from "./ingest-credential.js"
-import { bearerCredential } from "./ingest-credential.js"
+import type { InstanceCredential } from "./instance-credential.js"
+import { bearerCredential } from "./instance-credential.js"
 
 /**
  * What the phone may submit.
@@ -118,7 +118,7 @@ export interface IngestIdentity {
 /** The collaborators this route composes; every one injected (ADR-0004). */
 export interface IngestAppDeps {
   /** Decides whether a submission is this instance's to accept. */
-  readonly credential: IngestCredential
+  readonly credential: InstanceCredential
   readonly repo: RecipeRepository
   readonly capture: CaptureProvider
   readonly normalization: NormalizationProvider

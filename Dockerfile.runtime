@@ -1,0 +1,58 @@
+# The image an OPERATOR runs (CFV1-RUN, PDR-0002).
+#
+# It is deliberately a second file rather than a stage or a flag on the first
+# one. `Dockerfile` is the development and CI container: its `CMD` is
+# `npm run quality`, it installs git so the CFV1-BASE proofs can build real
+# repositories, and it exists to prove the gate runs. Handing that image a
+# different command at `docker run` would have "worked", and is exactly how an
+# image whose default command is a test suite ends up in front of a user's
+# library. The two images have different jobs, so they have different files, and
+# `run/the-runtime-image-runs-the-process` reads both and fails if either starts
+# behaving like the other.
+FROM node:22-slim
+
+WORKDIR /app
+
+# No git here. The runtime never builds a repository — that is the gate's need,
+# and a package the process does not use is a package an operator has to patch.
+
+COPY package.json package-lock.json ./
+
+# `npm ci` installs devDependencies too, and that is a deliberate cost rather
+# than an oversight: the start command runs the TypeScript sources through
+# `tsx`, so the toolchain has to be present. Compiling to JavaScript first and
+# shipping a production-only install is the smaller image and the better answer
+# eventually; it is a build pipeline this unit does not need in order to make the
+# instance runnable, and adding one here would widen a unit whose subject is the
+# process, not the packaging. What the choice costs is written here rather than
+# discovered: a larger image, and a dev toolchain present at runtime.
+RUN npm ci
+
+COPY . .
+
+# Configuration arrives through the environment at run time and this image
+# carries none of it (see .env.example, SECURITY.md). The process refuses to
+# start when a value is missing, naming it — `src/server/config.ts`.
+#
+# PORT is not defaulted here for the same reason it is not defaulted in the
+# code: an instance that binds a port nobody chose is an instance whose operator
+# finds out from a proxy that cannot reach it.
+EXPOSE 8080
+
+# The one thing this image does, and it is the declared start command's own
+# argv rather than `npm start`.
+#
+# Measured on this branch: with `CMD ["npm", "start"]` the container answered
+# every request correctly and then FAILED to shut down. `docker stop` sends
+# SIGTERM to PID 1, PID 1 was npm, npm died, and the process that installed the
+# shutdown handler never saw the signal — so the drain never ran and the
+# container was killed after the timeout instead of stopping. The instance's
+# whole operating model is being stopped as soon as it is idle, so a stop that
+# does not reach the handler is not a detail.
+#
+# `node --import tsx` is ONE process (the tsx CLI would spawn a child and put
+# the same hop back). `tests/run/containment.test.ts` compares this argv with
+# the `start` script in `package.json`, so the two cannot drift; the local proof
+# `run/the-process-serves-and-stops` splits and runs that same declared command
+# for the same reason.
+CMD ["node", "--import", "tsx", "src/server/main.ts"]

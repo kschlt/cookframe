@@ -100,8 +100,20 @@ describe("slice1/storage-identity-confinement", () => {
     // A byte location is derived only inside src/storage/; nothing else in the
     // product touches node:fs, so no other module can resolve an identity to a
     // path (persistence is in-memory this slice).
+    //
+    // ONE exemption, added by CFV1-RUN when the instance first became a process
+    // that starts: the composition root reads the prompt files and the `schema/`
+    // source it hands the model, both fixed repository assets resolved from
+    // `import.meta.url`. It is named as a single path rather than a directory,
+    // so a second module beside it is still caught, and the rule this guard
+    // actually protects is untouched — the case above forbids minting a
+    // `StorageIdentity` anywhere outside the store WITH NO exemption, so the
+    // entry point still cannot resolve one to a path. What is exempted is
+    // reading a constant path; what is not is deriving one.
+    const compositionRoot = join(repoRoot, "src", "server", "main.ts")
     const offenders: string[] = []
     for (const file of tsFiles(join(repoRoot, "src"))) {
+      if (file === compositionRoot) continue
       if (relative(join(repoRoot, "src", "storage"), file).startsWith("..")) {
         if (/from\s+["']node:fs(?:\/promises)?["']/.test(readFileSync(file, "utf8"))) {
           offenders.push(relative(repoRoot, file))
@@ -109,6 +121,39 @@ describe("slice1/storage-identity-confinement", () => {
       }
     }
     expect(offenders, `filesystem access outside src/storage/: ${offenders.join(", ")}`).toEqual([])
+  })
+
+  it("and the exempted composition root reads assets, never a byte location", () => {
+    // The exemption above is only as narrow as this case makes it. The entry
+    // point may read files that ship with the repository; it may not touch the
+    // byte store's volume, name a storage path, or take a path from anything a
+    // caller sent.
+    const root = readFileSync(join(repoRoot, "src", "server", "main.ts"), "utf8")
+    expect(root).not.toMatch(/StorageIdentity/)
+    expect(root).not.toMatch(/createFilesystemByteStore|STORAGE_ROOT/)
+    // Every path it builds starts from the module's own location.
+    expect(root).toMatch(/fileURLToPath\(import\.meta\.url\)/)
+
+    // The case above is the one that makes the exemption an exemption rather
+    // than a hole with a comment beside it: EVERY read in the exempted file is
+    // rooted at the repository, so none of them can be handed a path that came
+    // from configuration, from a request, or from anywhere else. A read of
+    // `process.env["SOMETHING"]` passes all three assertions above and fails
+    // this one.
+    const reads = [...root.matchAll(/readFileSync\(([^)]*)/g)].map((m) => (m[1] ?? "").trim())
+    expect(reads.length, "no read in the exempted file — the exemption is unused").toBeGreaterThan(
+      0,
+    )
+    for (const argument of reads) {
+      expect(
+        argument,
+        `a read in the composition root is not rooted at the repository: readFileSync(${argument}`,
+      ).toMatch(/^join\(repoRoot,/)
+    }
+    // What is NOT claimed: that a path assembled under `repoRoot` cannot
+    // traverse out of it. Nothing here builds one from anything but a
+    // module-level literal, and proving traversal-safety is the byte store's
+    // job, behind the identity this file may not mint.
   })
 
   it("a crafted identity resolves to nothing and never escapes the volume", async () => {
