@@ -39,21 +39,6 @@
  */
 import type { CanonicalRecipe, SourceRef, SourceSnapshot, SourceType } from "../../schema/index.js"
 
-/**
- * Retained for DIAGNOSIS, and no longer a decision input anywhere.
- *
- * Both stages require containment. The relaxation this number governed was
- * removed once it was measured to buy one claim of 696 that containment
- * refuses — a claim whose words are all present, in order, with a gap, which
- * is the recombination attack's own signature. A rule cannot accept that one
- * and refuse the attack, because at that point they are the same signal.
- *
- * Kept so a refusal can say how close the wording came rather than only that
- * it failed. `CFV1-THR` — "never change this after seeing a result it moves" —
- * is satisfied trivially now: nothing moves with it.
- */
-export const SUPPORT_COVERAGE_THRESHOLD = 0.7
-
 /** Raised when what a fact cites — a block or a payload pointer — does not support it. */
 export class UnsupportedClaimError extends Error {
   constructor(

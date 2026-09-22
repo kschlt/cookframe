@@ -31,7 +31,6 @@ import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-p
 import { captureSnapshot } from "../../src/pipeline/capture.js"
 import {
   normalizeForSupport,
-  SUPPORT_COVERAGE_THRESHOLD,
   supportCoverage,
   UnsupportedCaptureError,
   UnsupportedClaimError,
@@ -49,6 +48,7 @@ import type {
   NormalizationContext,
 } from "../../src/pipeline/providers.js"
 import { sealSourceText } from "../../src/pipeline/untrusted-source-text.js"
+import { createDeterministicUrlCaptureProvider } from "../../src/pipeline/url-jsonld-adapter.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const fixture = (name: string): SourceSnapshot =>
@@ -507,6 +507,79 @@ describe("injection/unsupported-claim-fails-resolution", () => {
         runId: "r",
       },
     }) as unknown as CanonicalRecipe
+
+  it("converts an ADAPTER-CAPTURED page whose facts cite the payload, end to end", async () => {
+    // The coverage gap that let the false refusal exist. `tests/slice4` drives
+    // the URL import with a FAKE normalization provider, so claim verification
+    // never ran over a real, adapter-produced `url` snapshot — the one shape
+    // that emits payload-pointer refs. The suite was green with that path
+    // entirely broken.
+    //
+    // This runs the real deterministic capture provider over real HTML and the
+    // real normalization provider over its snapshot, so nothing between the page
+    // bytes and the canonical is faked but the model's reply.
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "Recipe",
+      name: "Linsensuppe",
+      recipeYield: "4 Portionen",
+      recipeIngredient: ["250 g rote Linsen", "1 Zwiebel"],
+      recipeInstructions: ["Linsen 20 Minuten köcheln."],
+    }
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify(
+      jsonLd,
+    )}</script></head><body></body></html>`
+    const snapshot = await captureSnapshot(
+      createDeterministicUrlCaptureProvider(),
+      createContentDerivedBlockIdPolicy(),
+      new TextEncoder().encode(html),
+      {
+        snapshotId: "s-url",
+        snapshotVersion: 0,
+        sourceAdapter: "url",
+        adapterVersion: "1",
+        runId: "r",
+        sourceMediaType: "text/html",
+      },
+    )
+    expect(snapshot.sourceType).toBe("url")
+    expect(snapshot.structuredSourcePayload, "the adapter keeps the payload").toBeDefined()
+
+    const reply = JSON.stringify({
+      id: "model-chosen",
+      schemaVersion: SCHEMA_VERSION,
+      title: "Linsensuppe",
+      yields: [],
+      ingredientGroups: [
+        {
+          id: "g1",
+          sourceRefs: [{ payloadPointer: "/recipeIngredient" }],
+          ingredients: [
+            {
+              id: "i1",
+              sourceText: "250 g rote Linsen",
+              name: "rote Linsen",
+              qualifiers: [],
+              scalingEligibility: "unknown",
+              sourceRefs: [{ payloadPointer: "/recipeIngredient/0" }],
+            },
+          ],
+        },
+      ],
+      instructionSections: [],
+      provenance: {
+        sourceSnapshotId: "lies",
+        sourceSnapshotVersion: 0,
+        targetOntologyVersion: "0.0.1",
+        runId: "lies",
+      },
+    })
+    const recipe = await createModelNormalizationProvider(stage(sequence(reply))).normalize(
+      snapshot,
+      normCtx,
+    )
+    expect(recipe.ingredientGroups[0]?.ingredients[0]?.sourceText).toBe("250 g rote Linsen")
+  })
 
   it("accepts a verbatim claim citing the structured payload, not only a block", () => {
     expect(() =>

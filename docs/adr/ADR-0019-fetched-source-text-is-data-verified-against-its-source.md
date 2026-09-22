@@ -150,9 +150,14 @@ applied to content: **a model's claim about the source is evidence, never author
   Verification narrows where invention can live; it does not eliminate it. Whether parsed fields
   get their own check is a separate decision and its own item; Slice 4 will be built against this
   record, so the limit is named here rather than left to be discovered.
-- **The threshold is gone, not merely lowered.** Both stages require containment, so there is no
-  bar to calibrate and none to protect from being tuned. `SUPPORT_COVERAGE_THRESHOLD` survives only
-  so a refusal can report how close the wording came.
+- **The threshold is gone, not merely lowered, and so is its constant.** Both stages require
+  containment, so there is no bar to calibrate and none to protect from being tuned. An earlier
+  draft of this record kept `SUPPORT_COVERAGE_THRESHOLD` and said it survived "so a refusal can
+  report how close the wording came". That was wrong: the refusal computes its coverage figure
+  directly and never read the constant, which was dead in `src/` from the moment containment
+  landed. A dead export with a docstring implying live use is how a removed relaxation gets
+  reinstated, so it is deleted; `CALIBRATION.md` is where the number 0.70 and its measurement
+  live.
 - No rule was loosened in response to a score. Each was TIGHTENED in response to a reproduced
   attack, which is the one direction needing no timestamp defence. The measured cost of the last
   tightening is one claim in 696, and `CALIBRATION.md` records what that claim looked like.

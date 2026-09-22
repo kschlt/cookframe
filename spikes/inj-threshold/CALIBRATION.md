@@ -272,8 +272,12 @@ fetched pages the rule governs. It is a real cost and it is not zero.
 
 Nothing. Both stages require containment on the normalized text, checked per
 block. There is no bar to calibrate, none to protect from tuning, and no second
-parameter. `SUPPORT_COVERAGE_THRESHOLD` survives so a refusal can report how
-close the wording came; it decides nothing.
+parameter. `SUPPORT_COVERAGE_THRESHOLD` was kept for a while on the stated
+grounds that a refusal could report how close the wording came — which was not
+true, since the refusal computes that figure itself and never read the constant.
+It was dead code from the moment containment landed, and it is now deleted. The
+number 0.70 and how it was arrived at live here, which is the right place for a
+value nothing executes.
 
 Normalization is what survives of this calibration and still carries weight: the
 Unicode, dash, quote, hyphen and whitespace folds are what make containment a
