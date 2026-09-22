@@ -529,6 +529,72 @@ describe("CI workflow (ci.yml)", () => {
     ).toMatch(/tests\/persistence/)
   })
 
+  it("run/ci-provides-the-database — the run job and the runtime-image step both reach a real PostgreSQL", () => {
+    // The same hole `pg/ci-provides-the-database` closes, in the place CFV1-PG's
+    // merge opened it. `tests/run/process.test.ts` now skips its serving cases
+    // when DATABASE_URL is absent, borrowing the persistence harness's rule; a
+    // skip is honest only where some job always sets the variable. Without this
+    // assertion, removing the service from the `run` job leaves every process
+    // proof skipped and the build green — the exact shape that cost this project
+    // a gate once already.
+    const run = workflow.jobs["run"] as
+      | { services?: Record<string, { image?: string }>; env?: Record<string, string> }
+      | undefined
+    expect(run, "no `run` job in CI").toBeTruthy()
+    expect(run?.services?.postgres?.image, "the run job has no postgres service").toMatch(
+      /^postgres:/,
+    )
+    expect(
+      run?.env?.DATABASE_URL,
+      "the run job does not point the tests at the service, so its serving proofs would skip",
+    ).toContain("postgres://")
+
+    // The container job's runtime-image step starts the real composition root,
+    // which reads a database before it binds. Three things have to be true
+    // together, and each is separately easy to drop: a service to reach, the
+    // migration applied with the command an operator is given, and the URL
+    // handed to the container. A step missing any of them fails at runtime
+    // rather than silently, but it fails as "the image is broken" — which is
+    // what this project keeps paying for.
+    const container = workflow.jobs["container"] as
+      | { services?: Record<string, { image?: string }> }
+      | undefined
+    // Asserted as a string FIRST, then matched. `toMatch` on `undefined` throws
+    // its own type error before the message attaches, so with the service
+    // removed this failed as "toMatch() expects to receive a string, but got
+    // undefined" and "the container job has no postgres service" never reached
+    // the reader — which is the only reason the message is written.
+    expect(
+      typeof container?.services?.postgres?.image,
+      "the container job has no postgres service",
+    ).toBe("string")
+    expect(container?.services?.postgres?.image).toMatch(/^postgres:/)
+    const containerRuns = (workflow.jobs["container"]?.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    // EVERY migration, by globbing the directory rather than by naming files.
+    // A named list is a list somebody has to remember to extend, and that is
+    // not hypothetical: `0002-the-cooking-plan.sql` arrived while this step
+    // named only `0001`, and the job stayed green because the route that needs
+    // the second table is not the one the step curls.
+    expect(
+      containerRuns,
+      "the container job does not apply migrations/ as a whole, so a new migration can be forgotten",
+    ).toMatch(/for\s+\w+\s+in\s+migrations\/\*\.sql\b/)
+    expect(
+      containerRuns,
+      "the container job never runs psql over the migrations it globbed",
+      // `psql`, then any shell line-continuations, then the loop variable. Not
+      // "psql appears somewhere and the glob appears somewhere": those match two
+      // unrelated commands, which is how this kind of guard stops guarding.
+    ).toMatch(/psql(?:[^\n]*\\\n)*[^\n]*-f "\$\w+"/)
+    expect(
+      containerRuns,
+      "the runtime container is given no DATABASE_URL, so it cannot come up at all",
+    ).toMatch(/-e DATABASE_URL=/)
+  })
+
   it("protections/the-ci-job-runs-the-claims-proofs — the script it invokes still points at them", () => {
     // CFV1-PROT. That a `protections` job EXISTS and invokes
     // `npm run test:protections` is already held by
