@@ -87,7 +87,11 @@ describe("slice1/reprocess-creates-new-version", () => {
     const [a] = await repo.readTwoRuns(v1.recipeId, 1, 2)
     expect(a.recipe.provenance.runId).toBe("run-1")
     expect(await repo.listLibrary()).toEqual([
-      { recipeId: v1.recipeId, latestVersion: 2, title: a.recipe.title },
+      {
+        recipeId: v1.recipeId,
+        latestVersion: 2,
+        ...(a.recipe.title.state === "from_source" ? { title: a.recipe.title.sourceText } : {}),
+      },
     ])
   })
 })

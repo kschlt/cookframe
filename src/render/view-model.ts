@@ -18,6 +18,13 @@
  *    supplied {@link MediaSrcResolver} — the same injected-seam shape as
  *    `ADR-0004`. With no resolver the page renders without its image, which is
  *    exactly the "source is gone" case the slice exists to demonstrate.
+ *
+ * 3. **A title the source never gave stays absent.** {@link TitleView} carries a
+ *    `text` only in its `from_source` variant, so a page that shows a title has
+ *    to name the variant it is showing. There is no string to reach for on the
+ *    `not_in_source` side and no fallback that quietly supplies one — the same
+ *    shape as property 1, applied to the field `spikes/s1-photo-gate/VERDICT.md`
+ *    found manufactured.
  */
 import type {
   CanonicalRecipe,
@@ -30,7 +37,7 @@ import type {
   RecipeTime,
   RecipeYield,
 } from "../../schema/index.js"
-import { wording, wordingWithUnit } from "./source-wording.js"
+import { NO_TITLE_IN_SOURCE, wording, wordingWithUnit } from "./source-wording.js"
 
 /**
  * Resolves a stored hero image's `storageIdentity` to something an `<img src>`
@@ -42,6 +49,31 @@ export type MediaSrcResolver = (storageIdentity: string) => string
 export interface ViewOptions {
   readonly mediaSrc?: MediaSrcResolver
 }
+
+/**
+ * The recipe's name as a page may show it: the source's own wording, or the
+ * declared gap.
+ *
+ * A discriminated union rather than `title?: string`, for the reason
+ * `RecipeTitle` is one in the contract. An optional string leaves "the source
+ * had no title" and "this view forgot to carry it" as the same value, and a
+ * page that renders `title ?? something` is one `??` away from putting a
+ * sentence from the method back in the heading.
+ */
+export type TitleView =
+  | { readonly state: "from_source"; readonly text: string }
+  | { readonly state: "not_in_source" }
+
+/**
+ * A title reduced to one line of display text, for the places that can hold
+ * nothing else: `<title>`, an image's `alt`.
+ *
+ * The gap keeps saying it is a gap here too — {@link NO_TITLE_IN_SOURCE} is a
+ * sentence about the source, so a browser tab reading "No title in the source"
+ * is still telling the truth, where a blank or a recipe id would not.
+ */
+export const titleLine = (title: TitleView): string =>
+  title.state === "from_source" ? title.text : NO_TITLE_IN_SOURCE
 
 export interface AmountView {
   /** The source's own wording, with its unit when the unit sits beside it. */
@@ -104,7 +136,7 @@ export interface HeroImageView {
 
 export interface RecipeView {
   readonly id: string
-  readonly title: string
+  readonly title: TitleView
   readonly description?: string
   readonly authors: readonly string[]
   /** Source-provided attribution; absent stays absent, never a placeholder. */
@@ -126,7 +158,7 @@ export interface RecipeView {
  */
 export interface LibraryCardView {
   readonly id: string
-  readonly title: string
+  readonly title: TitleView
   readonly description?: string
   readonly authors: readonly string[]
   readonly sourceAttribution?: string
@@ -227,6 +259,17 @@ const heroImageOf = (recipe: CanonicalRecipe, options: ViewOptions): HeroImageVi
   }
 }
 
+/**
+ * The contract's title, narrowed to the view's.
+ *
+ * The two states map one to one — nothing is folded together here, because the
+ * whole point of the contract's union is that a reader can tell them apart.
+ */
+const titleView = (recipe: CanonicalRecipe): TitleView =>
+  recipe.title.state === "from_source"
+    ? { state: "from_source", text: recipe.title.sourceText }
+    : { state: "not_in_source" }
+
 /** The whole recipe, narrowed to what a page may show. */
 export function toRecipeView(recipe: CanonicalRecipe, options: ViewOptions = {}): RecipeView {
   const componentLabels = new Map(
@@ -236,7 +279,7 @@ export function toRecipeView(recipe: CanonicalRecipe, options: ViewOptions = {})
   const hero = heroImageOf(recipe, options)
   return {
     id: recipe.id,
-    title: recipe.title,
+    title: titleView(recipe),
     ...(recipe.description !== undefined ? { description: recipe.description } : {}),
     authors: [...(recipe.authors ?? [])],
     ...(attribution !== undefined ? { sourceAttribution: attribution } : {}),
@@ -271,7 +314,7 @@ export function toLibraryCardView(
   const hero = heroImageOf(recipe, options)
   return {
     id: recipe.id,
-    title: recipe.title,
+    title: titleView(recipe),
     ...(recipe.description !== undefined ? { description: recipe.description } : {}),
     authors: [...(recipe.authors ?? [])],
     ...(attribution !== undefined ? { sourceAttribution: attribution } : {}),

@@ -35,3 +35,15 @@ export function wordingWithUnit(value: SourceWorded, unit: string | undefined): 
   const text = wording(value)
   return unit === undefined || unit === "" ? text : `${text} ${unit}`
 }
+
+/**
+ * What a page shows where the source gave no title.
+ *
+ * A gap is shown, not filled: the page says the source had no title rather than
+ * borrowing a sentence from the method, which is the manufactured title
+ * `spikes/s1-photo-gate/VERDICT.md` found stored. It is a label about the
+ * SOURCE, so it reads the same wherever it appears — heading, card, document
+ * title, image alt text — and a reader who sees it knows what they are looking
+ * at instead of reading a title that was never written.
+ */
+export const NO_TITLE_IN_SOURCE = "No title in the source"

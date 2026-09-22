@@ -133,14 +133,16 @@ async function writeVersion(w: Writer, v: CanonicalVersion): Promise<void> {
   await w.insert(
     "recipe_version",
     [
-      "recipe_id", "version", "schema_version", "title", "description",
+      "recipe_id", "version", "schema_version", "title_state", "title_source_text", "description",
       "source_publisher", "source_name", "source_url",
       "hero_storage_identity", "hero_origin", "hero_original_source_url", "hero_attribution",
       "prov_source_snapshot_id", "prov_source_snapshot_version", "prov_normalization_model",
       "prov_target_ontology_version", "prov_run_id", "present_optional_keys",
     ],
     [
-      id, n, r.schemaVersion, r.title, r.description ?? null,
+      id, n, r.schemaVersion,
+      r.title.state, r.title.state === "from_source" ? r.title.sourceText : null,
+      r.description ?? null,
       r.sourcePublisher ?? null, r.sourceName ?? null, r.sourceUrl ?? null,
       hero?.storageIdentity ?? null, hero?.origin ?? null,
       hero?.originalSourceUrl ?? null, hero?.attribution ?? null,
@@ -149,6 +151,11 @@ async function writeVersion(w: Writer, v: CanonicalVersion): Promise<void> {
       r.provenance.targetOntologyVersion, r.provenance.runId, present,
     ],
   )
+
+  // The title's own refs, addressed like any other owner's. '/title' is a
+  // JSON Pointer into the recipe exactly as '/yields/0' is, so the reader
+  // rebuilds it through the same `refs(path)` lookup.
+  if (r.title.state === "from_source") await w.refs(id, n, "/title", r.title.sourceRefs)
 
   for (const [i, a] of (r.authors ?? []).entries()) {
     await w.insert("recipe_author", ["recipe_id", "version", "ordinal", "name"], [id, n, i, a])
@@ -594,7 +601,14 @@ export async function readRelational(
   return compact({
     id: head.recipe_id,
     schemaVersion: head.schema_version,
-    title: head.title,
+    title:
+      head.title_state === "from_source"
+        ? {
+            state: "from_source" as const,
+            sourceText: head.title_source_text as string,
+            sourceRefs: refs("/title"),
+          }
+        : { state: "not_in_source" as const },
     description: opt(head.description as string | null),
     authors: present.has("authors") ? authors : undefined,
     sourcePublisher: opt(head.source_publisher as string | null),
