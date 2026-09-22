@@ -1,0 +1,179 @@
+/**
+ * protections/every-proof-can-be-named — no proof's full name sits inside
+ * another's in the same file, so every proof in the tree can be the assertion a
+ * plant names.
+ *
+ * `proof-names.ts` says why that matters and how the names are read. This file
+ * holds the answer to the same standard as every other structural guard here
+ * (ADR-0029): the empty set it asserts on the tree means nothing by itself,
+ * because a scan that reads nothing also finds no collision. So the breadth is
+ * held by names. The scan must read the files vitest runs, and must find, by
+ * full name, the proofs that were hidden when this guard was written. What it
+ * cannot read is counted. The checker is held against sources that are wrong
+ * on purpose, and against one that is right, so the rejections show it can
+ * also say yes.
+ */
+import { readFileSync } from "node:fs"
+import { join, relative } from "node:path"
+import { describe, expect, it } from "vitest"
+import { filesUnder } from "../support/tree.js"
+import { repoRoot } from "./majors.js"
+import { proofNamesIn, unnameableIn } from "./proof-names.js"
+
+const testFiles = filesUnder(join(repoRoot, "tests"), { match: /\.test\.ts$/ }).map((path) =>
+  relative(repoRoot, path).split("\\").join("/"),
+)
+const read = (file: string): string => readFileSync(join(repoRoot, file), "utf8")
+const byFile = testFiles.map((file) => ({ file, ...proofNamesIn(read(file), file) }))
+const everyName = byFile.flatMap((f) => f.named)
+
+describe("protections/every-proof-can-be-named", () => {
+  it("reads the files vitest runs", () => {
+    // The scan's own pattern is `tests/**/*.test.ts` written as a walk. It is
+    // the set vitest runs only while vitest's include says the same, so that is
+    // asserted here too: widening the include without widening this scan is red
+    // here instead of a set of proofs nothing checks.
+    const config = read("vitest.config.ts")
+    expect(config.split('include: ["tests/**/*.test.ts"]').length - 1).toBe(1)
+    for (const file of [
+      "tests/url-fetch/url-security.connector.test.ts",
+      "tests/base/merge-gate.test.ts",
+      "tests/run/process.test.ts",
+      "tests/persistence/postgres-store.test.ts",
+      "tests/protections/proof-names.test.ts",
+    ]) {
+      expect(testFiles, file).toContain(file)
+    }
+  })
+
+  it("finds, by full name, the proofs that were hidden inside another's name", () => {
+    // Each of these was, until this guard, a prefix of a sibling in its own
+    // file, so no marker could single it out. They are named here rather than
+    // counted: a scan that stops reading one of these files, or stops reading
+    // names under a `describe`, loses them and goes red.
+    const suite = "tests/url-fetch/url-security.connector.test.ts > CFV1-S5 safe-fetch connector"
+    for (const name of [
+      `${suite} > url-security/dns-rebinding-refused (one resolution, nothing to rebind to)`,
+      `${suite} > url-security/redirect-revalidation (a later hop to a private literal)`,
+      `${suite} > url-security/size-bound-fails-closed (declared length over the bound)`,
+      `${suite} > url-security/content-type-bound-fails-closed (a type outside the allowlist)`,
+      "tests/base/merge-gate.test.ts > base/green-merge-is-not-slowed > lets a green merge result through when the gate is quiet",
+      // Registered through `describe.skipIf(cond)("…", …)`, which a reader that
+      // only knows the bare `describe(` would pass over, and with it every name
+      // the database-backed suites carry.
+      "tests/run/process.test.ts > run/the-process-serves-and-stops > starts from the declared command, answers on a real socket, and stops cleanly",
+      // Registered through `const withDatabase = describe.skipIf(…)`, a name
+      // bound to the registration function. Read without the binding, these
+      // proofs lose their `describe` and the factory call reads as a test.
+      "tests/persistence/postgres-store.test.ts > persistence/the-migration-builds-the-store > builds a store the repository can immediately write to and read back",
+    ]) {
+      expect(everyName, name).toContain(name)
+    }
+  })
+
+  it("no proof's full name is contained in another's in the same file", () => {
+    const hidden = byFile.flatMap(({ file, named }) =>
+      unnameableIn(named).map((u) => `${file}: ${u.matches.join("  |  ")}`),
+    )
+    expect(
+      hidden,
+      "a marker is a substring, so a proof whose name is inside a sibling's can never be the assertion a plant names",
+    ).toEqual([])
+  })
+
+  it("counts the registrations whose names it cannot read, and says how many", () => {
+    // Composed names are left to the instrument's refusal at run time. Their
+    // number is written here so that a reader that starts classifying literal
+    // names as composed goes red instead of checking fewer names. A new
+    // `it.each` or template name moves this number, on purpose: it is a proof
+    // this guard does not see, and adding one should be a visible decision.
+    expect(byFile.flatMap((f) => f.composed).length).toBe(25)
+  })
+})
+
+// --- the reader and the checker, held against sources written for them -------
+
+const FIXTURE = `
+describe("outer", () => {
+  it("plain", () => {})
+  test("alias", () => {})
+  it.skip("skipped", () => {})
+  it.skipIf(cond)("conditional", () => {})
+  describe.skipIf(cond)("inner", () => {
+    it("nested", () => {})
+  })
+  suite("aliased suite", () => {
+    it("in alias", () => {})
+  })
+  it(\`no substitution\`, () => {})
+  it(\`composed \${x}\`, () => {})
+  it.each([1, 2])("row %s", () => {})
+  describe(\`composed \${x}\`, () => {
+    it("lost", () => {})
+  })
+})
+const withDb = describe.skipIf(cond)
+withDb("bound", () => {
+  it("inside a bound describe", () => {})
+})
+const pattern = /x/
+pattern.test("not a registration")
+`
+
+describe("protections/every-proof-can-be-named", () => {
+  it("reads full names through every way this tree registers a test", () => {
+    const { named, composed } = proofNamesIn(FIXTURE, "f.test.ts")
+    expect(named).toEqual([
+      "f.test.ts > outer > plain",
+      "f.test.ts > outer > alias",
+      "f.test.ts > outer > skipped",
+      "f.test.ts > outer > conditional",
+      "f.test.ts > outer > inner > nested",
+      "f.test.ts > outer > aliased suite > in alias",
+      "f.test.ts > outer > no substitution",
+      "f.test.ts > bound > inside a bound describe",
+    ])
+    expect(composed.map((c) => c.why)).toEqual([
+      "composed name",
+      "named from a table",
+      "composed name",
+      "inside a describe with a composed name",
+    ])
+  })
+
+  it("accepts names that share a stem but are not inside one another", () => {
+    // The shape the renamed proofs now have. Without this row the rejections
+    // below would not show that the checker can say yes.
+    expect(
+      unnameableIn([
+        "f > s > url-security/size-bound (declared length)",
+        "f > s > url-security/size-bound (decompressed)",
+        "f > s > url-security/size-bound-extra (chunked)",
+      ]),
+    ).toEqual([])
+  })
+
+  it("rejects each way one name hides inside another, and says which name hides it", () => {
+    const cases: ReadonlyArray<readonly [string, readonly string[], readonly string[]]> = [
+      [
+        "a name that is a prefix of a sibling's",
+        ["f > s > redirect-revalidation", "f > s > redirect-revalidation (named host)"],
+        ["f > s > redirect-revalidation"],
+      ],
+      [
+        "the same name twice",
+        ["f > s > twice", "f > s > twice"],
+        ["f > s > twice", "f > s > twice"],
+      ],
+      ["a test named like a describe beside it", ["f > x", "f > x > inside"], ["f > x"]],
+    ]
+    for (const [label, names, hidden] of cases) {
+      expect(
+        unnameableIn(names).map((u) => u.name),
+        label,
+      ).toEqual(hidden)
+    }
+    // The report names the sibling, which is what someone fixing it needs.
+    expect(unnameableIn(["f > a", "f > a (b)"])[0]?.matches).toEqual(["f > a", "f > a (b)"])
+  })
+})
