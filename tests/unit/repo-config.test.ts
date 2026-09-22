@@ -540,10 +540,7 @@ describe("CI workflow (ci.yml)", () => {
     // claim nobody checked. Same hole, same shape, as the `test:persistence`
     // assertion directly above.
     const scripts = JSON.parse(read("package.json")).scripts as Record<string, string>
-    expect(
-      scripts["test:protections"],
-      "no `test:protections` script for the CI job",
-    ).toBeTruthy()
+    expect(scripts["test:protections"], "no `test:protections` script for the CI job").toBeTruthy()
     expect(
       scripts["test:protections"],
       "`test:protections` does not run the protections tests, so the CI job proves nothing",
