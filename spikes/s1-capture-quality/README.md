@@ -20,6 +20,20 @@ reject a wrong capture. A number that cannot come out the other way proves nothi
 | `score.py` | Per-field scorer. Numeric-equality quantities (unicode fractions, ranges, mixed fractions), a fixed unit-synonym set, exact name/title/text match — **never** text similarity. `--selftest` proves discrimination. Writes `scores-<model>.json`. |
 | `oq14-verdict.md` | The verdict, citing the pre-registered bars. |
 
+### Truth-file format for times
+
+A truth file's `times` object holds **durations only** — `prep`, `cook`, `total` (and any other
+genuine duration the source states). The printed heading beside a time ("VORBEREITUNG", "Cook
+time") is source metadata, **not** a time: if it is worth recording it goes in a separate
+top-level `time_labels` object, which the scorer never scores. A `*_label` key inside `times` is a
+**truth-format defect**, not a capture result — the scorer records it as `format_errors`, refuses
+to score the `time` field for that fixture, and blocks a PASS (fail-closed). This is enforced, not
+advisory: `score.py --selftest` plants a `*_label` key in `times` and requires the gate to catch
+it. It exists because a real-photo run's truth files once carried label keys in `times`, and
+narrowing the comparison to drop them **after** the score was read is the exact manipulation this
+spike had to revert (see `score.py` and `oq14-verdict.md`); the defect is fixed in the truth
+format **before** the next run, never scored around after it.
+
 ## Method
 
 1. **Pre-register.** `THRESHOLD.md` fixes 14 field bars and 4 quantity-edge bars, the all-bars-or-fail
