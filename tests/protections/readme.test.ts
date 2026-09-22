@@ -116,6 +116,16 @@
  *   applied two. An operator following the page would have got an instance
  *   that refuses to start — `main.ts` probes `capability_grant` before it
  *   binds — with the page itself the reason.
+ *
+ * ## After #98, on the second merge of `main`
+ *
+ * #98 wired the byte store and rewrote both photograph bullets itself, so the
+ * merge had nothing to correct on the page — the check is that it had nothing
+ * to correct, measured rather than assumed. It was red at three places, all in
+ * this file and all expected: the census lost the two storage modules the
+ * process now loads, and #98's new bullet, "a picture of the dish", was
+ * claimed by no row in either list. It has a row now, and that row is
+ * `stated`, for the reason the row gives.
  */
 import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
@@ -396,9 +406,26 @@ const ROWS: readonly Row[] = [
   },
   {
     id: "keeping the photograph",
+    // Wired by #98, and this row moved with it on the next merge of `main`.
+    // It has no `working` phrase because the page says it inside the capture
+    // bullet ("keeps the photograph"), which the capture row claims; what this
+    // row still pins is that neither old sentence comes back.
     measure: { called: ["createFilesystemByteStore"] },
     built: "keeping the photograph itself",
     notYet: "**The photograph you submit is converted and then not kept.**",
+  },
+  {
+    id: "a picture of the dish",
+    // Stated, not measured, and deliberately. The renderer takes a
+    // `mediaSrc` resolver and calls it itself, so "is it wired" is whether a
+    // caller HANDS one over — a property in an options object, which no call
+    // can decide. The only call to `mediaSrc` sits in the renderer and runs the
+    // same whether or not the pages pass one, so a `called` measure here would
+    // read "reached" today and be wrong. `ADR-0004`'s seam is what a measure
+    // would have to read; until one does, the page keeps saying it.
+    measure: { stated: true },
+    built: "a picture of the dish on a recipe's page",
+    notYet: "**A recipe's page has no picture.**",
   },
   {
     id: "re-converting a stored recipe",
@@ -449,9 +476,10 @@ const NOT_LOADED: ReadonlyMap<string, string> = new Map([
     "src/pipeline/providers.ts",
     "interfaces only; every import of it is `import type`, which loads nothing",
   ],
-  ["src/storage/byte-store.ts", "byte storage: the `keeping the photograph` row"],
-  ["src/storage/filesystem-byte-store.ts", "byte storage: the `keeping the photograph` row"],
-  ["src/storage/index.ts", "byte storage: the `keeping the photograph` row"],
+  [
+    "src/storage/byte-store.ts",
+    "types only; every import of it is `import type`, which loads nothing",
+  ],
 ])
 
 const ENTRY = "src/server/main.ts"
