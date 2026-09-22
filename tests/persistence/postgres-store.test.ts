@@ -654,6 +654,14 @@ withDatabase("persistence/an-unmigrated-database-says-so", () => {
     const handle = createPostgresStore(urlForSchema(baseUrl, schema))
     try {
       await expect(handle.repository.listLibrary()).rejects.toThrow(StoreNotMigratedError)
+      // The relation it NAMES is the one that is missing, not a fixed one.
+      // PostgreSQL does not send the `TABLE` error field for `42P01`, so the
+      // name has to come from the message; a fallback that named one table for
+      // every missing one was harmless while `migrations/` held one file and
+      // sends an operator to the wrong migration now that it holds two.
+      await expect(handle.repository.loadCookingPlan("nobody", 1)).rejects.toThrow(
+        /no `cooking_plan` table/,
+      )
       await expect(handle.repository.listLibrary()).rejects.toThrow(/0001-the-recipe-store\.sql/)
     } finally {
       await handle.close()

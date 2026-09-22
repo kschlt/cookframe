@@ -275,8 +275,28 @@ jobs:
   # so they are slower than an in-process suite and belong in a job whose name
   # says what failed — the same reasoning that gave `slice3`/`slice4`/`slice5`
   # their own jobs.
+  #
+  # It needs PostgreSQL because since CFV1-PG the composition root builds the
+  # durable store, so a process that starts at all is one that reached a
+  # database. `tests/run/process.test.ts` skips its serving cases when
+  # DATABASE_URL is absent — which is honest ONLY because this job sets it, and
+  # `tests/unit/repo-config.test.ts` requires that this job does.
   run:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -285,6 +305,22 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:run
+
+  # CFV1-IDS. The guard that turns red when two branches claim one record number.
+  # It gets a job of its own for the reason `ci/every-declared-test-script-runs-in-
+  # a-named-job` states: this check earns its keep on the pull request that pulls
+  # `main` and discovers the collision, and "container failed" is not a sentence
+  # that tells the author to renumber their record.
+  records:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:records
 
   slice1:
     runs-on: ubuntu-latest
@@ -316,6 +352,21 @@ jobs:
   # a build only — it never pushes the image anywhere.
   container:
     runs-on: ubuntu-latest
+    # The runtime-image step below starts the real composition root, which since
+    # CFV1-PG reads a database before it binds. The service is for that step
+    # alone; the quality gate above it needs nothing.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Build the image
@@ -345,13 +396,29 @@ jobs:
           ingest="run-ci-$(openssl rand -hex 16)"
           library="run-ci-$(openssl rand -hex 16)"
 
+          # Applied with the command an operator is told to run (`.env.example`).
+          # A schema built any other way here would be a schema nobody will ever
+          # have. The GLOB is the point: a list of filenames is a list somebody
+          # has to remember to extend, and `0002` arrived while this step named
+          # only `0001`.
+          for migration in migrations/*.sql; do
+            psql "postgres://postgres:postgres@127.0.0.1:5432/postgres" \
+              -v ON_ERROR_STOP=1 -f "$migration"
+          done
+
+          # The service is published on the RUNNER's loopback, and the container
+          # has its own. `host.docker.internal` is how it reaches the host, and
+          # the published port stays `-p` rather than `--network host` so this
+          # step still proves the image serves on a port it publishes.
           docker run -d --name cookframe-runtime -p 8080:8080 \
+            --add-host=host.docker.internal:host-gateway \
             -e PORT=8080 \
             -e MODEL_PROVIDER=openai \
             -e OPENAI_API_KEY=not-a-real-key \
             -e OPENAI_MODEL=not-a-real-model \
             -e COOKFRAME_INGEST_CREDENTIAL="$ingest" \
             -e COOKFRAME_LIBRARY_CREDENTIAL="$library" \
+            -e DATABASE_URL="postgres://postgres:postgres@host.docker.internal:5432/postgres" \
             cookframe:runtime
           for _ in $(seq 1 60); do
             logs="$(docker logs cookframe-runtime 2>&1 || true)"
