@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest"
 import { SCHEMA_VERSION, type SourceSnapshot } from "../../schema/index.js"
 import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
 import { captureSnapshot } from "../../src/pipeline/capture.js"
+import { UnsupportedCaptureError } from "../../src/pipeline/claim-support.js"
 import {
   createModelCaptureProvider,
   createModelNormalizationProvider,
@@ -111,6 +112,9 @@ const captureCtx: CaptureContext = {
   runId: "run-capture",
   captureModel: "test-model",
   sourceMediaType: "image/jpeg",
+  // A photographed page: the vision path, exempt from source-text verification
+  // (ADR-0019). The exemption is earned by provenance, not by the media type.
+  sourceProvenance: "photo",
 }
 
 const normCtx: NormalizationContext = {
@@ -202,7 +206,7 @@ describe("slice1/capture-uses-the-vision-path-for-an-image", () => {
     expect(transport.seen[0]?.jsonOnly).toBe(true)
   })
 
-  it("decodes a non-image media type as text instead", async () => {
+  it("takes the text path for a pasted source regardless of media type", async () => {
     const transport = scripted(captureReply)
     await captureSnapshot(
       createModelCaptureProvider(stage(transport)),
@@ -212,11 +216,100 @@ describe("slice1/capture-uses-the-vision-path-for-an-image", () => {
       // input that did not say what the reply reports is refused — which is
       // the point of that check, and not what this test is about.
       new TextEncoder().encode("Pfannkuchen\n\n200 g Mehl\n\nAlles verrühren."),
-      { ...captureCtx, sourceMediaType: "text/plain" },
+      // ADR-0019: provenance "paste" is the text path, verified against the
+      // decoded input. The media type does not decide the path — only the
+      // provenance does.
+      { ...captureCtx, sourceProvenance: "paste", sourceMediaType: "text/plain" },
     )
     const parts = transport.seen[0]?.parts ?? []
     expect(parts.some((p) => p.kind === "image")).toBe(false)
     expect(parts.some((p) => p.kind === "text" && p.text.includes("Pfannkuchen"))).toBe(true)
+  })
+})
+
+describe("capture verification exemption is keyed on provenance, not media type (ADR-0019 §4b)", () => {
+  // The source the model was handed. It does NOT contain "500 g Zucker", so a
+  // capture reply that includes that block has fabricated it. On any verified
+  // path this must be refused; only a page the user physically held is exempt.
+  const sourceText = "Pfannkuchen\n\n200 g Mehl\n\nAlles verrühren."
+  const bytes = new TextEncoder().encode(sourceText)
+  const fabricatingReply = JSON.stringify({
+    capturedText: sourceText,
+    recipeCount: 1,
+    recipeTitles: ["the one recipe on this fixture"],
+    blocks: [
+      { order: 0, type: "title", text: "Pfannkuchen" },
+      // Not in the source: the block a verified path must refuse.
+      { order: 1, type: "ingredient", text: "500 g Zucker" },
+    ],
+  })
+
+  const captureFabricated = (over: Partial<CaptureContext>) =>
+    captureSnapshot(createModelCaptureProvider(stage(scripted(fabricatingReply))), policy, bytes, {
+      ...captureCtx,
+      ...over,
+    })
+
+  it("verifies a url-provenance capture even when its media type is image/*", async () => {
+    // The old code exempted anything whose media type began with "image/". A URL
+    // fallback that fetched an image/* response would then be silently exempt.
+    // Provenance "url" is verified regardless of media type, so the fabricated
+    // block is refused.
+    await expect(
+      captureFabricated({ sourceProvenance: "url", sourceMediaType: "image/png" }),
+    ).rejects.toBeInstanceOf(UnsupportedCaptureError)
+  })
+
+  it("fails closed when provenance is absent, even with an image media type", async () => {
+    // Absence never earns the exemption: an unset provenance falls to the
+    // verified text path, so the fabricated block is still refused. This is the
+    // hole the `?? "image/jpeg"` default used to open. `exactOptionalPropertyTypes`
+    // forbids passing `sourceProvenance: undefined`, so build a context that omits
+    // the field entirely — genuinely absent, not present-and-undefined.
+    const { sourceProvenance: _drop, ...ctxNoProvenance } = captureCtx
+    void _drop
+    const snapshot = captureSnapshot(
+      createModelCaptureProvider(stage(scripted(fabricatingReply))),
+      policy,
+      bytes,
+      { ...ctxNoProvenance, sourceMediaType: "image/jpeg" },
+    )
+    await expect(snapshot).rejects.toBeInstanceOf(UnsupportedCaptureError)
+  })
+
+  it("exempts only a photographed page, whose bytes are pixels with no text to anchor", async () => {
+    // The one earned exemption: provenance "photo". The fabricated block
+    // survives because a photograph carries no source text to anchor against
+    // (ADR-0019) — which is exactly why the exemption must be this narrow.
+    const snapshot = await captureFabricated({
+      sourceProvenance: "photo",
+      sourceMediaType: "image/jpeg",
+    })
+    expect(snapshot.blocks.map((b) => b.text)).toContain("500 g Zucker")
+    expect(snapshot.sourceType).toBe("image")
+  })
+
+  it("routes a url provenance to the verified url source type", async () => {
+    // A url-provenance capture whose blocks ARE contained in the source succeeds
+    // and is recorded as a `url` snapshot (the verified path), so the exemption
+    // proof above is discriminating rather than a blanket refusal.
+    const honestReply = JSON.stringify({
+      capturedText: sourceText,
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
+      blocks: [
+        { order: 0, type: "title", text: "Pfannkuchen" },
+        { order: 1, type: "ingredient", text: "200 g Mehl" },
+      ],
+    })
+    const snapshot = await captureSnapshot(
+      createModelCaptureProvider(stage(scripted(honestReply))),
+      policy,
+      bytes,
+      { ...captureCtx, sourceProvenance: "url", sourceMediaType: "image/png" },
+    )
+    expect(snapshot.sourceType).toBe("url")
+    expect(snapshot.blocks.map((b) => b.text)).toEqual(["Pfannkuchen", "200 g Mehl"])
   })
 })
 

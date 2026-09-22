@@ -41,7 +41,12 @@
  * rate and does not remove the case, which is why the stage still fails closed
  * once its attempts are spent.
  */
-import { BlockType, type CanonicalRecipe, type SourceSnapshot } from "../../schema/index.js"
+import {
+  BlockType,
+  type CanonicalRecipe,
+  type SourceSnapshot,
+  type SourceType,
+} from "../../schema/index.js"
 import { validateCanonical } from "../persistence/validate.js"
 import type { RawBlock } from "./block-id-policy.js"
 import { verifyCaptureSupport, verifyClaimSupport } from "./claim-support.js"
@@ -379,31 +384,45 @@ function readBlocks(value: unknown, reply: string): RawBlock[] {
  * Create the real capture capability: source bytes (a photographed page, or
  * pasted text) become a segmentation, through one model exchange.
  *
- * `mediaType` decides how the input is presented: an `image/*` media type is
- * sent as an image part (the vision path — what a phone photo needs), anything
- * else is decoded as UTF-8 text. The resulting {@link CaptureResult} carries no
+ * `sourceProvenance` decides how the input is presented AND whether it is
+ * verified (ADR-0019): `"photo"` is a page the user physically held — the vision
+ * path, sent as an image part and exempt from source-text verification because
+ * pixels carry no text to anchor against. Anything else ("url", "paste", or an
+ * absent provenance, which fails closed) is decoded as UTF-8 text, sealed into a
+ * fenced part, and verified against that text. `sourceMediaType` only encodes the
+ * image bytes on the photo path. The resulting {@link CaptureResult} carries no
  * ids; `captureSnapshot` runs it through the {@link BlockIdPolicy} and stamps
  * identity and provenance from its context.
  */
 export function createModelCaptureProvider(config: ModelStageConfig): CaptureProvider {
   return {
     async capture(input, ctx): Promise<CaptureResult> {
-      const mediaType = ctx.sourceMediaType ?? "image/jpeg"
-      const isImage = mediaType.startsWith("image/")
-      const sourceType = isImage ? "image" : "text"
-      // The image path hands over bytes the user physically photographed, which
-      // CFV1-INJ leaves out of scope by its own terms. The TEXT path is the one
-      // that carries someone else's words — a fetched page, or a paste of one —
-      // so it never reaches the prompt as an interpolated string: it is sealed
-      // into its own fenced part and the system message states the rule.
-      const trustedParts: ModelPart[] = isImage
+      // ADR-0019: the verification exemption is earned by PROVENANCE, not by the
+      // media type. Only a page the user physically held (`sourceProvenance:
+      // "photo"`) takes the vision path and is exempt — its bytes are pixels, with
+      // no text to anchor against. A fetched page ("url") or a paste ("text")
+      // carries someone else's words and is verified against them. An ABSENT
+      // provenance fails closed to the verified text path, so a URL fallback that
+      // forgets to state it is verified rather than silently exempted, and a URL
+      // that merely serves image/* does not inherit a held photograph's exemption.
+      const isPhoto = ctx.sourceProvenance === "photo"
+      const sourceType: SourceType = isPhoto
+        ? "image"
+        : ctx.sourceProvenance === "url"
+          ? "url"
+          : "text"
+      // The TEXT path (url/text) carries someone else's words, so it never reaches
+      // the prompt as an interpolated string: it is sealed into its own fenced part
+      // and the system message states the rule. The vision path presents the bytes
+      // as an image part; `sourceMediaType` is only how those bytes are encoded.
+      const trustedParts: ModelPart[] = isPhoto
         ? [
             { kind: "text", text: "RAW SOURCE (photographed recipe page):" },
-            { kind: "image", mediaType, bytes: input },
+            { kind: "image", mediaType: ctx.sourceMediaType ?? "image/jpeg", bytes: input },
           ]
         : [{ kind: "text", text: "RAW SOURCE follows in the fenced region below." }]
-      const sourceText = isImage ? "" : new TextDecoder().decode(input)
-      const sealed = isImage
+      const sourceText = isPhoto ? "" : new TextDecoder().decode(input)
+      const sealed = isPhoto
         ? undefined
         : sealSourceText("raw source text", sourceText, config.markerSource)
 

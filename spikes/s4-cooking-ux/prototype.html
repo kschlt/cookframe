@@ -174,7 +174,16 @@
       "flow": ["Prep", "Saute", "Simmer", "Season"],
       "beforeYouStart": {
         "setUp": ["Large skillet with lid"],
-        "startNow": ["Heat olive oil in the skillet"],
+        "startNow": [],
+        "startNowRejected": [
+          {
+            "do": "Heat olive oil in the skillet",
+            "slow": false,
+            "safeToLeave": false,
+            "neededAtUnit": 2,
+            "why": "Unit 2 heats the oil itself, so START NOW only pulled the step forward; hot fat is not safe to leave while unit 1 cuts 1 kg of peppers."
+          }
+        ],
         "fetchPrepare": [
           {"item": "bell peppers, 1 kg mixed colors", "assumedAtHand": false},
           {"item": "onion, 1", "assumedAtHand": false},
@@ -250,7 +259,23 @@
       "flow": ["Fry", "Boil", "Infuse", "Toss", "Cream", "Serve"],
       "beforeYouStart": {
         "setUp": ["Mandoline", "Large frying pan", "Wide pan", "High-sided pot", "Slotted skimmer", "Tray lined with paper towels", "Coarse grater"],
-        "startNow": ["Heat frying oil to 150 °C (300 °F)", "Bring a high-sided pot of salted water to a boil"],
+        "startNow": [
+          {
+            "do": "Bring a high-sided pot of salted water to a boil",
+            "slow": true,
+            "safeToLeave": true,
+            "neededAtUnit": 3
+          }
+        ],
+        "startNowRejected": [
+          {
+            "do": "Heat frying oil to 150 °C (300 °F)",
+            "slow": false,
+            "safeToLeave": false,
+            "neededAtUnit": 1,
+            "why": "Unit 1 already carries the 150 °C as its own critical parameter, and frying oil is not safe to leave while 25 oz of zucchini go through the mandoline."
+          }
+        ],
         "fetchPrepare": [
           {"item": "spaghetti, 11 oz", "assumedAtHand": false},
           {"item": "Provolone del Monaco (or Caciocavallo), 5.3 oz", "assumedAtHand": false},
@@ -361,7 +386,15 @@
       "flow": ["Prep", "Simmer", "Season", "Assemble", "Bake"],
       "beforeYouStart": {
         "setUp": ["Large frying pan", "Baking dish"],
-        "startNow": ["Preheat oven to 200 °C (conventional top/bottom heat)"],
+        "startNow": [
+          {
+            "do": "Preheat oven to 200 °C (conventional top/bottom heat)",
+            "slow": true,
+            "safeToLeave": true,
+            "neededAtUnit": 5
+          }
+        ],
+        "startNowRejected": [],
         "fetchPrepare": [
           {"item": "Hokkaido pumpkin, 500 g", "assumedAtHand": false},
           {"item": "red onion, 1", "assumedAtHand": false},
@@ -446,11 +479,50 @@
 }
     </script>
 
-    <script>
+    <script id="prototype-behaviour">
       "use strict"
 
       const DATA = JSON.parse(document.getElementById("recipe-data").textContent)
       const state = { recipe: 0, hyp: "A", suppress: false }
+
+      // ---- Rendering rules, all three decided by data the conversion already
+      // produces. None of them costs a second model call (README, Findings).
+
+      // START NOW admission. An entry belongs there only if it is slow, safe to
+      // leave unattended, and needed by a LATER unit than the first — pulling a
+      // step forward that its own unit performs is what sent the cook to the oil
+      // before the peppers were cut. `startNowRejected` keeps the refused
+      // entries in the data so the rule stays reviewable against real recipes.
+      function admitsToStartNow(entry, unitCount) {
+        if (!entry || typeof entry.do !== "string") return false
+        if (entry.slow !== true || entry.safeToLeave !== true) return false
+        if (!Number.isInteger(entry.neededAtUnit)) return false
+        return entry.neededAtUnit >= 2 && entry.neededAtUnit <= unitCount
+      }
+
+      // A quantity is measurable when it carries a figure. Conversion omits a
+      // qualitative amount rather than coercing it to a number, so "to taste"
+      // and "as needed" arrive without one, while the split "part of 5.3 oz"
+      // keeps its figure and stays a quantity.
+      function carriesAFigure(qty) {
+        return typeof qty === "string" && /[0-9]/.test(qty)
+      }
+
+      // The NOW YOU NEED block earns its place where the step is time-critical
+      // or has something to lay out in advance. Where every amount on the unit
+      // is qualitative the block only repeats the action sentence, so the
+      // sentence carries it alone.
+      function needsTheBlock(u) {
+        const rows = (u && u.nowYouNeed) || []
+        if (!rows.length) return false
+        return Boolean(u.critical) || rows.some((r) => carriesAFigure(r.qty))
+      }
+
+      // A qualitative amount never enters the quantity position, where it reads
+      // as a count ("two tastes salt"). The item stands on its own.
+      function rowText(ing) {
+        return carriesAFigure(ing.qty) ? `${ing.qty} ${ing.item}` : ing.item
+      }
 
       const $ = (id) => document.getElementById(id)
       const el = (tag, cls, text) => {
@@ -481,12 +553,26 @@
           card.appendChild(ul)
         }
 
-        if (r.beforeYouStart.startNow && r.beforeYouStart.startNow.length) {
+        const declared = r.beforeYouStart.startNow || []
+        const admitted = declared.filter((e) => admitsToStartNow(e, r.units.length))
+        const refused = declared.length - admitted.length
+        if (admitted.length) {
           // START NOW is measured/state prerequisites — NEVER suppressed.
           card.appendChild(el("p", "sub", "Start now"))
           const ul = el("ul")
-          for (const s of r.beforeYouStart.startNow) ul.appendChild(el("li", null, s))
+          for (const e of admitted) ul.appendChild(el("li", "startnow-item", e.do))
           card.appendChild(ul)
+        }
+        // Never drop something silently: say when the rule refused an entry, and
+        // say when nothing qualified at all rather than leaving a blank.
+        if (refused > 0) {
+          card.appendChild(
+            el("p", "note", `${refused} declared entr(y/ies) did not qualify for START NOW.`),
+          )
+        } else if (!admitted.length) {
+          card.appendChild(
+            el("p", "note", "Nothing in this recipe is slow, safe to leave and needed later."),
+          )
         }
 
         if (r.beforeYouStart.fetchPrepare && r.beforeYouStart.fetchPrepare.length) {
@@ -495,7 +581,7 @@
           let hidden = 0
           for (const f of r.beforeYouStart.fetchPrepare) {
             const suppressed = state.suppress && f.assumedAtHand === true
-            const li = el("li", suppressed ? "suppressed" : null, f.item)
+            const li = el("li", suppressed ? "fetch-item suppressed" : "fetch-item", f.item)
             ul.appendChild(li)
             if (suppressed) hidden++
           }
@@ -522,13 +608,13 @@
         if (u.phase) head.appendChild(el("span", "unit-phase", `— ${u.phase}`))
         box.appendChild(head)
 
-        if (u.nowYouNeed && u.nowYouNeed.length) {
+        if (needsTheBlock(u)) {
           const need = el("div", "need")
           need.appendChild(el("p", "kicker", "Now you need"))
           const items = el("p", "items")
           u.nowYouNeed.forEach((ing, i) => {
             if (i > 0) items.appendChild(document.createTextNode(" · "))
-            const span = el("span", ing.split ? "split" : null, `${ing.qty} ${ing.item}`)
+            const span = el("span", ing.split ? "split" : null, rowText(ing))
             items.appendChild(span)
           })
           need.appendChild(items)

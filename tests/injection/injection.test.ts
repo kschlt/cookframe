@@ -935,7 +935,10 @@ describe("injection/unsupported-claim-fails-resolution", () => {
       ),
       policy,
       new Uint8Array([0xff, 0xd8, 0xff]),
-      { ...captureCtx, sourceMediaType: "image/jpeg" },
+      // ADR-0019: the exemption is earned by provenance "photo" (a page the user
+      // physically held), not by the image media type. The media type only
+      // encodes the bytes for the vision part.
+      { ...captureCtx, sourceProvenance: "photo", sourceMediaType: "image/jpeg" },
     )
     expect(snapshot.blocks[0]?.text).toBe("3 EL Erdnussbutter")
   })

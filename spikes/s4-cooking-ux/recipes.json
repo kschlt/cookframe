@@ -9,7 +9,16 @@
       "flow": ["Prep", "Saute", "Simmer", "Season"],
       "beforeYouStart": {
         "setUp": ["Large skillet with lid"],
-        "startNow": ["Heat olive oil in the skillet"],
+        "startNow": [],
+        "startNowRejected": [
+          {
+            "do": "Heat olive oil in the skillet",
+            "slow": false,
+            "safeToLeave": false,
+            "neededAtUnit": 2,
+            "why": "Unit 2 heats the oil itself, so START NOW only pulled the step forward; hot fat is not safe to leave while unit 1 cuts 1 kg of peppers."
+          }
+        ],
         "fetchPrepare": [
           {"item": "bell peppers, 1 kg mixed colors", "assumedAtHand": false},
           {"item": "onion, 1", "assumedAtHand": false},
@@ -85,7 +94,23 @@
       "flow": ["Fry", "Boil", "Infuse", "Toss", "Cream", "Serve"],
       "beforeYouStart": {
         "setUp": ["Mandoline", "Large frying pan", "Wide pan", "High-sided pot", "Slotted skimmer", "Tray lined with paper towels", "Coarse grater"],
-        "startNow": ["Heat frying oil to 150 °C (300 °F)", "Bring a high-sided pot of salted water to a boil"],
+        "startNow": [
+          {
+            "do": "Bring a high-sided pot of salted water to a boil",
+            "slow": true,
+            "safeToLeave": true,
+            "neededAtUnit": 3
+          }
+        ],
+        "startNowRejected": [
+          {
+            "do": "Heat frying oil to 150 °C (300 °F)",
+            "slow": false,
+            "safeToLeave": false,
+            "neededAtUnit": 1,
+            "why": "Unit 1 already carries the 150 °C as its own critical parameter, and frying oil is not safe to leave while 25 oz of zucchini go through the mandoline."
+          }
+        ],
         "fetchPrepare": [
           {"item": "spaghetti, 11 oz", "assumedAtHand": false},
           {"item": "Provolone del Monaco (or Caciocavallo), 5.3 oz", "assumedAtHand": false},
@@ -196,7 +221,15 @@
       "flow": ["Prep", "Simmer", "Season", "Assemble", "Bake"],
       "beforeYouStart": {
         "setUp": ["Large frying pan", "Baking dish"],
-        "startNow": ["Preheat oven to 200 °C (conventional top/bottom heat)"],
+        "startNow": [
+          {
+            "do": "Preheat oven to 200 °C (conventional top/bottom heat)",
+            "slow": true,
+            "safeToLeave": true,
+            "neededAtUnit": 5
+          }
+        ],
+        "startNowRejected": [],
         "fetchPrepare": [
           {"item": "Hokkaido pumpkin, 500 g", "assumedAtHand": false},
           {"item": "red onion, 1", "assumedAtHand": false},

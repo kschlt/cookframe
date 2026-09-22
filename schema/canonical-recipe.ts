@@ -41,7 +41,7 @@ import { SCHEMA_VERSION } from "./version.js"
  * What this alone does NOT close: a model may still declare `from_source` and
  * cite a block that is not a title. That is `verifyTitleGrounding`
  * (`src/pipeline/title-grounding.ts`), which is the half that governs the image
- * path, where claim verification is deliberately off (ADR-0023).
+ * path, where claim verification is deliberately off (PDR-0005).
  */
 export const RecipeTitle = z.discriminatedUnion("state", [
   z
@@ -367,7 +367,7 @@ export const CanonicalRecipe = z
   .object({
     id: z.string().min(1),
     schemaVersion: z.literal(SCHEMA_VERSION),
-    /** A declared state, never a bare string (ADR-0023). */
+    /** A declared state, never a bare string (PDR-0005). */
     title: RecipeTitle,
     description: z.string().optional(),
     /** Source-provided only; a missing author stays missing (§5.1). */
