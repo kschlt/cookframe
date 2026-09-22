@@ -51,11 +51,12 @@ import { fileURLToPath } from "node:url"
 import ts from "typescript"
 import { afterEach, describe, expect, it } from "vitest"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS } from "../../src/http/not-found.js"
+import { createProvisionalStore } from "../../src/persistence/index.js"
 import { BRING_IMPORT_ENDPOINT, bringImportUrl } from "../../src/shopping/bring-handoff.js"
 import {
   type CapabilityStore,
   capabilityUrl,
-  createInMemoryCapabilityStore,
+  createCapabilityStore,
 } from "../../src/shopping/capability-token.js"
 import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
 import {
@@ -322,7 +323,7 @@ afterEach(async () => {
 
 /** A capability store that counts mints, so a refusal can be shown to mint nothing. */
 function countingStore(): { store: CapabilityStore; issued: { count: number } } {
-  const inner = createInMemoryCapabilityStore()
+  const inner = createCapabilityStore(createProvisionalStore())
   const issued = { count: 0 }
   return {
     issued,
