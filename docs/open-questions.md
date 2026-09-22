@@ -5,7 +5,9 @@ The single place where Cookframe's open implementation questions are tracked. Ea
 
 `OQ-01`–`OQ-23` originate in the discovery phase, `OQ-24` onwards were found during implementation,
 and `OQ-25`–`OQ-33` are the release-readiness items below. `OQ-25a` is lettered because `OQ-25`
-onwards were already taken by the release-readiness block; an id is never reused or renumbered. This file is the live register; the
+onwards were already taken by the release-readiness block; an id is never reused or renumbered, and
+`tests/records/` fails the build if two rows claim one id. That rule reads the first column of a
+table row; naming an id in prose, here or in a record, is a citation and not a claim. This file is the live register; the
 discovery-era wording is kept in [`archive/`](archive/).
 
 | Id | Question | State |
