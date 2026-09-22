@@ -44,6 +44,8 @@ describe("repo-reads/one-suite-every-store", () => {
       "loadLatestCanonical",
       "listLibrary",
       "readTwoRuns",
+      "storeCookingPlan",
+      "loadCookingPlan",
     ] as const
     for (const [label, makeStore] of STORES) {
       const store = makeStore() as unknown as Record<string, unknown>

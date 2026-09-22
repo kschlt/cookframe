@@ -37,7 +37,7 @@
  */
 import { Hono } from "hono"
 import { bodyLimit } from "hono/body-limit"
-import type { RecipeRepository } from "../persistence/index.js"
+import type { CanonicalVersion, RecipeRepository } from "../persistence/index.js"
 import type { BlockIdPolicy } from "../pipeline/block-id-policy.js"
 import { ingest } from "../pipeline/ingest.js"
 import type { CaptureProvider, NormalizationProvider } from "../pipeline/providers.js"
@@ -129,6 +129,14 @@ export interface IngestAppDeps {
   /** How this entry point names itself in `captureProvenance`. */
   readonly sourceAdapter: string
   readonly adapterVersion: string
+  /**
+   * Called with the stored version once the import response has been built,
+   * and NEVER awaited — `PDR-0004` forbids a policy that blocks the import
+   * request, and a hook this route could wait on would be one. Under `lazy`,
+   * `createAfterImport` returns a hook that schedules nothing; under
+   * `background` it defers derivation past this turn (`ADR-0008`).
+   */
+  readonly afterImport?: (version: CanonicalVersion) => void
 }
 
 /** The one unauthorized response. Identical for absent and for wrong. */
@@ -207,7 +215,10 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
         // placeholder here would be a manufactured title again, one route further
         // out, and the person reading it could not tell the difference.
         const title = result.canonical.recipe.title
-        return c.json(
+        // Built before the hook is called, so what is handed back cannot depend
+        // on anything the hook does — and the hook's return value is discarded
+        // rather than awaited, which is what keeps generation off this path.
+        const response = c.json(
           {
             snapshotId: result.snapshot.id,
             recipeId: result.canonical.recipeId,
@@ -217,6 +228,8 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
           },
           201,
         )
+        deps.afterImport?.(result.canonical)
+        return response
       } catch (error) {
         // The refusals a PERSON has to see, answered as themselves. Their fields
         // are copied off the error rather than restated, so a refusal that grows a

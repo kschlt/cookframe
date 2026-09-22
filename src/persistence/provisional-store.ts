@@ -20,19 +20,22 @@
  * {@link RecipeRepository} and {@link createProvisionalStore}, so no storage
  * type leaks past this file (ADR-0003 confinement).
  */
-import type { CanonicalRecipe, SourceSnapshot } from "../../schema/index.js"
+import type { CanonicalRecipe, CookingPlan, SourceSnapshot } from "../../schema/index.js"
 import {
   type CanonicalVersion,
   type LibraryEntry,
   type RecipeRepository,
   RecipeVersionNotFoundError,
+  UnversionedCookingPlanError,
 } from "./repository.js"
-import { validateCanonical, validateSnapshot } from "./validate.js"
+import { validateCanonical, validateCookingPlan, validateSnapshot } from "./validate.js"
 
 class ProvisionalStore implements RecipeRepository {
   readonly #snapshots = new Map<string, SourceSnapshot>()
   /** recipeId -> versions in append order; index 0 is version 1. Never mutated in place. */
   readonly #versions = new Map<string, CanonicalRecipe[]>()
+  /** `recipeId\u0000version` -> the plan derived from exactly that version (ADR-0025). */
+  readonly #plans = new Map<string, CookingPlan>()
 
   async storeSnapshot(snapshot: SourceSnapshot): Promise<void> {
     // Validate before the store is touched: invalid input never persists. The
@@ -104,7 +107,37 @@ class ProvisionalStore implements RecipeRepository {
       { recipeId, version: versionB, recipe: structuredClone(b) },
     ]
   }
+
+  async storeCookingPlan(plan: CookingPlan): Promise<void> {
+    // Validate before the store is touched, like every other write here.
+    const valid = validateCookingPlan(plan)
+    const version = valid.derivation.canonicalVersion
+    if (version === undefined) throw new UnversionedCookingPlanError(valid.recipeId)
+    // A plan filed against a version this store does not hold could never be
+    // served, and could not be told from a stale one if the version arrived
+    // later. Refusing is the same rule the plan's own contents follow.
+    const versions = this.#versions.get(valid.recipeId)
+    if (versions === undefined || versions[version - 1] === undefined) {
+      throw new RecipeVersionNotFoundError(valid.recipeId, version)
+    }
+    this.#plans.set(planKey(valid.recipeId, version), valid)
+  }
+
+  async loadCookingPlan(recipeId: string, version: number): Promise<CookingPlan | undefined> {
+    // Absence is the ordinary state of a recipe nobody has cooked yet, not an
+    // error (`PDR-0004` ships `lazy`). A copy, like every other read here.
+    const stored = this.#plans.get(planKey(recipeId, version))
+    return stored === undefined ? undefined : structuredClone(stored)
+  }
 }
+
+/**
+ * One key per (recipe, version). `\u0000` cannot occur in either part of a key
+ * this store is given — a recipe id comes from the contract's `z.string().min(1)`
+ * over normalized text and a version is a number — so no two distinct pairs can
+ * collide into one key by concatenation.
+ */
+const planKey = (recipeId: string, version: number): string => `${recipeId}\u0000${version}`
 
 /** Construct a fresh provisional (in-memory, append-only) repository. */
 export function createProvisionalStore(): RecipeRepository {
