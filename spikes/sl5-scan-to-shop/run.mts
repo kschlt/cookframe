@@ -48,6 +48,9 @@ import {
 import { createOpenAITransport } from "../../src/pipeline/openai-transport.js"
 import type { CaptureProvider, NormalizationProvider } from "../../src/pipeline/providers.js"
 import { createInMemoryCapabilityStore } from "../../src/shopping/capability-token.js"
+// The statistic lives beside this file rather than inside it, so the proof can
+// call the very function that produced the numbers it is checking.
+import { distribution } from "./distribution.mjs"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
@@ -138,27 +141,6 @@ interface Run {
   readonly submitMs: number
   readonly handoffMs: number
   readonly detail?: string
-}
-
-/**
- * The distribution. A single figure is the thing this is here not to report.
- *
- * Nearest-rank, clamped to the last element — defined in `METHOD.md`, which was
- * committed before any figure existed. With n around ten, `p90` is the
- * second-slowest run and is reported as a rank, not as an estimate of a
- * population quantile. Change this and you change what `METHOD.md` promised.
- */
-function distribution(values: readonly number[]): Record<string, number> {
-  const sorted = [...values].sort((a, b) => a - b)
-  const at = (q: number): number =>
-    sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? Number.NaN
-  return {
-    n: sorted.length,
-    minMs: sorted[0] ?? Number.NaN,
-    p50Ms: at(0.5),
-    p90Ms: at(0.9),
-    maxMs: sorted[sorted.length - 1] ?? Number.NaN,
-  }
 }
 
 async function main(): Promise<void> {
