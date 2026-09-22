@@ -12,6 +12,9 @@
  * still admits free text, the source wording is preserved verbatim. A missing
  * author is an explicit compatibility STATE, never a value: no placeholder, no
  * empty string, no fabricated name (S3 Q1 — Bring itself never fabricates one).
+ * A source that never named the recipe is the same shape one field over: since
+ * PDR-0005 `name` is omitted with the omission recorded, rather than carrying a
+ * title the source did not write.
  *
  * The mapping is **versioned** ({@link SCHEMA_ORG_MAPPING_VERSION}) because its
  * output is consumed by a third party whose behaviour is observed, not
@@ -34,8 +37,17 @@ import type {
   ValueExpressionKind,
 } from "../../schema/index.js"
 
-/** The mapping's own version, independent of the contract's `SCHEMA_VERSION`. */
-export const SCHEMA_ORG_MAPPING_VERSION = "1.0.0" as const
+/**
+ * The mapping's own version, independent of the contract's `SCHEMA_VERSION`.
+ *
+ * **2.0.0 since PDR-0005.** `name` went from always present to sometimes
+ * absent, which a consumer expecting a named Recipe can see, so it is a break
+ * and not an addition. The whole reason this constant exists is that the
+ * consumer's behaviour is observed rather than guaranteed and a later change
+ * must be attributable; a minor bump here would have been the change going
+ * unattributed.
+ */
+export const SCHEMA_ORG_MAPPING_VERSION = "2.0.0" as const
 
 // --- The Schema.org/Recipe shape this mapping emits (a plain JSON-LD object) ---
 // These are output DTOs, not the Cookframe contract, so they are plain TS
