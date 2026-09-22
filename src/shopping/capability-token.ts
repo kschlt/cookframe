@@ -145,3 +145,26 @@ export function capabilityPath(token: string): string {
   }
   return `/r/${token}`
 }
+
+/**
+ * The absolute capability URL for a token — the one address ADR-0017 hands to
+ * Bring, which fetches it server-side from its own infrastructure.
+ *
+ * It takes the base URL rather than deriving one, and that is the whole reason
+ * this function exists beside {@link capabilityPath}. The serving route is
+ * origin-agnostic on purpose (`src/http/capability-app.ts`), so nothing on the
+ * serving side knows what a caller would have to type to reach it; the one place
+ * that knows is the operator's configuration, `PUBLIC_BASE_URL`. Deriving it
+ * from the request's `Host` header instead would have been one line shorter and
+ * would put a value a caller controls into a URL this instance hands to a third
+ * party.
+ *
+ * The base's own path is KEPT: an instance behind a reverse proxy at
+ * `https://example.test/cookframe` serves its recipes under that prefix, and
+ * `new URL("/r/…", base)` would have silently dropped it. Trailing slashes on
+ * the base are collapsed so `https://example.test/` and `https://example.test`
+ * produce the same URL rather than one with `//r/` in it.
+ */
+export function capabilityUrl(publicBaseUrl: string, token: string): string {
+  return `${publicBaseUrl.replace(/\/+$/, "")}${capabilityPath(token)}`
+}

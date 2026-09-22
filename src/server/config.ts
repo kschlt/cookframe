@@ -36,6 +36,18 @@ export interface InstanceConfiguration {
    * See `src/http/pages-app.ts` for the rule they enforce.
    */
   readonly libraryCredential: string
+  /**
+   * The public address this instance is reachable at, with no trailing slash
+   * required — what a capability URL is built on (ADR-0016, ADR-0017).
+   *
+   * It is configuration rather than something the process can work out. Bring
+   * fetches a recipe **server-side from its own infrastructure**, so the address
+   * has to be the one that works from outside; the serving route is
+   * origin-agnostic on purpose and the only other source would be the request's
+   * own `Host` header, which a caller writes. An instance behind a reverse proxy
+   * cannot see its public name at all.
+   */
+  readonly publicBaseUrl: string
 }
 
 /** One variable that is missing or unusable, and why. */
@@ -71,6 +83,7 @@ export const REQUIRED_CONFIGURATION: readonly string[] = [
   "OPENAI_MODEL",
   "COOKFRAME_INGEST_CREDENTIAL",
   "COOKFRAME_LIBRARY_CREDENTIAL",
+  "PUBLIC_BASE_URL",
 ]
 
 /** An environment as this module reads it: names to values, nothing more. */
@@ -102,6 +115,7 @@ export function readConfiguration(env: Environment): InstanceConfiguration {
   const model = required("OPENAI_MODEL")
   const ingestCredential = required("COOKFRAME_INGEST_CREDENTIAL")
   const libraryCredential = required("COOKFRAME_LIBRARY_CREDENTIAL")
+  const rawPublicBaseUrl = required("PUBLIC_BASE_URL")
 
   // A port that is not a port is a fault of the same kind as an absent one: the
   // process would otherwise bind something nobody asked for, or fail with a
@@ -137,7 +151,62 @@ export function readConfiguration(env: Environment): InstanceConfiguration {
     })
   }
 
+  // A base URL that is not usable as one is a fault of the same kind as an absent
+  // one: the instance would start, mint capability URLs nobody can fetch, and the
+  // operator would find out from Bring failing to import rather than from here.
+  //
+  // Four refusals, each with a reason of its own rather than one "looks wrong":
+  //
+  //  - **not a URL at all** (`example.test`, `/cookframe`) — a relative value is
+  //    the mistake a reader of `.env.example` makes, and it produces a link that
+  //    is only correct when read on the instance itself.
+  //  - **a scheme Bring cannot fetch.** `http` and `https` are both accepted, and
+  //    that is deliberate rather than an oversight: a proxy that terminates TLS is
+  //    the ordinary deployment, and the proofs here serve a real instance over
+  //    `http://127.0.0.1`. The cost is stated where it falls — an `http` public
+  //    base carries the capability token, which lives in the PATH (ADR-0016), in
+  //    clear over the wire. Nothing refuses it and nothing guards it.
+  //  - **a credential in the URL** (`https://user:pw@host`). This value is handed
+  //    out: it goes into every capability URL, and a capability URL is designed to
+  //    leave the device (ADR-0016). A password in it leaves with it.
+  //  - **a query or a fragment.** The token is appended as a path, so
+  //    `https://host/?a=b` would mint `https://host/?a=b/r/<token>` — an address
+  //    that is not the recipe's, silently.
+  const publicBaseUrl = rawPublicBaseUrl.trim()
+  if (publicBaseUrl !== "") {
+    const fault = publicBaseUrlFault(publicBaseUrl)
+    if (fault !== undefined) problems.push({ name: "PUBLIC_BASE_URL", problem: fault })
+  }
+
   if (problems.length > 0) throw new ConfigurationError(problems)
 
-  return { port, modelProvider, modelApiKey, model, ingestCredential, libraryCredential }
+  return {
+    port,
+    modelProvider,
+    modelApiKey,
+    model,
+    ingestCredential,
+    libraryCredential,
+    publicBaseUrl,
+  }
+}
+
+/** Why this value cannot be a public base URL, or `undefined` when it can. */
+function publicBaseUrlFault(value: string): string | undefined {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return `is not an absolute URL (got ${JSON.stringify(value)})`
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return `is not an http or https URL (got ${JSON.stringify(value)})`
+  }
+  if (url.username !== "" || url.password !== "") {
+    return "carries a credential, which every capability URL built on it would carry off-device"
+  }
+  if (url.search !== "" || url.hash !== "") {
+    return "carries a query or fragment, which a capability path appended to it would follow"
+  }
+  return undefined
 }

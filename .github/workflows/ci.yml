@@ -482,6 +482,10 @@ jobs:
           # has its own. `host.docker.internal` is how it reaches the host, and
           # the published port stays `-p` rather than `--network host` so this
           # step still proves the image serves on a port it publishes.
+          #
+          # PUBLIC_BASE_URL is required since CFV1-SHOP: capability URLs are
+          # built on it, and an instance without one refuses to start by name.
+          # It is the address this step reaches the container at.
           docker run -d --name cookframe-runtime -p 8080:8080 \
             --add-host=host.docker.internal:host-gateway \
             -e PORT=8080 \
@@ -490,6 +494,7 @@ jobs:
             -e OPENAI_MODEL=not-a-real-model \
             -e COOKFRAME_INGEST_CREDENTIAL="$ingest" \
             -e COOKFRAME_LIBRARY_CREDENTIAL="$library" \
+            -e PUBLIC_BASE_URL=http://127.0.0.1:8080 \
             -e DATABASE_URL="postgres://postgres:postgres@host.docker.internal:5432/postgres" \
             cookframe:runtime
           for _ in $(seq 1 60); do
