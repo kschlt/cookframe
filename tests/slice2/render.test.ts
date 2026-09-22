@@ -26,6 +26,7 @@ import {
   toLibraryCardView,
   toRecipeView,
 } from "../../src/render/index.js"
+import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const srcDir = join(repoRoot, "src")
@@ -41,12 +42,8 @@ const gratin = loadFixture("two-yields-nutrition.json")
 /** Exercises a range, a qualitative quantity, an open-ended rest and no author. */
 const onions = loadFixture("ranges-and-qualitative.json")
 
-const tsFilesUnder = (dir: string): string[] =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) return tsFilesUnder(full)
-    return entry.isFile() && entry.name.endsWith(".ts") ? [full] : []
-  })
+/** Every source file under a directory — the shared walk (ADR-0029). */
+const tsFilesUnder = (dir: string): string[] => filesUnder(dir, { match: SOURCE_EXTENSIONS })
 
 /**
  * Every module specifier a file imports from.

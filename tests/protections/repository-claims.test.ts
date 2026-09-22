@@ -32,11 +32,12 @@
  *
  * The rule itself is in `./claims.ts`; this file is only its proof.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { parse as parseYaml } from "yaml"
+import { filesUnder } from "../support/tree.js"
 import {
   BEFORE_ROUND_FOUR,
   findClaims,
@@ -53,18 +54,10 @@ const DEPENDABOT_PATH = ".github/dependabot.yml"
 
 /** Every markdown document in the repository, except the record and the archive. */
 function documents(): string[] {
-  const found: string[] = []
   const skip = new Set(["node_modules", ".git", ".aos", "archive", "dist", "coverage"])
-  const walk = (dir: string): void => {
-    for (const name of readdirSync(dir)) {
-      if (skip.has(name)) continue
-      const full = join(dir, name)
-      if (statSync(full).isDirectory()) walk(full)
-      else if (name.endsWith(".md")) found.push(relative(repoRoot, full))
-    }
-  }
-  walk(repoRoot)
-  return found.filter((p) => p !== RECORD_PATH).sort()
+  return filesUnder(repoRoot, { match: /\.md$/, skip })
+    .map((f) => relative(repoRoot, f))
+    .filter((p) => p !== RECORD_PATH)
 }
 
 const read = (rel: string): string => readFileSync(join(repoRoot, rel), "utf8")
