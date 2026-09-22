@@ -12,6 +12,19 @@
  * deterministic fake that ignores the field: a seam fake that ignores a field
  * cannot catch a caller that omits it.
  *
+ * **Beside ADR-0033, not instead of it.** That record answers the same incident
+ * per FIELD: `protections/a-fake-cannot-hide-a-missing-field` names every
+ * optional seam input a shipped implementation reads and a fake ignores, and
+ * holds each to a proof over the shipped implementation. For `sourceProvenance`
+ * that proof drives the photo route, and only the photo route. This file answers
+ * it per CONSTRUCTION: every caller that builds a context states the field. The
+ * record rejects "grep for callers that build a `CaptureContext` without the
+ * field" as a replacement for its guard, and rightly, since it covers one field
+ * of one seam; here it is the other half. Measured with both merged: a new
+ * context built from a spread alone stays green at that guard and at the photo
+ * proof, and is red only here. A new optional field a fake ignores is red there
+ * and invisible here.
+ *
  * **The rule.** Every capture context built in `src/` states `sourceProvenance`
  * as its own property. "Built" is a place where an object literal becomes a
  * `CaptureContext`: an argument, an annotated `const`, a `return`, a
