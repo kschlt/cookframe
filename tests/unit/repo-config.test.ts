@@ -1058,13 +1058,25 @@ describe("slice0/container-builds-and-runs", () => {
     // any version rather than at 22, so it does not have to be edited to stay
     // true, only to stay honest about where a pin lives.
     //
-    // WHAT THIS DOES NOT SEE. `@types/node` names a major too, and it is not in
-    // the map: it is a caret range in devDependencies, so putting it here would
-    // turn this guard red for a bump that belongs to the dependency-update
-    // group rather than to the runtime. The damage a mismatch there does is
-    // loud — a Node API the older typings lack is a `tsc` error, not a silent
-    // divergence — which is why it is named here rather than guarded. When it
-    // reaches the same major as the pins, it belongs in this map.
+    // `@types/node` names a major too, and now that it has reached the same
+    // major as the pins it is guarded here — the condition the earlier version
+    // of this comment held open. It was left out of the map while it lagged the
+    // runtime, on the theory that a mismatch would surface loudly as a `tsc`
+    // error rather than diverge in silence, so it could be named here rather
+    // than guarded. That theory was measured to be false: with the typings four
+    // majors behind the runtime, `tsc --noEmit` was clean — zero diagnostics —
+    // so the divergence is exactly the silent kind, which is the kind that needs
+    // a guard rather than a comment. Its major is read off the caret range in
+    // devDependencies below and fails closed if the declaration is gone.
+    //
+    // WHAT THIS STILL DOES NOT SEE. `^26.6.2` is a caret range, and this guard
+    // reads the DECLARATION, not the installation: `node_modules` may resolve
+    // `@types/node` to any 26.x, and were a lockfile or an install to carry it
+    // past 26 while the range still read `^26`, the declared major would agree
+    // with the pins and this would stay green. Guarding the installed major
+    // would mean reading a resolved tree the repository does not commit, so the
+    // honest scope here is the declared major — the number a reviewer sees in
+    // the diff — and the drift above the caret is named rather than caught.
     const majors = new Map<string, string>()
 
     const fromImage = (file: string): string => {
@@ -1102,6 +1114,20 @@ describe("slice0/container-builds-and-runs", () => {
     const floor = /^>=\s*(\d+)/.exec(declared?.node ?? "")?.[1]
     expect(floor, "package.json declares no engines.node floor of the form >=N").toBeDefined()
     majors.set("package.json engines.node", floor ?? "")
+
+    // `@types/node`'s typings track the Node runtime, so once its major reaches
+    // the pins a mismatch is the silent divergence the note above measured. Read
+    // the major off the caret range in devDependencies and FAIL CLOSED if the
+    // declaration is missing — an absent range must not vanish the comparison.
+    const typesNodeRange = (
+      JSON.parse(read("package.json")) as { devDependencies?: Record<string, string> }
+    ).devDependencies?.["@types/node"]
+    const typesNodeMajor = /^\^?(\d+)/.exec(typesNodeRange ?? "")?.[1]
+    expect(
+      typesNodeMajor,
+      "package.json declares no @types/node caret range of the form ^N",
+    ).toBeDefined()
+    majors.set("package.json @types/node", typesNodeMajor ?? "")
 
     expect(
       new Set(majors.values()).size,
