@@ -92,7 +92,10 @@ describe("protections/every-proof-can-be-named", () => {
     // moved it to 35. #97 added a loop in `process.test.ts` whose test names
     // are templates over its table, and moved it to 36. #98 added an `it.each`
     // in `fly-configuration.test.ts` and one in `scan-retention-wiring.test.ts`,
-    // both named `$name` from their rows, and moved it to 38. Every new site was
+    // both named `$name` from their rows, and moved it to 38. #101 added seven
+    // `it.each` in `readme.test.ts` — five reading tables named `%s` from their
+    // rows, the list census named `$lead`, the placement proof named `$id` —
+    // and moved it to 45. Every new site was
     // looked at before the number moved: the names come from a table or a
     // substitution, and no static reader can give them.
     //
@@ -112,7 +115,7 @@ describe("protections/every-proof-can-be-named", () => {
     // reddens a fixture or a named proof above. So the number is not what holds
     // the reader. It is what makes a proof this guard cannot see arrive as a
     // visible decision instead of silently.
-    expect(byFile.flatMap((f) => f.composed).length).toBe(38)
+    expect(byFile.flatMap((f) => f.composed).length).toBe(45)
   })
 })
 
