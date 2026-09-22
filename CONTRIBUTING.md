@@ -5,7 +5,8 @@ few rules that keep the project coherent.
 
 ## Setup
 
-Requires Node 22 or newer.
+Requires Node 26 — the version `package.json` declares and the one CI and both
+containers run.
 
 ```bash
 npm ci
@@ -51,9 +52,18 @@ You do not apply the migration yourself for the tests — they apply
 `migrations/0001-the-recipe-store.sql` into each throwaway schema, which is also how that file
 stays the only declaration of the store's shape.
 
-CI runs six check jobs (typecheck, lint, unit, schema-contract, normalization-invariant,
-url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for the store proofs
-(`persistence`) and the DBQ spike (`dbq`). A failure in any one fails the build.
+In CI these are split differently, so do not read the table above as a list of jobs. Most test
+directories have a job of their own, a few have none and run only inside the whole-suite
+`npm run quality` that `container` and `merge-gate` each execute, and the job list in
+`.github/workflows/ci.yml` is the only current answer. A failure in any one fails the build.
+
+Do not keep a second copy of that list here. This paragraph has already been wrong twice in one
+day — once by going stale, once by generalizing without counting — and both times a contributor
+would have believed it.
+
+One job is not like the others: `merge-gate` runs the full gate against the *result* of merging
+your branch into `main`, not against your branch (`ADR-0022`). Two pull requests that are each
+green can still break `main` together, and that job is what catches it.
 
 ## Rules that are easy to miss
 
@@ -67,7 +77,7 @@ url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for t
   Copy `.env.example` to `.env` and fill it locally.
 - **Private eval fixtures stay private.** Real photos and personal recipes live under
   `evals/fixtures/private/`, which is git-ignored. Commit only `evals/fixtures/public/`.
-- **Architecture and product decisions are records.** See `docs/adr/` and `docs/pdr/`. An
+- **Architecture and product decisions are records.** See `docs/adr/` and `docs/product-decisions/`. An
   accepted record is never rewritten; it is superseded by a new one.
 
 ## License and contributions
