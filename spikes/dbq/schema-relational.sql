@@ -26,7 +26,15 @@ create table recipe_version (
   recipe_id                  text not null,
   version                    int  not null check (version >= 1),
   schema_version             text not null,
-  title                      text not null,
+  -- The title is decomposed like every other source-grounded value in this
+  -- shape, rather than stored whole: `title_state` says which of the two
+  -- states it is, `title_source_text` carries the wording when there is one,
+  -- and its `sourceRefs` live in `source_ref` under owner_path '/title'.
+  -- Holding the union as one text column would have written JSON into a text
+  -- field and read it back as a string, which is what a shape comparison
+  -- exists to catch (PDR-0005).
+  title_state                text not null,
+  title_source_text          text,
   description                text,
   source_publisher           text,
   source_name                text,
@@ -366,4 +374,4 @@ create table snapshot (
 );
 
 create index ingredient_name_idx on ingredient (name);
-create index recipe_version_title_idx on recipe_version (title);
+create index recipe_version_title_idx on recipe_version (title_source_text);

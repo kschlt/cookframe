@@ -159,7 +159,7 @@ export const LIBRARY_SQL: Record<string, string> = {
     select
       l.recipe_id       as "recipeId",
       l.version         as "latestVersion",
-      v.doc ->> 'title' as title
+      v.doc -> 'title' ->> 'sourceText' as title
     from latest l
     join recipe_version v on v.recipe_id = l.recipe_id and v.version = l.version
     order by l.recipe_id`,
@@ -167,7 +167,7 @@ export const LIBRARY_SQL: Record<string, string> = {
     select distinct on (recipe_id)
       recipe_id as "recipeId",
       version   as "latestVersion",
-      title     as title
+      title_source_text as title
     from recipe_version
     order by recipe_id, version desc`,
   // The hybrid extracts ingredients and nothing else, so the library list is
@@ -181,7 +181,7 @@ export const LIBRARY_SQL: Record<string, string> = {
     select
       l.recipe_id       as "recipeId",
       l.version         as "latestVersion",
-      v.doc ->> 'title' as title
+      v.doc -> 'title' ->> 'sourceText' as title
     from latest l
     join recipe_version v on v.recipe_id = l.recipe_id and v.version = l.version
     order by l.recipe_id`,
@@ -198,6 +198,10 @@ export async function listLibrary(client: Client, schema: string): Promise<reado
   // name would have got another shape's rows. `shoppingRequirements` already
   // did this; the two now behave the same way.
   await client.query(`set search_path to ${known}`)
-  const r = await client.query<LibraryEntry>(sql)
-  return r.rows
+  const r = await client.query<LibraryEntry & { title: string | null }>(sql)
+  // A recipe whose source had no title has no title, and `LibraryEntry` says
+  // so by leaving the key out — the in-memory store already does. SQL can only
+  // hand back a null, so the key is dropped here rather than letting one
+  // implementation of the interface return `{ title: null }` and another `{}`.
+  return r.rows.map(({ title, ...rest }) => (title === null ? rest : { ...rest, title }))
 }
