@@ -283,50 +283,96 @@ describe("CI workflow (ci.yml)", () => {
     },
   )
 
-  it("ci/scorer-rules-unchanged — the scorer's pre-registered bars are byte-identical to THRESHOLD.md's", () => {
-    // CFV1-CIPY makes the scorer RUN; it must not change what the scorer
-    // MEASURES. The bars are pre-registered, so a silent edit to one is the same
-    // failure shape as relaxing a threshold after seeing a score. Pinning the
-    // exact numbers here makes any such edit a red test with a diff, rather than
-    // a number that drifts unnoticed.
-    const source = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "score.py"), "utf8")
-    const barsOf = (name: string): Record<string, number> => {
-      const body = source.match(new RegExp(`${name} = \\{([^}]*)\\}`, "s"))?.[1]
-      expect(body, `${name} not found in the scorer`).toBeTruthy()
-      const bars: Record<string, number> = {}
-      for (const [, key, value] of (body as string).matchAll(/"([^"]+)":\s*([0-9.]+)/g)) {
-        if (key !== undefined) bars[key] = Number(value)
-      }
-      return bars
+  it("ci/scorer-rules-unchanged — the scorer and THRESHOLD.md both derive from the one bars declaration (CFV1-THR)", () => {
+    // CFV1-CIPY made the scorer RUN and pinned that it must not change what the
+    // scorer MEASURES; it did that by proving score.py's FIELD_BARS/EDGE_BARS
+    // were byte-identical to THRESHOLD.md's tables. CFV1-THR consolidated those
+    // two copies into ONE declaration (bars.json) that the scorer reads and the
+    // document is generated from. The pin MOVES here rather than being bypassed:
+    // it now proves both consumers agree with the declaration and neither keeps
+    // an independent copy — so a bar cannot drift between them, which is exactly
+    // what THR exists to make impossible. (That no bar VALUE moved, and that the
+    // declaration cannot be edited in place, are the scorer-side unit's Python
+    // proofs `thresholds/no-bar-value-changed` and `thresholds/in-place-edit-refused`.)
+    const spike = join(repoRoot, "spikes", "s1-capture-quality")
+
+    // The single source: bars.json's ACTIVE entries (those no later entry supersedes).
+    const bars = JSON.parse(readFileSync(join(spike, "bars.json"), "utf8")) as {
+      registrations: {
+        seq: number
+        bar: string
+        kind: string
+        value: number
+        supersedes: number | null
+      }[]
     }
-    // Read the pre-registration itself, rather than a copy of its numbers kept
-    // here. The criterion says "byte-identical to THRESHOLD.md's", and a test
-    // that never opens THRESHOLD.md cannot say that: editing a bar in BOTH
-    // places would have stayed green.
-    const md = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "THRESHOLD.md"), "utf8")
-    const registered = (): { field: Record<string, number>; edge: Record<string, number> } => {
-      const field: Record<string, number> = {}
-      const edge: Record<string, number> = {}
-      for (const line of md.split("\n")) {
-        const f = line.match(
-          /^\|\s*\d+\s*\|\s*`([^`]+)`[^|]*\|[^|]*\|\s*\**\s*≥\s*(\d+)%\s*\**\s*\|$/,
-        )
-        if (f?.[1] !== undefined && f[2] !== undefined) {
-          field[f[1]] = Number(f[2]) / 100
-          continue
-        }
-        const e = line.match(/^\|\s*`([^`]+)`[^|]*\|\s*\**\s*≥\s*(\d+)%\s*\**\s*\|$/)
-        if (e?.[1] !== undefined && e[2] !== undefined) edge[e[1]] = Number(e[2]) / 100
-      }
-      return { field, edge }
-    }
-    const reg = registered()
-    expect(Object.keys(reg.field).length, "parsed no field bars from THRESHOLD.md").toBe(14)
-    expect(Object.keys(reg.edge).length, "parsed no edge bars from THRESHOLD.md").toBe(4)
-    expect(barsOf("FIELD_BARS"), "the scorer's field bars differ from THRESHOLD.md").toEqual(
-      reg.field,
+    const superseded = new Set(
+      bars.registrations.filter((r) => r.supersedes !== null).map((r) => r.supersedes),
     )
-    expect(barsOf("EDGE_BARS"), "the scorer's edge bars differ from THRESHOLD.md").toEqual(reg.edge)
+    const declField: Record<string, number> = {}
+    const declEdge: Record<string, number> = {}
+    for (const r of bars.registrations) {
+      if (superseded.has(r.seq)) continue
+      ;(r.kind === "field" ? declField : declEdge)[r.bar] = r.value
+    }
+    expect(Object.keys(declField).length, "no active field bars in bars.json").toBe(14)
+    expect(Object.keys(declEdge).length, "no active edge bars in bars.json").toBe(4)
+
+    // THRESHOLD.md's two generated tables must equal the declaration. Parse each
+    // marked section on its own so a field and an edge bar of the same name
+    // (`multiple_yields`) are never conflated.
+    const md = readFileSync(join(spike, "THRESHOLD.md"), "utf8")
+    const between = (a: string, b: string): string => {
+      const i = md.indexOf(a)
+      const j = md.indexOf(b)
+      expect(i, `THRESHOLD.md missing ${a}`).toBeGreaterThanOrEqual(0)
+      expect(j, `THRESHOLD.md missing ${b}`).toBeGreaterThan(i)
+      return md.slice(i, j)
+    }
+    const tableBars = (section: string): Record<string, number> => {
+      const out: Record<string, number> = {}
+      for (const line of section.split("\n")) {
+        const m = line.match(/^\|\s*`([^`]+)`\s*\|[^|]*\|[^|]*\|\s*\**\s*≥\s*(\d+)%\s*\**\s*\|$/)
+        if (m?.[1] !== undefined && m[2] !== undefined) out[m[1]] = Number(m[2]) / 100
+      }
+      return out
+    }
+    const docField = tableBars(between("BEGIN GENERATED FIELD BARS", "END GENERATED FIELD BARS"))
+    const docEdge = tableBars(between("BEGIN GENERATED EDGE BARS", "END GENERATED EDGE BARS"))
+    expect(docField, "THRESHOLD.md field table differs from bars.json").toEqual(declField)
+    expect(docEdge, "THRESHOLD.md edge table differs from bars.json").toEqual(declEdge)
+
+    // The scorer reads its bars from the declaration and keeps no independent
+    // copy: no hard-coded numeric FIELD_BARS/EDGE_BARS literal, and it loads them
+    // through thresholds. A re-introduced literal would be a second source.
+    const source = readFileSync(join(spike, "score.py"), "utf8")
+    expect(source, "score.py still hard-codes a FIELD_BARS dict").not.toMatch(
+      /FIELD_BARS\s*=\s*\{[^}]*[0-9]/s,
+    )
+    expect(source, "score.py still hard-codes an EDGE_BARS dict").not.toMatch(
+      /EDGE_BARS\s*=\s*\{[^}]*[0-9]/s,
+    )
+    expect(source, "score.py does not read the bars from the declaration").toMatch(
+      /thresholds\.field_bars/,
+    )
+    expect(source).toMatch(/thresholds\.edge_bars/)
+  })
+
+  it("thresholds/proofs-run-in-ci — the declare-once/freeze proofs and registry checks actually run", () => {
+    // The THR proofs and the registry integrity + doc-generation checks are
+    // Python under `spikes/`, like the scorer self-test, so only a CI step
+    // reaches them. A proof the gate never runs is a proof nobody is checking
+    // (CFV1-THR; same reasoning as capture-quality/selftest-runs-in-ci).
+    const runs = Object.values(workflow.jobs)
+      .flatMap((j) => j.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    expect(runs, "CI does not run the THR threshold proofs").toMatch(/test_thresholds\.py/)
+    expect(runs, "CI does not check THRESHOLD.md is generated from bars.json").toMatch(
+      /thresholds\.py gen-doc --check/,
+    )
+    expect(runs, "CI does not verify the bars registry integrity").toMatch(/thresholds\.py verify/)
   })
 
   it("dbq/ci-provides-the-database — the dbq job runs against a real PostgreSQL service", () => {

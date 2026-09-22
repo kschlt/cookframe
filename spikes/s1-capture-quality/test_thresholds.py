@@ -9,22 +9,25 @@ Node container image. Every check plants the violation it guards against and
 requires it caught, so a green run means the discipline holds, not that the test
 waves everything through.
 
-Covered here (declaration + tooling, independent of the scorer):
-  thresholds/single-declaration                     (document ↔ declaration half)
+Covered here (all six CFV1-THR acceptance criteria):
+  thresholds/single-declaration                     (scorer AND document ↔ one declaration)
   thresholds/every-bar-is-dated-and-reasoned
   thresholds/in-place-edit-refused
   thresholds/revision-supersedes-rather-than-overwrites
   thresholds/no-bar-value-changed
-
-The scorer-side half of `thresholds/single-declaration` (the scorer reads its
-bars from the declaration) and `thresholds/verdict-names-its-registration` are
-proven where the scorer is wired to the declaration; see score.py's tests.
+  thresholds/verdict-names-its-registration
 """
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
+import json
 import re
+import shutil
 import sys
+import tempfile
+from pathlib import Path
 
 import thresholds as T
 
@@ -84,6 +87,18 @@ def single_declaration() -> bool:
     # declaration, so a hand-edit is caught rather than accepted.
     tampered = current.replace("**≥ 98%**", "**≥ 50%**", 1)
     if tampered != current and T.render_doc(doc, tampered) == tampered:
+        return False
+    # Scorer half: the scorer reads its bars from the SAME declaration and keeps
+    # no independent copy. score._load_bars() returns exactly the declaration's
+    # active bars and registration, and score.py carries no hard-coded bar dict.
+    import score
+    fb, eb, reg = score._load_bars()
+    if fb != T.field_bars(doc) or eb != T.edge_bars(doc) or reg != T.registration_id(doc):
+        return False
+    src = (T.HERE / "score.py").read_text()
+    # Plant: a re-introduced hard-coded bar dict (a numeric FIELD_BARS/EDGE_BARS
+    # literal) would be a second source of truth — this catches it.
+    if re.search(r"FIELD_BARS\s*=\s*\{[^}]*[0-9]", src) or re.search(r"EDGE_BARS\s*=\s*\{[^}]*[0-9]", src):
         return False
     return True
 
@@ -176,12 +191,37 @@ def no_bar_value_changed() -> bool:
     return T.field_bars(doc) == EXPECTED_FIELD_BARS and T.edge_bars(doc) == EXPECTED_EDGE_BARS
 
 
+# --- thresholds/verdict-names-its-registration ------------------------------
+
+def verdict_names_its_registration() -> bool:
+    import score
+    doc = T.load()
+    want = T.registration_id(doc)
+    # The registration is sensitive to the bars: a moved bar changes it, so it is
+    # not a constant string pasted into every verdict.
+    mutated = copy.deepcopy(doc)
+    mutated["registrations"][0]["value"] = 0.5
+    if T.registration_id(mutated) == want:
+        return False
+    # A produced verdict names the current registration. Scored in a temp copy so
+    # no recorded verdict in the tree is revised (CFV1-THR "What NOT").
+    with tempfile.TemporaryDirectory() as d:
+        fix, runs = Path(d) / "fixtures", Path(d) / "runs"
+        shutil.copytree(T.HERE / "fixtures", fix)
+        shutil.copytree(T.HERE / "runs", runs)
+        with contextlib.redirect_stdout(io.StringIO()):
+            score.score("sonnet", fix, runs)
+        written = json.loads((runs / "scores-sonnet.json").read_text())
+    return written.get("registration") == want
+
+
 CHECKS = [
     ("thresholds/single-declaration", single_declaration),
     ("thresholds/every-bar-is-dated-and-reasoned", every_bar_is_dated_and_reasoned),
     ("thresholds/in-place-edit-refused", in_place_edit_refused),
     ("thresholds/revision-supersedes-rather-than-overwrites", revision_supersedes_rather_than_overwrites),
     ("thresholds/no-bar-value-changed", no_bar_value_changed),
+    ("thresholds/verdict-names-its-registration", verdict_names_its_registration),
 ]
 
 

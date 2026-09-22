@@ -71,6 +71,14 @@ jobs:
       # job (no continue-on-error), so a scorer whose self-test stops
       # discriminating breaks the build here.
       - run: python3 spikes/s1-capture-quality/score.py --selftest
+      # CFV1-THR: the capture-quality bars are declared once in bars.json. Verify
+      # the registry's integrity (no in-place edit), that THRESHOLD.md's tables
+      # are still generated from it (a hand-edit fails here), and the six
+      # declare-once/freeze proofs. Python under the same pinned interpreter; a
+      # non-zero exit fails the build, so a bar edited to fit a result is caught.
+      - run: python3 spikes/s1-capture-quality/thresholds.py verify
+      - run: python3 spikes/s1-capture-quality/thresholds.py gen-doc --check
+      - run: python3 spikes/s1-capture-quality/test_thresholds.py
 
   schema-contract:
     runs-on: ubuntu-latest

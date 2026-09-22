@@ -3,9 +3,12 @@
 
 Reads the synthetic fixtures (ground truth) and the capture runs, and scores
 capture accuracy PER CRITICAL FIELD and PER FIXTURE CLASS, against the bars
-pre-registered in THRESHOLD.md. It never uses a text-similarity or whole-document
+declared once in bars.json (CFV1-THR) — the single source THRESHOLD.md's tables
+are also generated from. It never uses a text-similarity or whole-document
 measure — every figure is an exact per-field match under the normalization rules
-the threshold names (proof: capture-quality/per-field-scoring).
+the threshold names (proof: capture-quality/per-field-scoring). The verdict names
+the registration (a content hash over the active bars) it was scored against, so
+a result and the exact bars that judged it stay linked.
 
 Output: scores.json (machine-readable, per field + per class + edge classes +
 verdict) and a printed report. The verdict is PASS only if every field bar and
@@ -33,25 +36,18 @@ HERE = Path(__file__).parent
 FIX = HERE / "fixtures"
 RUNS = HERE / "runs"
 
-# Pre-registered per-field pass bars (THRESHOLD.md). Kept here so the scorer's
-# verdict is computed against the recorded values, not re-decided.
-FIELD_BARS = {
-    "ingredient.quantity": 0.98,
-    "ingredient.unit": 0.98,
-    "split_reserved": 0.98,
-    "temperature": 0.98,
-    "multiple_yields": 0.98,
-    "ingredient.name": 0.95,
-    "instruction.text": 0.95,
-    "instruction.order": 0.95,
-    "title": 0.95,
-    "yield": 0.95,
-    "time": 0.95,
-    "ingredient_group": 0.90,
-    "nutrition": 0.90,
-    "classification": 0.90,
-}
-EDGE_BARS = {"fractions": 0.98, "ranges": 0.98, "ambiguous_units": 0.95, "multiple_yields": 0.98}
+# The pre-registered per-field and per-edge pass bars are declared once, in
+# bars.json (CFV1-THR), and read from there — never re-decided here. They are
+# loaded lazily inside score(), not at import time, so that --selftest (which
+# copies this file to a temp dir and runs it standalone) needs no sibling module.
+def _load_bars():
+    """The active field bars, edge bars, and the registration id, from the single
+    declaration (bars.json via thresholds.py). Imported lazily so the self-test's
+    copy-and-run never depends on the declaration being alongside the copy."""
+    import thresholds
+
+    doc = thresholds.load()
+    return thresholds.field_bars(doc), thresholds.edge_bars(doc), thresholds.registration_id(doc)
 
 UNIT_SYNONYMS = {
     "tsp": "tsp", "teaspoon": "tsp", "teaspoons": "tsp",
@@ -212,6 +208,10 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     manifest = load_json(FIX / "manifest.json")
     if not manifest:
         sys.exit(f"no manifest.json in {FIX} — run generate.mjs first")
+
+    # Read the bars from the single declaration; `registration` is the handle a
+    # verdict names, so a result and the exact bars that judged it stay linked.
+    FIELD_BARS, EDGE_BARS, registration = _load_bars()
 
     fields = {k: Tally() for k in FIELD_BARS}
     edges = {k: Tally() for k in EDGE_BARS}
@@ -419,6 +419,10 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     result = {
         "model": model,
         "verdict": verdict,
+        # The registration this run was scored against (a content hash over the
+        # active bar set): a result and the bars that judged it stay linked, and a
+        # bar that moved changes this handle (CFV1-THR).
+        "registration": registration,
         "failing_fields": failing,
         "missing_runs": missing_runs,
         "captures_present": captures_present,
@@ -476,6 +480,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     print(f"\nVERDICT (OQ-14): {verdict}")
     if failing:
         print("  failing:", "; ".join(failing))
+    print(f"  scored against registration {registration[:12]}… (bars.json)")
     return 0
 
 
