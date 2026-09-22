@@ -18,14 +18,15 @@
  * the interface, so a caller can name no storage type.
  */
 import { Pool } from "pg"
-import type { CanonicalRecipe, SourceSnapshot } from "../../schema/index.js"
+import type { CanonicalRecipe, CookingPlan, SourceSnapshot } from "../../schema/index.js"
 import {
   type CanonicalVersion,
   type LibraryEntry,
   type RecipeRepository,
   RecipeVersionNotFoundError,
+  UnversionedCookingPlanError,
 } from "./repository.js"
-import { validateCanonical, validateSnapshot } from "./validate.js"
+import { validateCanonical, validateCookingPlan, validateSnapshot } from "./validate.js"
 
 /**
  * The ONE extraction, as one statement derived from the document just written
@@ -79,6 +80,9 @@ export class StoreNotMigratedError extends Error {
 /** Postgres's `undefined_table`. */
 const UNDEFINED_TABLE = "42P01"
 
+/** Postgres's `foreign_key_violation`. */
+const FOREIGN_KEY_VIOLATION = "23503"
+
 /** Turn a missing-relation error into {@link StoreNotMigratedError}; re-throw anything else. */
 function translate(error: unknown): never {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -89,6 +93,25 @@ function translate(error: unknown): never {
     }
   }
   throw error
+}
+
+/**
+ * Turn the Cooking Plan table's foreign-key refusal into the interface's own
+ * error (ADR-0025).
+ *
+ * The check is the foreign key rather than a read before the write: a `select`
+ * first would be a second statement with a gap between the two, and the version
+ * it found could be gone by the time the insert ran. The database refuses it in
+ * the statement that would have written it, and this turns that refusal into
+ * the error the contract names.
+ */
+function translatePlanWrite(error: unknown, recipeId: string, version: number): never {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    if ((error as { code?: unknown }).code === FOREIGN_KEY_VIOLATION) {
+      throw new RecipeVersionNotFoundError(recipeId, version)
+    }
+  }
+  return translate(error)
 }
 
 class PostgresStore implements RecipeRepository {
@@ -187,6 +210,39 @@ class PostgresStore implements RecipeRepository {
     }))
   }
 
+  async storeCookingPlan(plan: CookingPlan): Promise<void> {
+    // Validate before the database is touched, like every other write here.
+    const valid = validateCookingPlan(plan)
+    // The version is read from the plan, never passed beside it (ADR-0025):
+    // two places to state it are two places to disagree.
+    const version = valid.derivation.canonicalVersion
+    if (version === undefined) throw new UnversionedCookingPlanError(valid.recipeId)
+    // Last write per (recipe, version) wins, which is an upsert on the key. The
+    // derivation is deterministic (ADR-0023), so a second write of one version
+    // carries the same document and an append would only accumulate copies.
+    await this.#pool
+      .query(
+        `insert into cooking_plan (recipe_id, version, doc) values ($1, $2, $3)
+         on conflict (recipe_id, version) do update set doc = excluded.doc`,
+        [valid.recipeId, version, JSON.stringify(valid)],
+      )
+      .catch((error) => translatePlanWrite(error, valid.recipeId, version))
+  }
+
+  async loadCookingPlan(recipeId: string, version: number): Promise<CookingPlan | undefined> {
+    const result = await this.#pool
+      .query<{ doc: unknown }>(
+        "select doc from cooking_plan where recipe_id = $1 and version = $2",
+        [recipeId, version],
+      )
+      .catch(translate)
+    const row = result.rows[0]
+    // Absence is a return value and the ordinary state of every recipe nobody
+    // has cooked yet (`PDR-0004` ships `lazy`), so the caller derives rather
+    // than catches. Parsed on the way out, like every other read here.
+    return row === undefined ? undefined : validateCookingPlan(row.doc)
+  }
+
   async readTwoRuns(
     recipeId: string,
     versionA: number,
@@ -221,8 +277,8 @@ class PostgresStore implements RecipeRepository {
  * A constructed store together with the two things a durable store owns that an
  * in-memory one does not.
  *
- * {@link RecipeRepository} stays at the six operations ADR-0003 and ADR-0018
- * fixed: a connection pool's lifetime and a derived table's rebuild are not
+ * {@link RecipeRepository} stays at the eight operations ADR-0003, ADR-0018 and
+ * ADR-0025 fixed: a connection pool's lifetime and a derived table's rebuild are not
  * persistence operations, and putting them on the interface would have made
  * every caller carry them. Neither member names a PostgreSQL type, so the
  * confinement holds.

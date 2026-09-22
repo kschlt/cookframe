@@ -4,9 +4,9 @@
  * Two properties this file exists to hold, both of them things this project has
  * already been burned by:
  *
- * 1. **The tables the proofs run against are built by the migration**, read off
- *    disk, never by DDL written a second time here. `migrations/0001-the-recipe-
- *    store.sql` is the only declaration of the store's shape, so a proof that
+ * 1. **The tables the proofs run against are built by the migrations**, read off
+ *    disk, never by DDL written a second time here. The files in `migrations/`
+ *    are the only declaration of the store's shape, so a proof that
  *    passes against a schema this file invented would be a proof about nothing
  *    an operator will ever apply. {@link applyMigration} is how every schema in
  *    these suites comes into existence, which makes
@@ -28,17 +28,34 @@
  * exactly as an instance constructs it — from a URL and nothing else.
  */
 import { randomBytes } from "node:crypto"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "pg"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
-/** The migration an operator applies — the single declaration of the store's shape. */
-export const MIGRATION_PATH = join(repoRoot, "migrations", "0001-the-recipe-store.sql")
+/**
+ * The migrations an operator applies, in the order they are applied — together
+ * the single declaration of the store's shape.
+ *
+ * Read off disk by listing the directory rather than named one by one here: a
+ * migration added to the tree and forgotten in this list would leave every
+ * proof below running against a schema no operator has, which is precisely the
+ * failure this file exists to prevent.
+ */
+export const MIGRATIONS: readonly { readonly path: string; readonly sql: string }[] = readdirSync(
+  join(repoRoot, "migrations"),
+)
+  .filter((name) => name.endsWith(".sql"))
+  .sort()
+  .map((name) => {
+    const path = join(repoRoot, "migrations", name)
+    return { path, sql: readFileSync(path, "utf8") }
+  })
 
-export const MIGRATION_SQL = readFileSync(MIGRATION_PATH, "utf8")
+/** Every migration's SQL, in order — what an operator's database ends up having run. */
+export const MIGRATION_SQL = MIGRATIONS.map((migration) => migration.sql).join("\n")
 
 /** What the suites should do about the database, and why. */
 export type DatabaseAvailability =
@@ -89,9 +106,9 @@ export async function isReachable(url: string): Promise<boolean> {
   }
 }
 
-/** Apply the migration file — the ONLY way a schema in these suites gets its tables. */
+/** Apply the migration files, in order — the ONLY way a schema in these suites gets its tables. */
 export async function applyMigration(client: Client): Promise<void> {
-  await client.query(MIGRATION_SQL)
+  for (const migration of MIGRATIONS) await client.query(migration.sql)
 }
 
 /** Pin a connection URL to one schema, without touching the store's code. */

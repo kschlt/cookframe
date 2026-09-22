@@ -141,7 +141,7 @@ export function runRepositoryContract(
       // The same property `loadLatestCanonical` is held to. It was unproven for
       // the snapshot read until a mutation sweep removed the copy and nothing
       // went red.
-      const repo = makeStore()
+      const repo = await makeStore()
       await repo.storeSnapshot(snapshot)
       const loaded = await repo.loadSnapshot(snapshot.id)
       if (loaded === undefined) throw new Error("the snapshot that was just stored is not there")
@@ -199,7 +199,7 @@ export function runRepositoryContract(
 
   describe(`repo-plan/stored-plan-belongs-to-one-version (${label})`, () => {
     it("stores a plan under the version it names, and loads it back", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const appended = await repo.appendCanonicalVersion(
         await provider.normalize(snapshot, ctx("run-1")),
       )
@@ -212,7 +212,7 @@ export function runRepositoryContract(
     it("answers undefined for a version with no plan, rather than failing", async () => {
       // Under `PDR-0004`'s `lazy` default this is the ordinary state of every
       // recipe nobody has cooked yet, so the caller derives rather than catches.
-      const repo = makeStore()
+      const repo = await makeStore()
       const appended = await repo.appendCanonicalVersion(
         await provider.normalize(snapshot, ctx("run-1")),
       )
@@ -223,7 +223,7 @@ export function runRepositoryContract(
     it("does not serve one version's plan for another", async () => {
       // The failure this keying exists to make impossible: a recipe re-normalized
       // into a new version, with the previous version's plan still on disk.
-      const repo = makeStore()
+      const repo = await makeStore()
       const first = await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("r1")))
       await repo.storeCookingPlan(
         deriveCookingPlan(first.recipe, { canonicalVersion: first.version }),
@@ -238,7 +238,7 @@ export function runRepositoryContract(
     })
 
     it("refuses a plan that names no version, and one naming a version it does not hold", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const appended = await repo.appendCanonicalVersion(
         await provider.normalize(snapshot, ctx("run-1")),
       )
@@ -257,7 +257,7 @@ export function runRepositoryContract(
       // The same commitment ADR-0003 made for every other document, and the
       // reason ADR-0025 could add a write at all: a store that files an invalid
       // plan would hand a cook a page derived from something that is not one.
-      const repo = makeStore()
+      const repo = await makeStore()
       const appended = await repo.appendCanonicalVersion(
         await provider.normalize(snapshot, ctx("run-1")),
       )
@@ -272,19 +272,27 @@ export function runRepositoryContract(
     it("lets the last write for one version win, rather than accumulating runs", async () => {
       // ADR-0025 point 4: the derivation is deterministic, so re-deriving a
       // version yields the same plan and an append would only pile up copies.
-      const repo = makeStore()
+      const repo = await makeStore()
       const appended = await repo.appendCanonicalVersion(
         await provider.normalize(snapshot, ctx("run-1")),
       )
       const plan = deriveCookingPlan(appended.recipe, { canonicalVersion: appended.version })
       await repo.storeCookingPlan(plan)
-      await repo.storeCookingPlan({ ...plan, setUp: [] })
+      // A field that is certain to differ from the first write, whatever the
+      // fixture derives to: a flipped flag, not an emptied list that may have
+      // been empty already.
+      const suppressed = !plan.derivation.assumedAtHandSuppressed
+      await repo.storeCookingPlan({
+        ...plan,
+        derivation: { ...plan.derivation, assumedAtHandSuppressed: suppressed },
+      })
 
-      expect((await repo.loadCookingPlan(appended.recipeId, appended.version))?.setUp).toEqual([])
+      const loaded = await repo.loadCookingPlan(appended.recipeId, appended.version)
+      expect(loaded?.derivation.assumedAtHandSuppressed).toBe(suppressed)
     })
 
     it("hands back a copy, so a caller cannot mutate the stored plan", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const appended = await repo.appendCanonicalVersion(
         await provider.normalize(snapshot, ctx("run-1")),
       )
