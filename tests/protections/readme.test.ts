@@ -332,10 +332,16 @@ describe("protections/the-readme-reading-is-precise", () => {
  * 2. THE PLACEMENT PROOF
  * ------------------------------------------------------------------ */
 
-/** The sentences that introduce the three lists this proof reads. */
-const WORKING = "Working today:"
-const BUILT = "Built and tested, but not reachable from a running instance yet"
-const NOT_YET = "Not there yet, stated as plainly as the rest:"
+/**
+ * The three lists this proof reads, each by the sentence that introduces it,
+ * and the row field that holds a row's phrase for that list. Written as
+ * literals so the proof-name guard can render the census's `$lead` titles.
+ */
+const LISTS = [
+  { key: "working", lead: "Working today:" },
+  { key: "built", lead: "Built and tested, but not reachable from a running instance yet" },
+  { key: "notYet", lead: "Not there yet, stated as plainly as the rest:" },
+] as const
 
 /** How a row is decided. */
 type Measure =
@@ -513,13 +519,6 @@ function reached(measure: Measure): boolean | null {
   if ("stated" in measure) return null
   return measure.called.every((name) => calledFromTheProcess(name, measure.except))
 }
-
-/** The list each phrase field belongs to. */
-const LISTS = [
-  { key: "working", lead: WORKING },
-  { key: "built", lead: BUILT },
-  { key: "notYet", lead: NOT_YET },
-] as const
 
 function itemsOf(lead: string): string[] {
   const items = bulletsAfter(readme, lead)
