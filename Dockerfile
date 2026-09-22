@@ -4,7 +4,7 @@
 # Node 22 with the project's dependencies installed, running the documented
 # commands a contributor runs locally. It carries no secrets — configuration
 # arrives through the environment at run time (see .env.example, SECURITY.md).
-FROM node:22-slim
+FROM node:26-slim
 
 WORKDIR /app
 
