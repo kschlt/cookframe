@@ -178,7 +178,7 @@ Exact latency targets should be chosen from real implementation measurements.
 
 Before presenting Cookframe as a generally usable self-hosted project, verify:
 
-- license present (AGPL-3.0-or-later, see `PDR-0006`);
+- license present ([AGPL-3.0-or-later](../LICENSE), see `PDR-0006`);
 - public-safe fixtures;
 - no secrets/private data in repository history;
 - documented self-hosting path;
