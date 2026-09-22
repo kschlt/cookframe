@@ -41,6 +41,17 @@ updates:
         update-types:
           - minor
           - patch
+    # typescript stays on 5.x: its 7.x native port drops the classic compiler
+    # API that five source-parsing guards use, and moving them onto the vendor's
+    # `unstable/*` entry point or weakening them to a regex is not acceptable.
+    # See ADR-0028. The `^5.7.0` caret in package.json already caps the install;
+    # this ignore stops the ungrabbable major from reopening every week and
+    # churning the grouped development-dependencies pull request. Minor and patch
+    # TypeScript updates still flow.
+    ignore:
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
 
   # The actions in `.github/workflows/` are supply chain too, and the easier half
   # to forget: a third-party action runs with the workflow's token. They are
