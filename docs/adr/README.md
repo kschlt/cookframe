@@ -13,6 +13,11 @@ supersedes ADR-0006). That record holds the single machine-readable key list; th
 repeat it, so there is exactly one definition to keep current, and a drift check fails the build if a
 record and the declaration disagree.
 
+A number belongs to one record. The filename and the record's own `id` must agree, and no second
+file may claim a number already taken — `tests/records/` fails the build when either is broken, and
+reports a citation that points at a number nothing defines. It checks definitions, never mentions:
+records cite each other freely, and only a *claim* on a number has to be unique.
+
 ## Records
 
 <!-- index:start -->

@@ -28,6 +28,7 @@
     "test:slice4": "vitest run tests/slice4",
     "test:slice5": "vitest run tests/slice5",
     "test:slice6": "vitest run tests/slice6",
+    "test:records": "vitest run tests/records",
     "test:cooking-ux": "vitest run tests/cooking-ux",
     "test:run": "vitest run tests/run",
     "test:watch": "vitest",
