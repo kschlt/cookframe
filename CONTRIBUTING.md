@@ -29,10 +29,31 @@ Run the same checks CI runs before you push:
 | `npm run format:check` | Biome format check |
 | `npm run test` | The full test suite |
 | `npm run eval` | The eval harness over the public fixtures |
+| `npm run test:persistence` | The store proofs — needs a PostgreSQL server (see below) |
 | `npm run quality` | typecheck + `biome ci` + tests, all at once |
 
+### Running the store's proofs
+
+The durable store is PostgreSQL (`ADR-0015`), so its proofs need a real server; nothing stands
+in for one. Point `DATABASE_URL` at a database you do not mind being written to — the proofs
+create a throwaway schema per test and drop it again:
+
+```bash
+DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm run test:persistence
+```
+
+**With `DATABASE_URL` unset they skip; with it set and nothing answering they FAIL.** That
+asymmetry is deliberate: skipping is a convenience for a machine that has no server, and once a
+database has been asked for, silence would mean a proof reporting success without running. CI
+always sets the variable, so the skip can never be the normal case.
+
+You do not apply the migration yourself for the tests — they apply
+`migrations/0001-the-recipe-store.sql` into each throwaway schema, which is also how that file
+stays the only declaration of the store's shape.
+
 CI runs six check jobs (typecheck, lint, unit, schema-contract, normalization-invariant,
-url-fetch-security) plus a secret scan. A failure in any one fails the build.
+url-fetch-security) plus a secret scan, and jobs with a PostgreSQL service for the store proofs
+(`persistence`) and the DBQ spike (`dbq`). A failure in any one fails the build.
 
 ## Rules that are easy to miss
 
