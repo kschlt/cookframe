@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url"
 import type { Client } from "pg"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import type { CanonicalRecipe } from "../../schema/index.js"
-import { connect, resetShape, SHAPES, type Shape, useShape } from "../../spikes/dbq/db.js"
+import { connectTo, resetShape, SHAPES, type Shape, useShape } from "../../spikes/dbq/db.js"
 import { loadDocument, readDocument } from "../../spikes/dbq/document-shape.js"
 import { loadHybrid, rebuildExtraction } from "../../spikes/dbq/hybrid-shape.js"
 import { compareRuns, shoppingRequirements } from "../../spikes/dbq/queries.js"
@@ -36,6 +36,7 @@ import {
   listLibrary,
 } from "../../spikes/dbq/stores.js"
 import type { CanonicalVersion, RecipeRepository } from "../../src/persistence/repository.js"
+import { decideDatabaseAvailability } from "../persistence/postgres-harness.js"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, "..", "..")
@@ -118,9 +119,32 @@ const STORES: Record<Shape, (c: Client) => RecipeRepository> = {
   relational: (c) => createRelationalStore(c),
 }
 
+// WHICH database, then whether it answers — in that order, and never merged.
+//
+// This block used to be `await connect()`, which read `DATABASE_URL ?? <local
+// default>` and then gated on whether anything answered. That asks "can I reach
+// a database", and the honest question is "was one asked for". The difference is
+// not academic: with `DATABASE_URL` unset, `vitest run tests/dbq` answered
+// `34 passed | 1 skipped` on a machine with a local server up and
+// `27 passed | 8 skipped` on one without (measured 2026-09-22). Same command,
+// same environment, two correctly set-up machines, seven proofs of difference —
+// and the larger number is the dishonest one, because nobody asked for those
+// runs. It also wrote a wrong figure into a PR description, which is how it was
+// found.
+//
+// `decideDatabaseAvailability` is the rule the persistence suites already use,
+// reused rather than restated: unset skips (honest on a developer's machine, and
+// made safe by CI always setting it), set-but-unreachable FAILS, because
+// something asked for these proofs and they did not run.
+//
 // Probed at module level, not in `beforeAll`: vitest decides `describe.skipIf`
 // while it collects the file, which is before any hook has run.
-const client: Client | undefined = await connect()
+const configured = process.env["DATABASE_URL"]
+const client: Client | undefined =
+  configured === undefined || configured.trim() === ""
+    ? undefined
+    : await connectTo(configured.trim())
+const availability = decideDatabaseAvailability(configured, client !== undefined)
 
 beforeAll(async () => {
   if (client === undefined) return
@@ -138,7 +162,9 @@ const db = (): Client => {
   if (client === undefined) throw new Error("no PostgreSQL server; see the file header")
   return client
 }
-const needsDb = client === undefined
+// The suites run unless the rule says to skip. A "fail" verdict does NOT skip:
+// it runs the block below, which fails by name.
+const needsDb = availability.mode === "skip"
 
 describe.skipIf(needsDb)("CFV1-DBQ query evaluation", () => {
   for (const shape of SHAPES) {
@@ -310,5 +336,20 @@ describe.skipIf(!needsDb)("CFV1-DBQ query evaluation (no database)", () => {
     // Not a pass. CI always has the server, and repo-config asserts the job that
     // provides it, so a skip here is a local-machine statement and nothing else.
     expect(client).toBeUndefined()
+    expect(availability.mode).toBe("skip")
   })
 })
+
+// The half a skip cannot express. `DATABASE_URL` set and nothing answering means
+// someone asked for these proofs and did not get them — the one case where going
+// quiet would be a lie, so this fails by name instead. It is NOT inside the
+// skipIf blocks above: both of those are gated on a decision this case is the
+// third value of.
+describe.skipIf(availability.mode !== "fail")(
+  "dbq/a-configured-database-that-is-absent-fails",
+  () => {
+    it("fails rather than skipping when DATABASE_URL is set but nothing answers", () => {
+      expect.fail(availability.mode === "fail" ? availability.reason : "unreachable")
+    })
+  },
+)
