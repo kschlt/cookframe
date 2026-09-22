@@ -35,7 +35,8 @@ import { createOpenAITransport } from "../pipeline/openai-transport.js"
 import { createUrlCaptureProvider } from "../pipeline/url-capture.js"
 import { createDeterministicUrlCaptureProvider } from "../pipeline/url-jsonld-adapter.js"
 import { createSafeUrlByteSource } from "../security/url-byte-source.js"
-import { createInMemoryCapabilityStore } from "../shopping/capability-token.js"
+import { createCapabilityStore } from "../shopping/capability-token.js"
+import { createFilesystemByteStore } from "../storage/index.js"
 import { readConfiguration } from "./config.js"
 import { startInstance } from "./instance.js"
 
@@ -105,11 +106,12 @@ async function main(): Promise<void> {
   //
   // ONE read per migration-backed area, because `migrations/` holds more than
   // one file and a database can be half-migrated. `listLibrary` reaches the
-  // recipe store (`0001`) and `loadCookingPlan` the plan store (`0002`); an
-  // instance that came up on `0001` alone would serve its library and answer
-  // every cooking route with a 500, which is the same failure one migration
-  // further along. Absence is a return value for both, so neither needs a
-  // fixture and neither costs more than a round trip.
+  // recipe store (`0001`), `loadCookingPlan` the plan store (`0002`) and
+  // `resolveCapabilityGrant` the grants (`0003`); an instance that came up on
+  // `0001` alone would serve its library and answer every cooking route with a
+  // 500, which is the same failure one migration further along. Absence is a
+  // return value for all three, so none needs a fixture and none costs more
+  // than a round trip.
   //
   // The cost, stated: the process now needs its database reachable to come up at
   // all, so a restart during an outage leaves the instance down rather than up
@@ -121,12 +123,41 @@ async function main(): Promise<void> {
     // An id nothing can hold: the answer is always `undefined`, so what this
     // measures is only whether the table it reads can be read at all.
     await repo.loadCookingPlan("startup-probe", 1)
+    await repo.resolveCapabilityGrant("startup-probe")
   } catch (error) {
     await store.close().catch(() => {})
     if (error instanceof StoreNotMigratedError) throw error
     throw new Error(
       `the database at DATABASE_URL could not be read, so the instance has nowhere to keep its ` +
         `library: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
+
+  // Where photographs are kept (ADR-0009): the byte store, on the directory
+  // configuration names — on a deployment, the mounted volume (ADR-0026). This
+  // file hands the store its directory and nothing else; the path is never
+  // joined, read or written here, which is the line
+  // `slice1/storage-identity-confinement` draws around the composition root.
+  const scanStore = createFilesystemByteStore(config.storageRoot)
+
+  // And, like the database above, USED once before the port is bound.
+  //
+  // A directory that cannot be written constructs a store perfectly and fails
+  // on the first photograph, and since the photo route keeps the photograph
+  // before reading it, that first capture would be the one that finds out. The
+  // probe is the operation a capture performs — `put` — on the one input that
+  // costs nothing to keep: zero bytes. The store is content-addressed, so every
+  // start writes the SAME empty file rather than a new one: the first start
+  // adds one file of no size, and every later one leaves the volume as it
+  // found it.
+  try {
+    await scanStore.put(new Uint8Array(0))
+  } catch (error) {
+    await store.close().catch(() => {})
+    throw new Error(
+      `STORAGE_ROOT cannot be written, so the instance has nowhere to keep a photograph: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     )
   }
@@ -157,11 +188,10 @@ async function main(): Promise<void> {
   const instance = await startInstance(
     {
       repo,
-      // IN MEMORY, and that is a known gap rather than a choice: every grant this
-      // process mints is gone when it stops, and ADR-0026 stops it when idle.
-      // Bring keeps the URL and fetches it again later, so that fetch fails
-      // silently. Registered as OQ-48; the fix is a unit of its own.
-      capabilityStore: createInMemoryCapabilityStore(),
+      // Over the SAME repository, so a grant is kept where the library is and
+      // outlives this process the way a recipe does (ADR-0032). ADR-0026 stops
+      // the machine when idle, and Bring fetches a URL it kept long after.
+      capabilityStore: createCapabilityStore(repo),
       ingestCredential: createInstanceCredential(config.ingestCredential, "ingest credential"),
       libraryCredential: createInstanceCredential(config.libraryCredential, "library credential"),
       capture: modelCapture,
@@ -180,6 +210,7 @@ async function main(): Promise<void> {
       targetOntologyVersion: TARGET_ONTOLOGY_VERSION,
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
+      scanStore,
       byteSource,
       // The composite from CFV1-SL4, on the path at last: deterministic reader
       // first, `modelCapture` only for a page whose structured data is missing

@@ -29,11 +29,12 @@
  */
 import { spawn } from "node:child_process"
 import { randomBytes } from "node:crypto"
-import { readdirSync, readFileSync } from "node:fs"
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "pg"
-import { afterAll, describe, expect, it } from "vitest"
+import { afterAll, describe, expect, it, TestRunner } from "vitest"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS } from "../../src/http/not-found.js"
 import { createPostgresStore } from "../../src/persistence/index.js"
 import {
@@ -60,14 +61,32 @@ function declaredStartCommand(): string {
   return start
 }
 
+/** A new, empty directory for one process to keep its photographs in. */
+const freshVolume = (): string => mkdtempSync(join(tmpdir(), "cookframe-process-volume-"))
+
+/** Every file under `dir`, at any depth. The byte store's layout is its own; this reads none of it. */
+function filesIn(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name))
+}
+
 /**
  * The configuration a started instance needs, and nothing else.
  *
  * `databaseUrl` is separate because two cases here deliberately leave it out:
  * the refusal cases, which must reach a non-zero exit without a server anywhere
  * near them.
+ *
+ * `storageRoot` is a new, empty directory unless a case names one, so no two
+ * processes here keep photographs in the same place and a case that reads the
+ * volume reads only what its own process wrote.
  */
-function environment(port: number, databaseUrl?: string): Record<string, string> {
+function environment(
+  port: number,
+  databaseUrl?: string,
+  storageRoot: string = freshVolume(),
+): Record<string, string> {
   return {
     // `npm` and `node` need these to exist at all; nothing else is inherited.
     PATH: process.env["PATH"] ?? "",
@@ -85,6 +104,7 @@ function environment(port: number, databaseUrl?: string): Record<string, string>
     // URL is built on. It is the real one, so a URL this process mints is a URL
     // this process serves.
     PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
+    STORAGE_ROOT: storageRoot,
     ...(databaseUrl === undefined ? {} : { DATABASE_URL: databaseUrl }),
   }
 }
@@ -128,17 +148,110 @@ function spawnInstance(env: Record<string, string>): Started {
   return { child, output: () => output, exited }
 }
 
-/** Wait until `match` appears in the child's output, or give up loudly. */
-async function waitFor(started: Started, match: RegExp, timeoutMs = 30_000): Promise<string> {
+/**
+ * How long a spawned process gets to do the first thing it is going to do:
+ * announce its port, or refuse and exit.
+ *
+ * Measured, not chosen (the CFV1-TMO rule). Each proof here waits for one start
+ * or one refusal at a time. The slowest single-process proof, schema setup
+ * included, took about 0.5 s on an idle four-core machine, 4.1 s with 32 busy
+ * loops competing for it, and 6.4 s with 48, which is the load that reproduced
+ * the #80 incident. This is about five times the worst of them. A proof that
+ * reaches it has met a process that did NEITHER, which is its own finding, and
+ * it says so rather than timing out.
+ */
+const FIRST_ACT_DEADLINE_MS = 30_000
+
+/** The line the process prints once its port is bound, and never before. */
+const LISTENING = /listening on port \d+/
+
+/** What a spawned process did first. */
+type FirstAct =
+  | { readonly printed: string }
+  | { readonly exited: number | null }
+  | { readonly silent: true }
+
+/**
+ * Watch a spawned process until it prints `match`, exits, or runs out of time,
+ * and say which came first.
+ *
+ * This is the one place a proof here waits on a process, and it exists because
+ * waiting on only ONE of those turns a wrong outcome into a timeout. A proof that
+ * waits for a refusal and gets a process that bound its port instead sat out the
+ * whole deadline, and then went red at whichever assertion came next, reading
+ * like a hang (measured: 30042 ms, red at the table name, with the port long
+ * since announced). The same is true the other way round: a proof waiting for
+ * the port sat out the deadline beside a process that had already exited.
+ * Watching for both ends the wait at the first thing that happened, so the red
+ * names what did.
+ *
+ * Output is checked before exit, so a process that announces its port and then
+ * exits counts as having announced it. That order is what keeps "it bound first,
+ * then noticed" from passing as a refusal.
+ */
+async function firstAct(
+  started: Started,
+  match: RegExp,
+  timeoutMs = FIRST_ACT_DEADLINE_MS,
+): Promise<FirstAct> {
+  // The deadline is a named failure only while it ends before the case does.
+  // Past the case's own budget, a process that does neither ends as a bare
+  // vitest timeout again, which is the shape this helper exists to remove. So
+  // the ordering is checked where it matters, at every wait, against the budget
+  // the running case actually has. An absent budget is a failure too: it would
+  // mean the runner stopped saying, and a check that cannot read is not held.
+  const budget = TestRunner.getCurrentTest()?.timeout
+  if (budget === undefined || budget <= timeoutMs) {
+    throw new Error(
+      `this case's budget is ${budget} ms, which does not outlast the ${timeoutMs} ms a wait may take`,
+    )
+  }
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const found = match.exec(started.output())
-    if (found !== null) return found[0]
+    if (found !== null) return { printed: found[0] }
+    if (started.child.exitCode !== null || started.child.signalCode !== null) {
+      return { exited: await started.exited }
+    }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  throw new Error(
-    `the process never printed ${match}. What it did say:\n${started.output() || "(nothing)"}`,
-  )
+  return { silent: true }
+}
+
+/** Wait until `match` appears in the child's output, or say why it never will. */
+async function waitFor(started: Started, match: RegExp): Promise<string> {
+  const act = await firstAct(started, match)
+  if ("printed" in act) return act.printed
+  const what =
+    "exited" in act
+      ? `exited with ${act.exited} before printing ${match}`
+      : `neither printed ${match} nor exited within ${FIRST_ACT_DEADLINE_MS} ms`
+  throw new Error(`the process ${what}. What it did say:\n${started.output() || "(nothing)"}`)
+}
+
+/**
+ * Wait for the process to refuse: exit non-zero without ever announcing a port.
+ *
+ * Every refusal proof here used to race the exit against a 30-second timer and
+ * then require the result not to be 0. The string "timed out" is not 0, so that
+ * line passed for a process that never exited at all, and the proof went red
+ * only later, at whichever assertion first read the output. Here each way of
+ * not refusing is its own failure, named for what the process did instead.
+ */
+async function refusal(started: Started): Promise<void> {
+  const act = await firstAct(started, LISTENING)
+  const said = `What it said:\n${started.output() || "(nothing)"}`
+  if ("printed" in act) {
+    throw new Error(`the process started instead of refusing: it printed "${act.printed}". ${said}`)
+  }
+  if ("silent" in act) {
+    throw new Error(
+      `the process neither refused nor started within ${FIRST_ACT_DEADLINE_MS} ms. ${said}`,
+    )
+  }
+  if (act.exited === 0 || act.exited === null) {
+    throw new Error(`the process exited with ${act.exited}, which is not a refusal. ${said}`)
+  }
 }
 
 /**
@@ -204,13 +317,22 @@ describe.skipIf(availability.mode === "skip")("run/the-process-serves-and-stops"
     const schema = await ownSchema()
 
     const port = await freePort()
-    const started = spawnInstance(environment(port, schema.url))
+    const volume = freshVolume()
+    const started = spawnInstance(environment(port, schema.url, volume))
 
     try {
       // The process announces its bound port on one line, which is what makes
       // this proof a wait rather than a poll-until-it-answers loop — the
       // difference between a test and a flaky test.
       await waitFor(started, /cookframe listening on port \d+/)
+
+      // The byte store it built is on the directory STORAGE_ROOT named, and it
+      // was written before the port opened: the startup probe keeps zero bytes.
+      // An empty directory here would mean the process built its store
+      // somewhere else, or never used it, and would still serve everything
+      // below. Nothing about the store's layout is read — only that the
+      // directory the operator named is the one written to.
+      expect(filesIn(volume), "the process wrote nothing under STORAGE_ROOT").not.toEqual([])
 
       // A real request over TCP to a separate operating-system process. No
       // credential, so the answer is the shared miss; that it IS that answer,
@@ -232,6 +354,10 @@ describe.skipIf(availability.mode === "skip")("run/the-process-serves-and-stops"
       // and the operating model this instance must tolerate is being stopped
       // as soon as it is idle. A process that ignores it is one the platform
       // eventually kills instead.
+      //
+      // This race is not the hollow shape `refusal` replaced. It asserts `toBe(0)`,
+      // which "timed out" fails, so a process that ignores the signal is red here
+      // under its own message.
       started.child.kill("SIGTERM")
       const code = await Promise.race([
         started.exited,
@@ -263,11 +389,7 @@ describe("run/absent-configuration-refuses-by-name", () => {
 
     const started = spawnInstance(env)
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
       expect(started.output()).toContain("COOKFRAME_LIBRARY_CREDENTIAL")
       // Nothing bound, so the absent value was not defaulted into an instance
       // that appears to work.
@@ -288,11 +410,7 @@ describe("run/absent-configuration-refuses-by-name", () => {
     const started = spawnInstance(environment(port))
 
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
       // The store seam's own refusal, not merely the string "DATABASE_URL"
       // appearing somewhere. A composition root with the URL written into it
       // also fails here — against a database with no tables — and its message
@@ -336,11 +454,7 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
     const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
 
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
       // Named as the operator's missing step, not as a driver error about a
       // relation — which is the whole difference the refusal exists to make.
       expect(started.output()).toContain("migrations/0001-the-recipe-store.sql")
@@ -379,6 +493,41 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
   }, 60_000)
 })
 
+describe.skipIf(availability.mode === "skip")(
+  "run/a-volume-that-cannot-be-written-refuses-by-name",
+  () => {
+    it("refuses to start when STORAGE_ROOT cannot hold a photograph, and says which", async () => {
+      // The byte store's half of the start-up reads in `main.ts`. A directory that
+      // cannot be written constructs a store without complaint, so without the
+      // probe this process binds, answers every page, and fails on the first
+      // photograph it is sent — which, since the photo route keeps a photograph
+      // before reading it, is every capture.
+      //
+      // "Cannot be written" is made with a FILE where the directory should be.
+      // Permission bits would be the obvious plant and are the wrong one: this
+      // suite runs as root in some environments, and root writes through them, so
+      // a proof built on them would pass here and measure nothing.
+      const schema = await ownSchema()
+      const blocker = join(freshVolume(), "not-a-directory")
+      writeFileSync(blocker, "")
+
+      const port = await freePort()
+      const started = spawnInstance(environment(port, schema.url, blocker))
+      try {
+        await refusal(started)
+        expect(started.output()).toContain("STORAGE_ROOT cannot be written")
+        // Refused BEFORE the port opened, both halves as for the database: it
+        // never announced one, and nothing answers on it. A process that bound
+        // first and failed after would pass the two lines above.
+        expect(started.output()).not.toContain("listening on port")
+        await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
+      } finally {
+        started.child.kill("SIGKILL")
+      }
+    }, 60_000)
+  },
+)
+
 describe("wire/the-port-opens-only-behind-a-reachable-store", () => {
   it("refuses by name when DATABASE_URL points at nothing, rather than crashing out of the driver", async () => {
     // The third operator mistake, and the only one of the three that needs no
@@ -410,11 +559,7 @@ describe("wire/the-port-opens-only-behind-a-reachable-store", () => {
     )
 
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
 
       const firstLine = started.output().trimStart().split("\n")[0] ?? ""
       expect(firstLine, `Output:\n${started.output()}`).toContain(
@@ -436,61 +581,78 @@ describe("wire/the-port-opens-only-behind-a-reachable-store", () => {
   }, 60_000)
 })
 
+/**
+ * The table a database is missing when it stops after the first `applied`
+ * migrations, one row per place an operator can stop short.
+ *
+ * Written out rather than read off the migration files, so this is the claim and
+ * not a restatement of what the files happen to say. The row count is held
+ * against the directory in the proof below: a migration added without a row here
+ * is red, which is what keeps a fourth migration from arriving with nothing
+ * probing its table at startup.
+ */
+const MISSING_AFTER: ReadonlyArray<readonly [applied: number, table: string]> = [
+  [1, "cooking_plan"],
+  [2, "capability_grant"],
+]
+
 describe.skipIf(availability.mode === "skip")(
   "run/a-half-migrated-database-refuses-by-name",
   () => {
-    it("refuses to start when a later migration was never applied", async () => {
-      // The mistake the first migration's proof cannot reach. `migrations/` holds
-      // more than one file, an operator applies them by hand, and stopping after
-      // the first leaves a database that answers `listLibrary` perfectly — so a
-      // startup read probing only the recipe store lets the instance bind and 500
-      // every cooking route. That is the exact failure ADR-0027 exists to prevent,
-      // one migration further along, and it is why the probe reads once per
-      // migration-backed area rather than once.
-      if (availability.mode !== "run") throw new Error("unreachable: the suite is skipped")
-      const first = MIGRATIONS[0]
-      if (first === undefined) throw new Error("no migrations to apply")
+    it("has a row for every place an operator can stop short", () => {
+      // Every proper prefix of the directory, and each of them once.
+      expect(MISSING_AFTER.map(([applied]) => applied)).toEqual(
+        Array.from({ length: MIGRATIONS.length - 1 }, (_, i) => i + 1),
+      )
+    })
 
-      const schema = `cf_half_${randomBytes(6).toString("hex")}`
-      const admin = new Client({ connectionString: availability.url })
-      await admin.connect()
-      try {
-        await admin.query(`create schema "${schema}"`)
-        await admin.query(`set search_path to "${schema}"`)
-        // ONLY the first, read off the directory rather than named here: a third
-        // migration must make this case stricter, never silently unchanged.
-        await admin.query(first.sql)
-      } finally {
-        await admin.end().catch(() => {})
-      }
+    for (const [applied, table] of MISSING_AFTER) {
+      it(`refuses to start after ${applied} of the migrations, naming \`${table}\``, async () => {
+        // The mistake the first migration's proof cannot reach. `migrations/`
+        // holds more than one file, an operator applies them by hand, and
+        // stopping early leaves a database that answers every read the earlier
+        // files back — so a startup read probing only the recipe store lets the
+        // instance bind and 500 every route that needs a later table. That is
+        // the exact failure ADR-0027 exists to prevent, one migration further
+        // along, and it is why the probe reads once per migration-backed area
+        // rather than once.
+        if (availability.mode !== "run") throw new Error("unreachable: the suite is skipped")
 
-      const port = await freePort()
-      const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
-
-      try {
-        const code = await Promise.race([
-          started.exited,
-          new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-        ])
-        expect(code, `Output:\n${started.output()}`).not.toBe(0)
-        // The table it could not read, named. `recipe_version` exists here, so a
-        // refusal naming that one would mean the probe never reached the second
-        // migration's tables at all.
-        expect(started.output()).toContain("cooking_plan")
-        expect(started.output()).toContain("migrations/")
-        expect(started.output()).not.toContain("listening on port")
-        await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
-      } finally {
-        started.child.kill("SIGKILL")
-        const cleanup = new Client({ connectionString: availability.url })
-        await cleanup.connect()
+        const schema = `cf_half_${randomBytes(6).toString("hex")}`
+        const admin = new Client({ connectionString: availability.url })
+        await admin.connect()
         try {
-          await cleanup.query(`drop schema if exists "${schema}" cascade`)
+          await admin.query(`create schema "${schema}"`)
+          await admin.query(`set search_path to "${schema}"`)
+          for (const migration of MIGRATIONS.slice(0, applied)) await admin.query(migration.sql)
         } finally {
-          await cleanup.end().catch(() => {})
+          await admin.end().catch(() => {})
         }
-      }
-    }, 60_000)
+
+        const port = await freePort()
+        const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
+
+        try {
+          await refusal(started)
+          // The table it could not read, named. Every earlier table exists
+          // here, so a refusal naming one of those would mean the probe never
+          // reached this migration's table at all.
+          expect(started.output()).toContain(`\`${table}\``)
+          expect(started.output()).toContain("migrations/")
+          expect(started.output()).not.toContain("listening on port")
+          await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
+        } finally {
+          started.child.kill("SIGKILL")
+          const cleanup = new Client({ connectionString: availability.url })
+          await cleanup.connect()
+          try {
+            await cleanup.query(`drop schema if exists "${schema}" cascade`)
+          } finally {
+            await cleanup.end().catch(() => {})
+          }
+        }
+      }, 60_000)
+    }
   },
 )
 
@@ -564,6 +726,96 @@ describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-the-library"
       expect(await second.exited, `Output:\n${second.output()}`).toBe(0)
     } finally {
       first.child.kill("SIGKILL")
+      second?.child.kill("SIGKILL")
+    }
+  }, 120_000)
+})
+
+/** A capability URL fetched the way Bring fetches it: over TCP, with no credential at all. */
+async function capabilityStatus(port: number, token: string): Promise<number> {
+  const res = await fetch(`http://127.0.0.1:${port}/r/${token}`)
+  await res.arrayBuffer()
+  return res.status
+}
+
+/** Mint a capability URL the way the operator does: through the share route, with the library credential. */
+async function share(port: number, recipeId: string): Promise<string> {
+  const res = await fetch(`http://127.0.0.1:${port}/recipes/${recipeId}/share`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${LIBRARY_CREDENTIAL}` },
+  })
+  expect(res.status).toBe(200)
+  return ((await res.json()) as { token: string }).token
+}
+
+/** Revoke one the same way, and say whether an active grant was revoked. */
+async function revoke(port: number, token: string): Promise<boolean> {
+  const res = await fetch(`http://127.0.0.1:${port}/shares/${token}/revoke`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${LIBRARY_CREDENTIAL}` },
+  })
+  expect(res.status).toBe(200)
+  return ((await res.json()) as { revoked: boolean }).revoked
+}
+
+describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-every-capability-grant", () => {
+  it("a URL one process serves, the next process started against the same database still serves", async () => {
+    // OQ-48, measured across a real stop and killed there. ADR-0016 made the
+    // capability URL permanent-but-revocable because Bring keeps it and fetches
+    // it again later; ADR-0026 stops the machine when idle. Until ADR-0032 the
+    // process an operator starts kept its grants in memory, so a URL minted
+    // through the share route answered 200 before `SIGTERM` and 404 after it,
+    // next to a recipe page that still answered 200. Every in-process proof
+    // stayed green through that, which is why this one spans two processes and
+    // does every step the way the operator and Bring do: mint and revoke over
+    // the routes, fetch the URL with no credential at all.
+    const schema = await ownSchema()
+    const seed = createPostgresStore(schema.url)
+    try {
+      await seed.repository.appendCanonicalVersion(canonical("r-shop", "Linsensuppe"))
+    } finally {
+      await seed.close()
+    }
+
+    let first: Started | undefined
+    let second: Started | undefined
+    try {
+      const port = await freePort()
+      first = spawnInstance(environment(port, schema.url))
+      await waitFor(first, /listening on port/)
+
+      const kept = await share(port, "r-shop")
+      const revoked = await share(port, "r-shop")
+      expect(await capabilityStatus(port, kept)).toBe(200)
+      // Fetched BEFORE it is revoked, and required to stop answering after:
+      // an instance that remembered what it had resolved would keep serving a
+      // URL someone believed exposed until the next restart, and revocation is
+      // ADR-0016's kill switch.
+      expect(await capabilityStatus(port, revoked)).toBe(200)
+      expect(await revoke(port, revoked)).toBe(true)
+      expect(await capabilityStatus(port, revoked)).toBe(NOT_FOUND_STATUS)
+
+      // A real stop, the signal a container runtime sends when the machine
+      // goes idle, and a clean exit, so what follows is a restart.
+      first.child.kill("SIGTERM")
+      expect(await first.exited, `Output:\n${first.output()}`).toBe(0)
+
+      const nextPort = await freePort()
+      second = spawnInstance(environment(nextPort, schema.url))
+      await waitFor(second, /listening on port/)
+      // The asymmetry OQ-48 measured, killed: the recipe survived the restart
+      // (it always did), and now the URL Bring kept for it survives too. The
+      // revoked one is still revoked, and revoking it again finds nothing
+      // active, so both halves of a grant outlived the process.
+      expect(await library(nextPort)).toContain("Linsensuppe")
+      expect(await capabilityStatus(nextPort, kept)).toBe(200)
+      expect(await capabilityStatus(nextPort, revoked)).toBe(NOT_FOUND_STATUS)
+      expect(await revoke(nextPort, revoked)).toBe(false)
+
+      second.child.kill("SIGTERM")
+      expect(await second.exited, `Output:\n${second.output()}`).toBe(0)
+    } finally {
+      first?.child.kill("SIGKILL")
       second?.child.kill("SIGKILL")
     }
   }, 120_000)

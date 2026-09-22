@@ -46,8 +46,9 @@ import {
   MultipleRecipesError,
   UnknownRecipeCountError,
 } from "../../src/pipeline/recipe-inventory.js"
-import { createInMemoryCapabilityStore } from "../../src/shopping/capability-token.js"
+import { createCapabilityStore } from "../../src/shopping/capability-token.js"
 import { unsuppliedByteSource, unsuppliedUrlCapture } from "../security/unsupplied-byte-source.js"
+import { scratchByteStore } from "../support/scratch-byte-store.js"
 import { dictionaryKeysRead, parsePlist } from "./plist.js"
 
 /**
@@ -151,6 +152,7 @@ function harness(capture?: CaptureProvider): Harness {
     targetOntologyVersion: "1.0.0",
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
+    scanStore: scratchByteStore().store,
     byteSource: unsuppliedByteSource(),
     urlCapture: unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",
@@ -471,7 +473,7 @@ describe("slice5/ingest-credential-is-submission-only", () => {
     await submit(h.app)
     const [entry] = await h.repo.listLibrary()
     expect(entry, "the fixture did not actually produce a library entry").toBeDefined()
-    const store = createInMemoryCapabilityStore()
+    const store = createCapabilityStore(h.repo)
     const grant = await store.issue(entry?.recipeId ?? "")
 
     for (const path of [
@@ -654,7 +656,7 @@ describe("slice5/handoff-succeeds", () => {
     const h = harness()
     const { recipeId } = (await (await submit(h.app)).json()) as { recipeId: string }
 
-    const store = createInMemoryCapabilityStore()
+    const store = createCapabilityStore(h.repo)
     const grant = await store.issue(recipeId)
     const shopping = createCapabilityApp({ store, repo: h.repo })
 
@@ -670,7 +672,7 @@ describe("slice5/handoff-succeeds", () => {
     // The handoff succeeding is not the same as the handoff being open: a token
     // for a recipe that was never ingested is the same 404 as any other miss.
     const h = harness()
-    const store = createInMemoryCapabilityStore()
+    const store = createCapabilityStore(h.repo)
     const grant = await store.issue("recipe-that-was-never-captured")
     const shopping = createCapabilityApp({ store, repo: h.repo })
     expect((await shopping.request(`/r/${grant.token}`)).status).toBe(404)

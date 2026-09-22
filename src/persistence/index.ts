@@ -16,7 +16,12 @@ export {
   StoreNotMigratedError,
 } from "./postgres-store.js"
 export { createProvisionalStore } from "./provisional-store.js"
-export type { CanonicalVersion, LibraryEntry, RecipeRepository } from "./repository.js"
+export type {
+  CanonicalVersion,
+  CapabilityGrantRecord,
+  LibraryEntry,
+  RecipeRepository,
+} from "./repository.js"
 export {
   RecipeVersionNotFoundError,
   SnapshotNotFoundError,
