@@ -14,6 +14,13 @@
  * not inherited, so a real `OPENAI_API_KEY` in the session cannot make a proof
  * pass that would fail on a clean machine.
  *
+ * Where a case needs the process to reach something outside it, the way there
+ * is changed in that ENVIRONMENT, never in the process. The photograph case
+ * routes the model's request to a local refusal through `HTTPS_PROXY`, so the
+ * process it asks is the shipped one, composed by `main.ts` as an operator's
+ * is. A proof that injected its own transport would be building its own
+ * subject, and a fake that ignores a field cannot fail a caller that omits it.
+ *
  * **Since CFV1-PG the composition root builds a PostgreSQL store, so the serving
  * case needs a real database.** It does not get its own rule for that: it uses
  * `decideDatabaseAvailability` from the persistence harness, the same pure
@@ -560,6 +567,9 @@ async function modelRequestsRefusedLocally(onRequest: () => void): Promise<{
   // Held so `close` can end them. A tunnel request is no longer the server's
   // once it has been handed over, and `server.close()` waits on it forever if
   // it is still open, which would turn the case's own teardown into the hang.
+  // That is not optional tidiness: a named failure that the teardown then
+  // times out over reads exactly like no named failure at all (measured, when
+  // this was missing).
   const tunnels = new Set<Duplex>()
   server.on("connect", (req, socket) => {
     tunnels.add(socket)
@@ -582,8 +592,9 @@ async function modelRequestsRefusedLocally(onRequest: () => void): Promise<{
 
 /**
  * How long the photograph case waits for its answer once the process is up.
- * A refused model request answers in milliseconds, so this only has to be
- * shorter than the case's budget less the start-up wait, and it is.
+ * A refused model request answers in milliseconds. That this, plus the
+ * start-up wait, fits inside the case's budget is checked where it is spent,
+ * against the budget the runner reports, not stated here.
  */
 const CAPTURE_ANSWER_MS = 15_000
 
@@ -624,6 +635,20 @@ describe.skipIf(availability.mode === "skip")(
         // below and is sitting out the transport's own deadline. That is bounded
         // well inside this case's budget and named, rather than left to end as a
         // bare timeout of the case.
+        //
+        // The bound is only a named failure while both waits end before the
+        // case does, so that is read back from the runner here, the way
+        // `firstAct` reads it for the start-up wait. This pins the shape of
+        // the incident: a case that cannot outlast its own waits. It does not
+        // pin that 15 s is the right patience for a refused request; raising
+        // all three numbers together stays green, and should.
+        const budget = TestRunner.getCurrentTest()?.timeout
+        if (budget === undefined || budget <= FIRST_ACT_DEADLINE_MS + CAPTURE_ANSWER_MS) {
+          throw new Error(
+            `this case's budget is ${budget} ms, which does not outlast the ` +
+              `${FIRST_ACT_DEADLINE_MS} ms start-up wait plus the ${CAPTURE_ANSWER_MS} ms this wait may take`,
+          )
+        }
         const res = await fetch(`http://127.0.0.1:${port}/capture`, {
           method: "POST",
           headers: { authorization: `Bearer ${INGEST_CREDENTIAL}`, "content-type": "image/jpeg" },
