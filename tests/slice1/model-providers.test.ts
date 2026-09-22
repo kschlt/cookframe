@@ -125,6 +125,9 @@ const captureReply = JSON.stringify({
   version: 99,
   sourceType: "image",
   capturedText: "Pfannkuchen\n\n200 g Mehl\n\nAlles verrühren.",
+  // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+  recipeCount: 1,
+  recipeTitles: ["the one recipe on this fixture"],
   blocks: [
     { id: "b-title", order: 0, type: "title", text: "Pfannkuchen" },
     { id: "b-ing-1", order: 7, type: "ingredient", text: "200 g Mehl" },
@@ -230,6 +233,9 @@ describe("slice1/model-reply-fails-closed", () => {
   it("rejects a captured block whose type is not in the contract's enum", async () => {
     const reply = JSON.stringify({
       capturedText: "x",
+      // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
       blocks: [{ order: 0, type: "ingredient_list", text: "200 g Mehl" }],
     })
     await expect(
@@ -339,6 +345,9 @@ describe("slice1/contract-failure-is-retried", () => {
   it("retries a rejected capture too, not only normalization", async () => {
     const badCapture = JSON.stringify({
       capturedText: "x",
+      // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
       blocks: [{ order: 0, type: "ingredient_list", text: "200 g Mehl" }],
     })
     const transport = sequence(badCapture, captureReply)
@@ -361,6 +370,9 @@ describe("slice1/contract-failure-is-retried", () => {
     // path, which made `REPAIR_EXCERPT_CHARS` dead code for capture.
     const rejected = JSON.stringify({
       capturedText: "x",
+      // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
       blocks: [{ order: 0, type: "not_a_block_type", text: "200 g Mehl" }],
     })
     const transport = sequence(rejected, captureReply)

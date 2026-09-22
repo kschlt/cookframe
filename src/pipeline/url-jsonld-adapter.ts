@@ -31,6 +31,7 @@
  */
 import type { RawBlock } from "./block-id-policy.js"
 import type { CaptureProvider, CaptureResult } from "./providers.js"
+import { MultipleRecipesError, type RecipeInventory } from "./recipe-inventory.js"
 
 /**
  * The fields the Canonical Recipe contract needs to build a record without
@@ -57,6 +58,7 @@ function isJsonObject(value: unknown): value is JsonObject {
  */
 export type RecipeExtraction =
   | { readonly kind: "sufficient"; readonly recipe: JsonObject }
+  | { readonly kind: "multiple"; readonly inventory: RecipeInventory }
   | {
       readonly kind: "insufficient"
       readonly recipePresent: boolean
@@ -87,12 +89,16 @@ function* iterNodes(parsed: unknown): Generator<JsonObject> {
   while (stack.length > 0) {
     const node = stack.pop()
     if (Array.isArray(node)) {
-      for (const item of node) stack.push(item)
+      // Pushed in REVERSE so `pop` yields the page's own order. It did not
+      // matter while only the richest node was kept, and it does now: CFV1-MR1's
+      // refusal reports a title per recipe, and a person matching that list
+      // against the page they are holding needs the two to run the same way.
+      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i])
     } else if (isJsonObject(node)) {
       yield node
       const graph = node["@graph"]
       if (Array.isArray(graph)) {
-        for (const item of graph) stack.push(item)
+        for (let i = graph.length - 1; i >= 0; i--) stack.push(graph[i])
       }
     }
   }
@@ -143,18 +149,90 @@ function missingRequired(recipe: JsonObject): string[] {
  * fields. A page occasionally carries several Recipe nodes (e.g. a stub plus the
  * full one); picking by satisfied-field count matches the S2 spike's tie-break.
  */
-function selectRichestRecipe(objects: readonly JsonObject[]): JsonObject | undefined {
-  let best: JsonObject | undefined
-  let bestScore = -1
+/**
+ * Collapse the Recipe nodes a page emits into the DISTINCT recipes it holds.
+ *
+ * Pages routinely emit one recipe twice — once inside `@graph` and once
+ * standalone — and counting those as two would refuse a perfectly ordinary
+ * single-recipe page. So duplicates are collapsed, and the richest node of each
+ * group is the one kept, preserving what `selectRichestRecipe` did within a
+ * group while no longer discarding across groups.
+ *
+ * The two error directions are not symmetric, and the identity rule is chosen
+ * for that: collapsing too eagerly silently drops a recipe, which is the exact
+ * harm this unit exists to prevent, while collapsing too little refuses a page
+ * that could have been imported — recoverable, and it says so. So a node joins
+ * an existing group only on a signal that is actually the same recipe: an equal
+ * normalized `name`, or an equal `@id` when neither carries a name. A node with
+ * neither gets a group of its own, so an unnameable recipe RAISES the count
+ * rather than vanishing into another.
+ *
+ * **`@id` separates even when the names agree.** An earlier version consulted
+ * `@id` only where BOTH nodes lacked a name, so two nodes sharing a name
+ * collapsed however plainly their identifiers said they were different nodes.
+ * Two variants of one dish on a page — ice cream with and without a machine,
+ * overnight and same-day dough — carry the same `name` and different `@id`, and
+ * the richer one was imported while the other vanished without trace. That is
+ * this unit's own defect, reached through the guard meant to stop it, so the
+ * rule now reads the strongest available discriminator instead of discarding it
+ * exactly where it would decide.
+ *
+ * Only a PRESENT and DIFFERING pair separates. Equal, absent on both sides, or
+ * present on one side only collapses as before, because none of those is
+ * evidence of a second recipe — and the duplicate emission this function exists
+ * for (`@graph` plus standalone) is precisely the equal-or-absent case.
+ */
+function distinctRecipes(objects: readonly JsonObject[]): readonly JsonObject[] {
+  // Grouped by name first, then split by `@id` within a name. Two passes rather
+  // than one composite key, because a node carrying a name but no `@id` must
+  // still land in its name's group: keying on both at once would give it a group
+  // of its own and refuse an ordinary page whose duplicate emission omits `@id`.
+  const groups = new Map<string, JsonObject[]>()
+  let anonymous = 0
   for (const obj of objects) {
     if (!isRecipe(obj)) continue
-    const score = requiredSatisfiedCount(obj)
-    if (score > bestScore) {
-      best = obj
-      bestScore = score
+    const name = asDisplayString(obj["name"])?.toLowerCase().replace(/\s+/g, " ")
+    const id = asDisplayString(obj["@id"])
+    const key =
+      name !== undefined ? `name:${name}` : id !== undefined ? `id:${id}` : `#${anonymous++}`
+    const held = groups.get(key)
+    if (held === undefined) groups.set(key, [obj])
+    else held.push(obj)
+  }
+
+  const richest = (nodes: readonly JsonObject[]): JsonObject =>
+    nodes.reduce((best, node) =>
+      requiredSatisfiedCount(node) > requiredSatisfiedCount(best) ? node : best,
+    )
+
+  const out: JsonObject[] = []
+  for (const members of groups.values()) {
+    // The distinct `@id`s inside this name group. Two or more mean the page
+    // itself says these are different nodes, whatever their names agree on.
+    const byId = new Map<string, JsonObject[]>()
+    for (const node of members) {
+      const id = asDisplayString(node["@id"])
+      if (id === undefined) continue
+      const held = byId.get(id)
+      if (held === undefined) byId.set(id, [node])
+      else held.push(node)
+    }
+    if (byId.size > 1) {
+      // One recipe per distinct `@id`. Members without an `@id` carry no signal
+      // that they are a further recipe, so they fold in rather than inflating
+      // the count — collapsing too little refuses an importable page, which is
+      // the recoverable direction but still a cost.
+      for (const sameId of byId.values()) out.push(richest(sameId))
+    } else {
+      out.push(richest(members))
     }
   }
-  return best
+  return out
+}
+
+/** The inventory of a page's distinct recipes, in the order they were emitted. */
+function inventoryOf(recipes: readonly JsonObject[]): RecipeInventory {
+  return { count: recipes.length, titles: recipes.map((r) => asDisplayString(r["name"])) }
 }
 
 /**
@@ -162,7 +240,15 @@ function selectRichestRecipe(objects: readonly JsonObject[]): JsonObject | undef
  * `sufficient` with the chosen Recipe, or `insufficient` naming what is missing.
  */
 export function extractRecipeJsonLd(html: string): RecipeExtraction {
-  const recipe = selectRichestRecipe(loadLdObjects(html))
+  const recipes = distinctRecipes(loadLdObjects(html))
+  // CFV1-MR1. A page holding several recipes is REFUSED with what it holds, and
+  // the refusal is decided before sufficiency: a page with three recipes is not
+  // a page to extract one from, however complete that one is, so it must not
+  // fall through to the model fallback the `insufficient` seam exists for.
+  if (recipes.length > 1) {
+    return { kind: "multiple", inventory: inventoryOf(recipes) }
+  }
+  const recipe = recipes[0]
   if (recipe === undefined) {
     return { kind: "insufficient", recipePresent: false, missingRequired: [...REQUIRED_FIELDS] }
   }
@@ -385,6 +471,9 @@ export function createDeterministicUrlCaptureProvider(): CaptureProvider {
     async capture(input): Promise<CaptureResult> {
       const html = new TextDecoder().decode(input)
       const extraction = extractRecipeJsonLd(html)
+      if (extraction.kind === "multiple") {
+        throw new MultipleRecipesError(extraction.inventory)
+      }
       if (extraction.kind === "insufficient") {
         throw new InsufficientRecipeJsonLdError(extraction)
       }
