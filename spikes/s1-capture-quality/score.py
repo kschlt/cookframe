@@ -24,8 +24,11 @@ Usage: python3 spikes/s1-capture-quality/score.py [--model sonnet]
 from __future__ import annotations
 
 import argparse
+import contextlib
 import inspect
+import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -712,7 +715,191 @@ def selftest() -> int:
     if not ok and result.stderr.strip():
         print(f"\n  mutant stderr: {result.stderr.strip().splitlines()[-1]}")
     print(f"\ndiscrimination proof: {'PASS' if ok else 'FAIL'}")
+
+    # The format gate is proved the same way — end to end through score(), then by
+    # planting the mutations that survived when the self-test drove only the pure
+    # helper. A one-time manual "I checked it" is not a guard that stays.
+    print()
+    integ_ok = selftest_integration() == 0
+    mut_ok = _integration_mutation_proofs(source)
+    return 0 if (ok and integ_ok and mut_ok) else 1
+
+
+def _write_integration_corpus(fix_dir: Path, runs_dir: Path) -> tuple[str, str]:
+    """A two-fixture corpus for the integration proof: one clean truth and one
+    whose `times` carries a `*_label` key. Both captures match every scored field
+    and add one ignored key, so they are NOT byte-identical to their truth (the
+    circularity guard stays quiet) and the ONLY thing that can make the verdict
+    FAIL is the format gate. Returns (clean_id, malformed_id)."""
+    fix_dir.mkdir(parents=True, exist_ok=True)
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    clean_id, bad_id = "c-clean", "p-label"
+    (fix_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "fixtures": [
+                    {"id": clean_id, "class": "clean page", "origin": "self-authored",
+                     "image": "c.png", "truth": "c.truth.json"},
+                    {"id": bad_id, "class": "clean page", "origin": "self-authored",
+                     "image": "p.png", "truth": "p.truth.json"},
+                ]
+            }
+        )
+    )
+    clean_truth = {
+        "title": "Clean Loaf", "yields": ["serves 4"],
+        "times": {"prep": "10 min", "cook": "15 min", "total": "25 min"},
+        "ingredients": [{"name": "salt", "quantity": "1", "unit": "tsp", "group": None}],
+        "instructions": ["Mix.", "Bake."],
+    }
+    # Same durations, but with a source heading wrongly recorded inside `times`.
+    bad_truth = {
+        "title": "Label Loaf", "yields": ["serves 2"],
+        "times": {"prep": "5 min", "prep_label": "VORBEREITUNG", "total": "5 min"},
+        "ingredients": [{"name": "pepper", "quantity": "1", "unit": "tsp", "group": None}],
+        "instructions": ["Stir."],
+    }
+    (fix_dir / "c.truth.json").write_text(json.dumps(clean_truth))
+    (fix_dir / "p.truth.json").write_text(json.dumps(bad_truth))
+    # Captures: every scored field correct; a real capture never emits a heading
+    # as a time, so the malformed capture's `times` holds durations only. The
+    # extra `capturedText` key is ignored by scoring and keeps the capture from
+    # being byte-identical to its truth (so the circularity guard stays quiet).
+    clean_cap = {**clean_truth, "capturedText": "clean"}
+    bad_cap = {
+        "title": "Label Loaf", "yields": ["serves 2"],
+        "times": {"prep": "5 min", "total": "5 min"},
+        "ingredients": [{"name": "pepper", "quantity": "1", "unit": "tsp", "group": None}],
+        "instructions": ["Stir."],
+        "capturedText": "label",
+    }
+    (runs_dir / f"{clean_id}__test.json").write_text(json.dumps(clean_cap))
+    (runs_dir / f"{bad_id}__test.json").write_text(json.dumps(bad_cap))
+    return clean_id, bad_id
+
+
+def selftest_integration() -> int:
+    """Prove the FORMAT GATE end to end, through `score()` — not just the helper.
+
+    `--selftest`/`--selftest-core` drive only the pure comparators, so the gate's
+    real job (record a `*_label`-in-`times` fixture, refuse to score its `time`,
+    block a PASS, and print the reduced-denominator note) went unguarded once the
+    one-time manual check was gone. This builds a temp two-fixture corpus and runs
+    the real `score()` over it, planting the violation and requiring each property.
+    """
+    with tempfile.TemporaryDirectory(prefix="cipy-integ-") as tmp:
+        fix, runs = Path(tmp) / "fix", Path(tmp) / "runs"
+        _clean_id, bad_id = _write_integration_corpus(fix, runs)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            score("test", fix, runs)
+        report = buf.getvalue()
+        result = json.loads((runs / "scores-test.json").read_text())
+    time_total = result.get("field_scores", {}).get("time", {}).get("total")
+    checks = [
+        ("verdict is FAIL on a malformed-truth corpus", result.get("verdict") == "FAIL"),
+        ("format_errors names the malformed fixture", result.get("format_errors") == {"time": [bad_id]}),
+        ("`time` is scored only over the clean fixture", time_total == 1),
+        ("the field line carries the exclusion note", "excluded as malformed" in report),
+    ]
+    ok = True
+    print("# format-gate integration self-test (through score(), violation planted)\n")
+    for name, cond in checks:
+        print(f"  {'✓' if cond else '✗ FAIL'}  {name}")
+        ok = ok and cond
+    print(f"\nintegration self-test: {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1
+
+
+# The three mutations that survived when the self-test drove only the pure
+# helper: each disables one guarantee the format gate exists to give, and each
+# must be CAUGHT by a specific integration assertion (not merely be fatal). Each
+# is (label, MARKER, new body, the assertion that must appear in the failed set).
+# The MARKER only LOCATES the target line inside score()'s source — the full line
+# is read off the function (via `_score_line`), never spelled out here, so the
+# find text is not duplicated in this file (the discipline `_rule_line` follows).
+_INTEGRATION_MUTATIONS = [
+    (
+        "verdict drops the format-error clause",
+        "and not format_errors",
+        "if not failing and not missing_runs and not unmeasured",
+        "verdict is FAIL on a malformed-truth corpus",
+    ),
+    (
+        "the format gate is bypassed in score()",
+        "label_keys = time_labels_in_times",
+        "label_keys = []",
+        "format_errors names the malformed fixture",
+    ),
+    (
+        "the reduced-denominator note is dropped",
+        "excluded as malformed",
+        'note = ""',
+        "the field line carries the exclusion note",
+    ),
+]
+
+
+def _score_line(marker: str) -> str:
+    """The one line of `score()`'s source that carries `marker`.
+
+    Read off the function (not the module), so a mutation constant that merely
+    NAMES the marker is not counted, and the target line is never duplicated in
+    this file — the same reason `_rule_line` reads its line off the function.
+    """
+    lines = [ln for ln in inspect.getsource(score).splitlines() if marker in ln]
+    if len(lines) != 1:
+        raise ValueError(f"marker {marker!r} matches {len(lines)} line(s) in score(), expected 1")
+    return lines[0]
+
+
+def _integration_mutation_proofs(source: str) -> bool:
+    """Plant each format-gate mutation in a copy and require the integration
+    self-test to catch it AT its named assertion. The copy runs with this
+    directory on PYTHONPATH (and as cwd) so its `import thresholds` and bars.json
+    resolve to the real declaration."""
+    env = {**os.environ, "PYTHONPATH": str(HERE)}
+    ok = True
+    print("\n# format-gate mutation proofs (each break must be CAUGHT, not merely fatal)\n")
+    for label, marker, new_body, must_fail in _INTEGRATION_MUTATIONS:
+        try:
+            find_line = _score_line(marker)
+        except ValueError as exc:
+            print(f"  ✗ FAIL  {label}: {exc}")
+            ok = False
+            continue
+        if source.count(find_line) != 1:
+            print(f"  ✗ FAIL  {label}: its target line is not in this file exactly once")
+            ok = False
+            continue
+        indent = find_line[: len(find_line) - len(find_line.lstrip())]
+        broken_line = indent + new_body
+        with tempfile.TemporaryDirectory(prefix="cipy-integmut-") as tmp:
+            broken = Path(tmp) / "score.py"
+            broken.write_text(source.replace(find_line, broken_line), encoding="utf8")
+            result = subprocess.run(
+                [sys.executable, str(broken), "--selftest-integration"],
+                capture_output=True,
+                text=True,
+                cwd=str(HERE),
+                env=env,
+            )
+        failed = {
+            line.split("✗ FAIL", 1)[1].strip()
+            for line in result.stdout.splitlines()
+            if "✗ FAIL" in line
+        }
+        caught = (
+            result.returncode != 0
+            and "integration self-test: FAIL" in result.stdout
+            and must_fail in failed
+        )
+        print(f"  {'✓' if caught else '✗ FAIL'}  {label} → must fail at: {must_fail}")
+        if not caught and result.stderr.strip():
+            print(f"      mutant stderr: {result.stderr.strip().splitlines()[-1]}")
+        ok = ok and caught
+    print(f"\nformat-gate mutation proofs: {'PASS' if ok else 'FAIL'}")
+    return ok
 
 
 def main():
@@ -724,11 +911,18 @@ def main():
         action="store_true",
         help="run only the pure discrimination checks (used by --selftest's mutation proof)",
     )
+    ap.add_argument(
+        "--selftest-integration",
+        action="store_true",
+        help="run the format-gate integration self-test through score() (used by --selftest)",
+    )
     ap.add_argument("--fixtures", default=None, help="fixture directory (default: ./fixtures)")
     ap.add_argument("--runs", default=None, help="run directory (default: ./runs)")
     args = ap.parse_args()
     if args.selftest_core:
         return selftest_core()
+    if args.selftest_integration:
+        return selftest_integration()
     if args.selftest:
         return selftest()
     return score(
