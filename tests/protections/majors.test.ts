@@ -30,6 +30,7 @@
 import { describe, expect, it } from "vitest"
 import {
   COMPOSED_AT_RUN_TIME,
+  exitCodeFor,
   MAJOR_HARNESSES,
   type MajorHarness,
   type MutationGroup,
@@ -37,7 +38,11 @@ import {
   type Rot,
   readFromRepo,
   rotIn,
+  sumTallies,
+  type Tally,
+  tallyGroup,
 } from "./majors.js"
+import type { HarnessReport, MutantVerdict, MutationResult } from "./mutation.js"
 
 const fromRepo: ReadFile = readFromRepo
 
@@ -209,5 +214,271 @@ describe("protections/the-major-plants-still-describe-this-tree", () => {
     expect(rotIn(emptied, fixtureRead)).toEqual([])
     expect(emptied.groups.flatMap((g) => g.mutations).length).toBe(0)
     expect(MAJOR_HARNESSES.flatMap((h) => h.groups).length).toBeGreaterThan(0)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * protections/the-majors-run-counts-what-it-planned
+ *
+ * `npm run majors` reports its answer twice: a line of counts and an exit code.
+ * Both used to be worked out inline in `majors.run.ts`, a file only the npm
+ * script reaches, and the review of #91 measured what that cost: counting
+ * refusals as nothing, and exiting 0 whatever happened, both went green through
+ * the whole gate. The arithmetic is now `tallyGroup`, `sumTallies` and
+ * `exitCodeFor` in `majors.ts`, and it is held here the way the rest of this
+ * repository holds a rule: a table of cases, a list of wrong implementations
+ * the table must tell apart from the real one, and a check that every row
+ * refuses at least one of them, so no row is along for the ride.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every outcome a mutant can have, by name. The type below turns a new outcome
+ * added to `MutantVerdict` into a compile error here, so the table cannot fall
+ * behind the verdicts it counts.
+ */
+const OUTCOMES = ["killed", "survived", "inconclusive"] as const
+type Unlisted = Exclude<MutantVerdict["outcome"], (typeof OUTCOMES)[number]>
+const everyOutcomeListed: [Unlisted] extends [never] ? true : false = true
+
+const verdictOf = (outcome: (typeof OUTCOMES)[number]): MutantVerdict =>
+  outcome === "inconclusive" ? { outcome, why: "fixture" } : { outcome }
+
+const resultOf = (outcome: (typeof OUTCOMES)[number]): MutationResult => ({
+  mutation: { name: outcome, find: "a", replace: "b", mustFail: "t" },
+  verdict: verdictOf(outcome),
+  measuredAt: "t",
+})
+
+const reportOf = (
+  outcomes: readonly (typeof OUTCOMES)[number][],
+  refusals = 0,
+  baselineUsable = true,
+): HarnessReport => ({
+  baseline: baselineUsable
+    ? { usable: true, summary: "fixture" }
+    : { usable: false, refusal: "fixture" },
+  results: outcomes.map(resultOf),
+  refusals: Array.from({ length: refusals }, (_, i) => `refusal ${i}`),
+})
+
+type TallyRow = readonly [label: string, report: HarnessReport, planned: number, expected: Tally]
+
+const TALLY_ROWS: readonly TallyRow[] = [
+  [
+    "every planned mutation killed",
+    reportOf(["killed", "killed", "killed"]),
+    3,
+    { killed: 3, notKilled: 0 },
+  ],
+  ["a survivor", reportOf(["killed", "killed", "survived"]), 3, { killed: 2, notKilled: 1 }],
+  [
+    "an inconclusive run",
+    reportOf(["killed", "killed", "inconclusive"]),
+    3,
+    { killed: 2, notKilled: 1 },
+  ],
+  ["a refusal", reportOf(["killed", "killed"], 1), 3, { killed: 2, notKilled: 1 }],
+  ["every mutation refused", reportOf([], 3), 3, { killed: 0, notKilled: 3 }],
+  ["a refused baseline, which ran none", reportOf([], 0, false), 3, { killed: 0, notKilled: 3 }],
+  // A report that arrives despite a refused baseline, and accounts for every
+  // mutation: none of it counts, because a kill against a baseline that was not
+  // green is not attributable to the mutation. Without this row the baseline
+  // branch in tallyGroup is deletable — the row above has no results, so the
+  // accounting check beneath it returns the same answer.
+  [
+    "a refused baseline whose report nevertheless accounts for every mutation",
+    reportOf(["killed", "killed", "killed"], 0, false),
+    3,
+    { killed: 0, notKilled: 3 },
+  ],
+  ["a report that lost a mutation", reportOf(["killed", "killed"]), 3, { killed: 0, notKilled: 3 }],
+  [
+    "a report with more than was planned",
+    reportOf(["killed", "killed", "killed", "killed"]),
+    3,
+    { killed: 0, notKilled: 3 },
+  ],
+]
+
+type ExitRow = readonly [label: string, total: Tally, expected: 0 | 1]
+
+const EXIT_ROWS: readonly ExitRow[] = [
+  ["every mutation killed", { killed: 22, notKilled: 0 }, 0],
+  ["one mutation killed and none missed", { killed: 1, notKilled: 0 }, 0],
+  ["one not killed among many kills", { killed: 21, notKilled: 1 }, 1],
+  ["nothing killed", { killed: 0, notKilled: 3 }, 1],
+  ["nothing run at all", { killed: 0, notKilled: 0 }, 1],
+]
+
+/** For every row, whether `rule` gives the row's expected answer. */
+const agreesOnEach = <R extends readonly unknown[], A>(
+  rows: readonly R[],
+  rule: (row: R) => A,
+  expected: (row: R) => A,
+): boolean[] => rows.map((row) => JSON.stringify(rule(row)) === JSON.stringify(expected(row)))
+
+describe("protections/the-majors-run-counts-what-it-planned", () => {
+  it("lists every outcome a mutant can have, and the table uses each of them", () => {
+    expect(everyOutcomeListed).toBe(true)
+    const used = new Set(
+      TALLY_ROWS.flatMap(([, report]) => report.results.map((r) => r.verdict.outcome)),
+    )
+    expect([...used].sort()).toEqual([...OUTCOMES].sort())
+  })
+
+  it("counts a group against the mutations it planned", () => {
+    for (const [label, report, planned, expected] of TALLY_ROWS) {
+      expect(tallyGroup(report, planned), label).toEqual(expected)
+    }
+  })
+
+  it("protections/tally-table-discriminates — tells the count apart from each wrong one, and every row refuses one", () => {
+    type Rule = (report: HarnessReport, planned: number) => Tally
+    const kills = (report: HarnessReport) =>
+      report.results.filter((r) => r.verdict.outcome === "killed").length
+    const candidates: ReadonlyArray<readonly [string, Rule]> = [
+      [
+        "the loop #91 shipped, which trusts the report to account for every mutation",
+        (report, planned) =>
+          report.baseline.usable
+            ? {
+                killed: kills(report),
+                notKilled: report.results.length - kills(report) + report.refusals.length,
+              }
+            : { killed: 0, notKilled: planned },
+      ],
+      [
+        "not counting refusals",
+        (report, planned) =>
+          report.baseline.usable
+            ? { killed: kills(report), notKilled: report.results.length - kills(report) }
+            : { killed: 0, notKilled: planned },
+      ],
+      [
+        "trusting a report that arrives despite a refused baseline",
+        (report, planned) =>
+          tallyGroup({ ...report, baseline: { usable: true, summary: "trusted" } }, planned),
+      ],
+      [
+        "not counting a refused baseline",
+        (report, planned) =>
+          report.baseline.usable ? tallyGroup(report, planned) : { killed: 0, notKilled: 0 },
+      ],
+      [
+        "counting a survivor as a kill",
+        (report, planned) => {
+          const t = tallyGroup(report, planned)
+          const survivors = report.results.filter((r) => r.verdict.outcome === "survived").length
+          return t.killed === 0
+            ? t
+            : { killed: t.killed + survivors, notKilled: t.notKilled - survivors }
+        },
+      ],
+      [
+        "counting an inconclusive run as a kill",
+        (report, planned) => {
+          const t = tallyGroup(report, planned)
+          const unclear = report.results.filter((r) => r.verdict.outcome === "inconclusive").length
+          return t.killed === 0
+            ? t
+            : { killed: t.killed + unclear, notKilled: t.notKilled - unclear }
+        },
+      ],
+      [
+        "counting against the plan without checking the report accounts for it",
+        (report, planned) =>
+          report.baseline.usable
+            ? { killed: kills(report), notKilled: planned - kills(report) }
+            : { killed: 0, notKilled: planned },
+      ],
+      ["never counting a kill", (_report, planned) => ({ killed: 0, notKilled: planned })],
+    ]
+    const expected = ([, , , tally]: TallyRow) => tally
+    expect(
+      agreesOnEach(TALLY_ROWS, ([, r, p]) => tallyGroup(r, p), expected).every(Boolean),
+      "the table does not agree with tallyGroup",
+    ).toBe(true)
+    const verdicts = candidates.map(([name, rule]) => ({
+      name,
+      agrees: agreesOnEach(TALLY_ROWS, ([, r, p]) => rule(r, p), expected),
+    }))
+    for (const { name, agrees } of verdicts) {
+      expect(
+        agrees.every(Boolean),
+        `the tally table cannot tell the count apart from ${name}`,
+      ).toBe(false)
+    }
+    TALLY_ROWS.forEach(([label], i) => {
+      expect(
+        verdicts.some(({ agrees }) => !agrees[i]),
+        `the row "${label}" refuses no candidate, so it measures nothing`,
+      ).toBe(true)
+    })
+  })
+
+  it("adds a run's tallies up, all of them", () => {
+    expect(sumTallies([])).toEqual({ killed: 0, notKilled: 0 })
+    expect(
+      sumTallies([
+        { killed: 10, notKilled: 0 },
+        { killed: 7, notKilled: 1 },
+        { killed: 0, notKilled: 4 },
+      ]),
+    ).toEqual({ killed: 17, notKilled: 5 })
+  })
+
+  it("exits 0 only when every mutation was killed and at least one was", () => {
+    for (const [label, total, expected] of EXIT_ROWS) {
+      expect(exitCodeFor(total), label).toBe(expected)
+    }
+  })
+
+  it("protections/exit-table-discriminates — tells the exit code apart from each wrong one, and every row refuses one", () => {
+    type Rule = (total: Tally) => number
+    const candidates: ReadonlyArray<readonly [string, Rule]> = [
+      ["always exiting 0, as the #91 plant did", () => 0],
+      ["always exiting 1", () => 1],
+      ["passing a run that ran nothing", (t) => (t.notKilled === 0 ? 0 : 1)],
+      ["passing on any kill", (t) => (t.killed > 0 ? 0 : 1)],
+      ["passing when most were killed", (t) => (t.notKilled < t.killed ? 0 : 1)],
+    ]
+    const expected = ([, , code]: ExitRow) => code
+    expect(agreesOnEach(EXIT_ROWS, ([, t]) => exitCodeFor(t), expected).every(Boolean)).toBe(true)
+    const verdicts = candidates.map(([name, rule]) => ({
+      name,
+      agrees: agreesOnEach(EXIT_ROWS, ([, t]) => rule(t), expected),
+    }))
+    for (const { name, agrees } of verdicts) {
+      expect(agrees.every(Boolean), `the exit table cannot tell the rule apart from ${name}`).toBe(
+        false,
+      )
+    }
+    EXIT_ROWS.forEach(([label], i) => {
+      expect(
+        verdicts.some(({ agrees }) => !agrees[i]),
+        `the row "${label}" refuses no candidate, so it measures nothing`,
+      ).toBe(true)
+    })
+  })
+
+  it("is what majors.run.ts reports with, and that file adds nothing up itself", () => {
+    // The tables prove the functions; this proves the run calls them. Without
+    // it the arithmetic could be copied back inline and every row above would
+    // still pass, about functions nothing uses.
+    const run = readFromRepo("tests/protections/majors.run.ts")
+    expect(run).toContain("tallies.push(tallyGroup(report, group.mutations.length))")
+    expect(run).toContain("const total = sumTallies(tallies)")
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the run file's own template is the point
+    expect(run).toContain("${total.killed} killed, ${total.notKilled} not killed")
+    expect(run.match(/process\.exit\([^)]*\)/g)).toEqual([
+      "process.exit(2)",
+      "process.exit(exitCodeFor(total)",
+    ])
+    // An update operator on a name, on either side: the shape a count written
+    // inline takes. The `---` in the printed headings is not one.
+    expect(
+      run.match(/[\w\])]\s*(?:\+\+|--|\+=|-=)|(?:\+\+|--)\s*[A-Za-z_]/g),
+      "arithmetic written inline in majors.run.ts",
+    ).toBeNull()
   })
 })
