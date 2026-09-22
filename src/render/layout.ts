@@ -59,6 +59,23 @@ li { margin: .3rem 0; }
 .card h2 { border: 0; margin: 0 0 .3rem; padding: 0; font-size: 1.05rem; }
 .empty { color: var(--ink-soft); }
 @media (min-width: 40rem) { .cards { grid-template-columns: 1fr 1fr; } }
+
+/* The cooking view (CFV1-SL6). The treatment follows S4's prototype rather than
+   being chosen here: the amounts a unit needs sit in a tinted block above the
+   action sentence (layout A), and a split or a reserved amount is set apart from
+   an ordinary quantity, which is the structural half of "unmissable". */
+.units { list-style: none; padding: 0; counter-reset: unit; }
+.unit { border-top: 1px solid var(--rule); padding: .9rem 0; counter-increment: unit; }
+.unit:first-child { border-top: 0; }
+.unit .action { margin: .5rem 0 0; }
+.unit .action::before { content: counter(unit) ". "; font-weight: 700; color: var(--accent); }
+.block-label { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 0 0 .25rem; }
+.now-you-need { background: #f3ede2; border-radius: 8px; padding: .5rem .6rem .5rem 1.6rem; margin: 0; list-style: disc; }
+.now-you-need .split, .now-you-need .reserved { font-weight: 700; }
+.now-you-need .mark { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-right: .25rem; }
+.produces { font-size: .85rem; color: var(--ink-soft); margin: .4rem 0 0; }
+.start-now .for-step, .set-up, .fetch-prepare { color: inherit; }
+.start-now .for-step { color: var(--ink-soft); font-size: .85rem; }
 `.trim()
 
 /**
