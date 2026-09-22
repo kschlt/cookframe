@@ -4,7 +4,8 @@
  *
  * This is the "one suite, every store" proof: a single exported function that
  * takes a store *factory* and exercises every operation the interface promises —
- * ADR-0003's original five plus the read ADR-0018 added. Any store that claims to
+ * ADR-0003's original five, the read ADR-0018 added, and the two Cooking Plan
+ * operations ADR-0025 added. Any store that claims to
  * implement the interface runs exactly these proofs by joining the registry in
  * `repository-contract.test.ts`, so a second store inherits the suite instead of
  * getting its own. With one store in the tree today, this is also the only way to
@@ -20,8 +21,14 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import type { CookingPlan } from "../../schema/index.js"
 import { SourceSnapshot } from "../../schema/index.js"
+import { deriveCookingPlan } from "../../src/cooking/index.js"
 import type { RecipeRepository } from "../../src/persistence/index.js"
+import {
+  RecipeVersionNotFoundError,
+  UnversionedCookingPlanError,
+} from "../../src/persistence/index.js"
 import { createFakeNormalizationProvider } from "../../src/pipeline/fake-providers.js"
 import type { NormalizationContext } from "../../src/pipeline/providers.js"
 
@@ -130,6 +137,23 @@ export function runRepositoryContract(
       expect(await repo.listLibrary()).toHaveLength(0)
     })
 
+    it("hands back a copy of a snapshot, so a caller cannot mutate stored state", async () => {
+      // The same property `loadLatestCanonical` is held to. It was unproven for
+      // the snapshot read until a mutation sweep removed the copy and nothing
+      // went red.
+      const repo = await makeStore()
+      await repo.storeSnapshot(snapshot)
+      const loaded = await repo.loadSnapshot(snapshot.id)
+      if (loaded === undefined) throw new Error("the snapshot that was just stored is not there")
+      loaded.blocks.length = 0
+
+      const again = await repo.loadSnapshot(snapshot.id)
+      expect(
+        again?.blocks.length,
+        "the stored snapshot was reachable through the copy",
+      ).toBeGreaterThan(0)
+    })
+
     it("appends versions monotonically and never mutates an earlier one", async () => {
       const repo = await makeStore()
       const v1 = await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("run-1")))
@@ -170,6 +194,119 @@ export function runRepositoryContract(
       for (const forbidden of ["update", "save", "put", "overwrite", "replace", "set", "delete"]) {
         expect(repo[forbidden]).toBeUndefined()
       }
+    })
+  })
+
+  describe(`repo-plan/stored-plan-belongs-to-one-version (${label})`, () => {
+    it("stores a plan under the version it names, and loads it back", async () => {
+      const repo = await makeStore()
+      const appended = await repo.appendCanonicalVersion(
+        await provider.normalize(snapshot, ctx("run-1")),
+      )
+      const plan = deriveCookingPlan(appended.recipe, { canonicalVersion: appended.version })
+      await repo.storeCookingPlan(plan)
+
+      expect(await repo.loadCookingPlan(appended.recipeId, appended.version)).toEqual(plan)
+    })
+
+    it("answers undefined for a version with no plan, rather than failing", async () => {
+      // Under `PDR-0004`'s `lazy` default this is the ordinary state of every
+      // recipe nobody has cooked yet, so the caller derives rather than catches.
+      const repo = await makeStore()
+      const appended = await repo.appendCanonicalVersion(
+        await provider.normalize(snapshot, ctx("run-1")),
+      )
+      expect(await repo.loadCookingPlan(appended.recipeId, appended.version)).toBeUndefined()
+      expect(await repo.loadCookingPlan("never-stored", 1)).toBeUndefined()
+    })
+
+    it("does not serve one version's plan for another", async () => {
+      // The failure this keying exists to make impossible: a recipe re-normalized
+      // into a new version, with the previous version's plan still on disk.
+      const repo = await makeStore()
+      const first = await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("r1")))
+      await repo.storeCookingPlan(
+        deriveCookingPlan(first.recipe, { canonicalVersion: first.version }),
+      )
+      const second = await repo.appendCanonicalVersion(
+        await provider.normalize(snapshot, ctx("r2")),
+      )
+
+      expect(second.version).toBe(2)
+      expect(await repo.loadCookingPlan(second.recipeId, second.version)).toBeUndefined()
+      expect(await repo.loadCookingPlan(first.recipeId, first.version)).toBeDefined()
+    })
+
+    it("refuses a plan that names no version, and one naming a version it does not hold", async () => {
+      const repo = await makeStore()
+      const appended = await repo.appendCanonicalVersion(
+        await provider.normalize(snapshot, ctx("run-1")),
+      )
+      // Each refusal named, not merely "throws": a plan with no version reaches
+      // the version check as `undefined` and would be refused there for the
+      // wrong reason, which would leave the guard that exists for it unproven.
+      await expect(repo.storeCookingPlan(deriveCookingPlan(appended.recipe))).rejects.toThrow(
+        UnversionedCookingPlanError,
+      )
+      await expect(
+        repo.storeCookingPlan(deriveCookingPlan(appended.recipe, { canonicalVersion: 99 })),
+      ).rejects.toThrow(RecipeVersionNotFoundError)
+    })
+
+    it("validates the plan before persisting, rather than filing what it is handed", async () => {
+      // The same commitment ADR-0003 made for every other document, and the
+      // reason ADR-0025 could add a write at all: a store that files an invalid
+      // plan would hand a cook a page derived from something that is not one.
+      const repo = await makeStore()
+      const appended = await repo.appendCanonicalVersion(
+        await provider.normalize(snapshot, ctx("run-1")),
+      )
+      const plan = deriveCookingPlan(appended.recipe, { canonicalVersion: appended.version })
+
+      await expect(
+        repo.storeCookingPlan({ ...plan, units: "not units" } as unknown as CookingPlan),
+      ).rejects.toThrow()
+      expect(await repo.loadCookingPlan(appended.recipeId, appended.version)).toBeUndefined()
+    })
+
+    it("lets the last write for one version win, rather than accumulating runs", async () => {
+      // ADR-0025 point 4: the derivation is deterministic, so re-deriving a
+      // version yields the same plan and an append would only pile up copies.
+      const repo = await makeStore()
+      const appended = await repo.appendCanonicalVersion(
+        await provider.normalize(snapshot, ctx("run-1")),
+      )
+      const plan = deriveCookingPlan(appended.recipe, { canonicalVersion: appended.version })
+      await repo.storeCookingPlan(plan)
+      // A field that is certain to differ from the first write, whatever the
+      // fixture derives to: a flipped flag, not an emptied list that may have
+      // been empty already.
+      const suppressed = !plan.derivation.assumedAtHandSuppressed
+      await repo.storeCookingPlan({
+        ...plan,
+        derivation: { ...plan.derivation, assumedAtHandSuppressed: suppressed },
+      })
+
+      const loaded = await repo.loadCookingPlan(appended.recipeId, appended.version)
+      expect(loaded?.derivation.assumedAtHandSuppressed).toBe(suppressed)
+    })
+
+    it("hands back a copy, so a caller cannot mutate the stored plan", async () => {
+      const repo = await makeStore()
+      const appended = await repo.appendCanonicalVersion(
+        await provider.normalize(snapshot, ctx("run-1")),
+      )
+      await repo.storeCookingPlan(
+        deriveCookingPlan(appended.recipe, { canonicalVersion: appended.version }),
+      )
+      const loaded = await repo.loadCookingPlan(appended.recipeId, appended.version)
+      if (loaded === undefined) throw new Error("the plan that was just stored is not there")
+      loaded.units.length = 0
+
+      const again = await repo.loadCookingPlan(appended.recipeId, appended.version)
+      expect(again?.units.length, "the stored plan was reachable through the copy").toBeGreaterThan(
+        0,
+      )
     })
   })
 }

@@ -30,8 +30,8 @@ import {
   applyMigration,
   decideDatabaseAvailability,
   isReachable,
-  MIGRATION_PATH,
   MIGRATION_SQL,
+  MIGRATIONS,
   type ProvisionedSchema,
   provisionSchema,
   urlForSchema,
@@ -220,6 +220,7 @@ withDatabase("persistence/the-migration-builds-the-store", () => {
     // inside the tests would make every proof below a proof about nothing
     // deployed.
     expect(MIGRATION_SQL).toMatch(/create table recipe_version/)
+    expect(MIGRATION_SQL).toMatch(/create table cooking_plan/)
     const tables = await inspect(schema, async (client) => {
       const result = await client.query<{ table_name: string }>(
         "select table_name from information_schema.tables where table_schema = $1 order by table_name",
@@ -227,7 +228,7 @@ withDatabase("persistence/the-migration-builds-the-store", () => {
       )
       return result.rows.map((r) => r.table_name)
     })
-    expect(tables).toEqual(["ingredient", "recipe_version", "snapshot"])
+    expect(tables).toEqual(["cooking_plan", "ingredient", "recipe_version", "snapshot"])
   })
 
   it("builds a store the repository can immediately write to and read back", async () => {
@@ -263,8 +264,18 @@ withDatabase("persistence/the-migration-builds-the-store", () => {
   })
 
   it("is a file an operator can apply with psql, with no runner and no version table", async () => {
-    expect(MIGRATION_PATH).toMatch(/migrations\/0001-the-recipe-store\.sql$/)
-    expect(MIGRATION_SQL).toMatch(/psql "\$DATABASE_URL" -f migrations\/0001-the-recipe-store\.sql/)
+    // Every file, not just the first: a migration an operator is never told to
+    // run is a table their database will not have.
+    expect(MIGRATIONS.map((m) => m.path.replace(/^.*\/migrations\//, ""))).toEqual([
+      "0001-the-recipe-store.sql",
+      "0002-the-cooking-plan.sql",
+    ])
+    for (const migration of MIGRATIONS) {
+      const name = migration.path.replace(/^.*\/migrations\//, "")
+      expect(migration.sql, name).toMatch(
+        new RegExp(`psql "\\$DATABASE_URL" -f migrations/${name.replace(/\./g, "\\.")}`),
+      )
+    }
     // A program that migrates its own database at startup is a different
     // decision and would need its own record, so nothing in `src/` may apply
     // it: the store declares no DDL and never reads the file. It may NAME it —
@@ -590,6 +601,23 @@ withDatabase("persistence/a-stored-document-is-parsed-on-the-way-out", () => {
     await expect(
       handle.repository.loadLatestCanonical("recipe-from-an-older-contract"),
     ).rejects.toThrow()
+  })
+
+  it("refuses a stored Cooking Plan the contract no longer accepts", async () => {
+    // The plan is derived data, so a stale row here costs one derivation to
+    // replace — but handing it on unparsed would put a document nobody can
+    // read in front of a cook, which is the one thing the fallback exists to
+    // avoid. The version has to exist first: the table's foreign key is what
+    // refuses a plan belonging to nothing.
+    const { handle, schema } = await freshStore()
+    const appended = await handle.repository.appendCanonicalVersion(await canonical("run-1"))
+    await inspect(schema, (client) =>
+      client.query("insert into cooking_plan (recipe_id, version, doc) values ($1, 1, $2)", [
+        appended.recipeId,
+        JSON.stringify(NOT_A_RECIPE),
+      ]),
+    )
+    await expect(handle.repository.loadCookingPlan(appended.recipeId, 1)).rejects.toThrow()
   })
 
   it("refuses a comparison when either of the two versions no longer parses", async () => {

@@ -16,6 +16,7 @@ import { CookingPlan } from "../../schema/index.js"
 import { deriveCookingPlan, UntraceablePlanFactError } from "../../src/cooking/index.js"
 import {
   allRecipes,
+  bellPepper,
   canonicalTemperatures,
   canonicalWordings,
   everyAmount,
@@ -173,6 +174,35 @@ describe("slice6/every-fact-traces-to-canonical", () => {
       }
     }
     expect(checked, "no source reference is under test").toBeGreaterThan(80)
+  })
+
+  it("leaves an element whose references are genuinely empty empty, and invents none", () => {
+    // The half of the rule above that the corpus cannot witness: no element in
+    // any fixture carries an empty `sourceRefs`, so a deriver that filled an
+    // empty list with a reference of its own making passed every proof here.
+    // Reproduced before this was written — `originOf` returning an invented
+    // ref for an empty list left all 92 green.
+    //
+    // The element is emptied in the recipe rather than in a fixture: a fixture
+    // element with no source references would be one the whole corpus then
+    // carries, and this is a property of the deriver, not of a recipe.
+    const recipe: CanonicalRecipe = structuredClone(bellPepper)
+    const step = recipe.instructionSections[0]?.steps[0]
+    const ingredient = recipe.ingredientGroups[0]?.ingredients[0]
+    if (!step || !ingredient) throw new Error("the fixture has no first step or first ingredient")
+    step.sourceRefs = []
+    ingredient.sourceRefs = []
+    for (const use of step.ingredientUses) use.sourceRefs = []
+
+    const plan = deriveCookingPlan(recipe)
+    const emptied = everyOriginAgainstItsSource(recipe, plan).filter(
+      (pair) => pair.expected.length === 0,
+    )
+
+    expect(emptied.length, "nothing in the plan reads the emptied element").toBeGreaterThan(0)
+    for (const { where, actual } of emptied) {
+      expect(actual, `${where}: a source reference was invented`).toEqual([])
+    }
   })
 
   it("resolves a use's inherited references, and does not override the ones it states", () => {
