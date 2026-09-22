@@ -1,0 +1,42 @@
+# TEMPORARY MEASUREMENT — delete before this branch is proposed for merge.
+#
+# CFV1-PROT asks for the repository's protections to be verified "by reading the
+# repository's settings rather than by asserting it". Unauthenticated reads are
+# already measured: `security_and_analysis` is absent and the admin endpoints
+# answer 403. What is NOT yet measured is whether a workflow's own GITHUB_TOKEN,
+# declaring `administration: read`, can see them — a permission a workflow may
+# ask for without any stored secret. If it can, the criteria are provable as
+# written and no re-cut is needed for them. If it cannot, they are not.
+name: probe-admin-read
+
+on:
+  push:
+    branches: [claude/project-thread-sqw9mq]
+
+permissions:
+  contents: read
+  administration: read
+  security-events: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the settings CFV1-PROT wants verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          api="https://api.github.com/repos/${{ github.repository }}"
+          probe() {
+            code="$(curl -s -o /tmp/body.json -w '%{http_code}' \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" "$1")"
+            echo "PROBE $2 -> $code"
+            head -c 400 /tmp/body.json; echo; echo "---"
+          }
+          probe "$api" "repo-object"
+          echo "security_and_analysis present: $(python3 -c "import json;print('security_and_analysis' in json.load(open('/tmp/body.json')))")"
+          probe "$api/branches/main/protection" "branch-protection-rules"
+          probe "$api/vulnerability-alerts" "dependabot-alerts-enabled"
+          probe "$api/automated-security-fixes" "dependabot-security-updates"
