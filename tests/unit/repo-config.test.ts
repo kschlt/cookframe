@@ -147,45 +147,60 @@ describe("CI workflow (ci.yml)", () => {
     ).toBeTruthy()
   })
 
-  it("ci/scorer-selftest-discriminates — a broken scorer fails the self-test rather than passing it", () => {
-    // "The self-test passes" means nothing unless a broken scorer makes it fail,
-    // and that is exactly the property the scorer's own review found unproven for
-    // the rule that had changed. So this runs the self-test twice: once on the
-    // shipped file, and once on a COPY with the exact narrowing the extraction
-    // commit exists to catch re-applied — the time selection filtered down to
-    // ("prep", "cook", "total"), which drops keys from an `all(...)` and can only
-    // turn misses into hits. The copy must fail; the original must pass. A copy
-    // is mutated, never the shipped file.
-    const scorer = join(repoRoot, "spikes", "s1-capture-quality", "score.py")
-    const source = readFileSync(scorer, "utf8")
-    const marker = 'return {k: v for k, v in (truth.get("times") or {}).items() if v}'
-    expect(source, "the self-test's discriminating line moved; update this proof").toContain(marker)
+  // Whether a `python3` runtime is present at all. The production container
+  // image ships none — the product is Node, and the scorer is a Python spike —
+  // so this proof does not run in the `container` job. That skip is honest, not
+  // a gap masquerading as a pass: `ci/scorer-selftest-job-exists` above proves,
+  // in every environment, that the `unit` job PINS a Python and runs the
+  // self-test there, so the CI place the scorer actually runs cannot lose its
+  // runtime unnoticed. This proof adds the discrimination check on top, wherever
+  // a Python exists (local `npm run quality`, and the pinned `unit` job).
+  const python3 = spawnSync("python3", ["--version"], { encoding: "utf8" })
+  const hasPython3 = python3.error === undefined && python3.status === 0
 
-    const runSelftest = (file: string) =>
-      spawnSync("python3", [file, "--selftest"], { encoding: "utf8" })
-    const pristine = runSelftest(scorer)
-    expect(pristine.error, "python3 is unavailable to the discrimination proof").toBeFalsy()
-    expect(pristine.status, "the shipped scorer's self-test does not pass").toBe(0)
-
-    const dir = mkdtempSync(join(tmpdir(), "cipy-mut-"))
-    try {
-      const broken = join(dir, "score.py")
-      writeFileSync(
-        broken,
-        source.replace(
-          marker,
-          'return {k: (truth.get("times") or {}).get(k) for k in ("prep", "cook", "total") if (truth.get("times") or {}).get(k)}',
-        ),
+  it.skipIf(!hasPython3)(
+    "ci/scorer-selftest-discriminates — a broken scorer fails the self-test rather than passing it",
+    () => {
+      // "The self-test passes" means nothing unless a broken scorer makes it
+      // fail, and that is exactly the property the scorer's own review found
+      // unproven for the rule that had changed. So this runs the self-test
+      // twice: once on the shipped file, and once on a COPY with the exact
+      // narrowing the extraction commit exists to catch re-applied — the time
+      // selection filtered down to ("prep", "cook", "total"), which drops keys
+      // from an `all(...)` and can only turn misses into hits. The copy must
+      // fail; the original must pass. A copy is mutated, never the shipped file.
+      const scorer = join(repoRoot, "spikes", "s1-capture-quality", "score.py")
+      const source = readFileSync(scorer, "utf8")
+      const marker = 'return {k: v for k, v in (truth.get("times") or {}).items() if v}'
+      expect(source, "the self-test's discriminating line moved; update this proof").toContain(
+        marker,
       )
-      const mutated = runSelftest(broken)
-      expect(
-        mutated.status,
-        "the narrowing the self-test exists to catch did NOT make it fail",
-      ).not.toBe(0)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
+
+      const runSelftest = (file: string) =>
+        spawnSync("python3", [file, "--selftest"], { encoding: "utf8" })
+      const pristine = runSelftest(scorer)
+      expect(pristine.status, "the shipped scorer's self-test does not pass").toBe(0)
+
+      const dir = mkdtempSync(join(tmpdir(), "cipy-mut-"))
+      try {
+        const broken = join(dir, "score.py")
+        writeFileSync(
+          broken,
+          source.replace(
+            marker,
+            'return {k: (truth.get("times") or {}).get(k) for k in ("prep", "cook", "total") if (truth.get("times") or {}).get(k)}',
+          ),
+        )
+        const mutated = runSelftest(broken)
+        expect(
+          mutated.status,
+          "the narrowing the self-test exists to catch did NOT make it fail",
+        ).not.toBe(0)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
 
   it("ci/scorer-rules-unchanged — the scorer's pre-registered bars are byte-identical to THRESHOLD.md's", () => {
     // CFV1-CIPY makes the scorer RUN; it must not change what the scorer
