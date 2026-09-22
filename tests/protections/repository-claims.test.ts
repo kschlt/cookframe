@@ -175,6 +175,11 @@ describe("protections/no-unbacked-claim-about-a-setting", () => {
     // "active" and bare "on" mean too many other things.
     expect(claims("Branch protection is active.")).toBe(1)
     expect(claims("| Push protection | on |")).toBe(1)
+    // And behind an em dash, which is what this repository's prose is made of.
+    // Mutation caught the omission: with only the participle cases above, the
+    // dash could be dropped from the separator class and nothing went red,
+    // because every one of them matched on the participle instead.
+    expect(claims("Secret scanning — active.")).toBe(1)
 
     // DELIBERATELY OUT OF REACH, and pinned here so that the paragraph in
     // `claims.ts` saying so is not quietly contradicted. Catching these needs a
