@@ -45,6 +45,7 @@ import type { InstanceCredential } from "../http/instance-credential.js"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "../http/not-found.js"
 import { createPagesApp } from "../http/pages-app.js"
 import type { RecipeRepository } from "../persistence/index.js"
+import type { UrlByteSource } from "../security/url-byte-source.js"
 import type { CapabilityStore } from "../shopping/capability-token.js"
 
 /**
@@ -72,12 +73,37 @@ export interface InstanceDeps {
   readonly sourceAdapter: string
   readonly adapterVersion: string
   /**
+   * The egress seam a URL import fetches through. Injected like everything else
+   * here; `main.ts` builds the safe-fetch-backed one with production defaults,
+   * and a proof builds a loopback-allowed one so it can reach a local server
+   * through the same route.
+   */
+  readonly byteSource: UrlByteSource
+  /**
+   * The capture provider the URL route runs through — the composite, not the
+   * photo path's model provider. `main.ts` builds it; what holds that it is the
+   * composite rather than anything else is
+   * `serve/a-url-import-runs-the-url-capture-path`.
+   */
+  readonly urlCapture: IngestAppDeps["urlCapture"]
+  readonly urlSourceAdapter: string
+  readonly urlAdapterVersion: string
+  /**
    * Released after the last in-flight request, when the instance stops. The
    * store's own teardown — `createPostgresStore` returns one on its handle —
    * and absent for a store that holds nothing to release, which is why it is
    * optional rather than required.
    */
   readonly closeStore?: () => Promise<void>
+  /**
+   * Released with the store, after the last in-flight request. The safe-fetch
+   * connector behind the byte source holds a connection pool open across calls,
+   * so an instance that stopped without this one would leave it open — and a
+   * pool closed EARLIER, while an import is still fetching, would turn a clean
+   * stop into a half-written one, which is the same ordering `closeStore` is
+   * documented for.
+   */
+  readonly closeByteSource?: () => Promise<void>
 }
 
 /**
@@ -109,6 +135,10 @@ export function composeInstance(deps: InstanceDeps): Hono {
       targetOntologyVersion: deps.targetOntologyVersion,
       sourceAdapter: deps.sourceAdapter,
       adapterVersion: deps.adapterVersion,
+      byteSource: deps.byteSource,
+      urlCapture: deps.urlCapture,
+      urlSourceAdapter: deps.urlSourceAdapter,
+      urlAdapterVersion: deps.urlAdapterVersion,
     }),
   )
   app.route("/", createCapabilityApp({ store: deps.capabilityStore, repo: deps.repo }))
@@ -142,7 +172,10 @@ export function startInstance(deps: InstanceDeps, port: number): Promise<Running
     let server: ReturnType<typeof serve>
     try {
       server = serve({ fetch: app.fetch, port }, (info) => {
-        resolve({ port: info.port, stop: () => stopServer(server, deps.closeStore) })
+        resolve({
+          port: info.port,
+          stop: () => stopServer(server, deps.closeStore, deps.closeByteSource),
+        })
       })
     } catch (error) {
       reject(error instanceof Error ? error : new Error(String(error)))
@@ -153,10 +186,11 @@ export function startInstance(deps: InstanceDeps, port: number): Promise<Running
   })
 }
 
-/** Stop accepting, drain, then release the store. */
+/** Stop accepting, drain, then release the store and the fetch pool. */
 async function stopServer(
   server: ReturnType<typeof serve>,
   closeStore: (() => Promise<void>) | undefined,
+  closeByteSource: (() => Promise<void>) | undefined,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     // `close` stops new connections and calls back once the last in-flight
@@ -171,4 +205,5 @@ async function stopServer(
     if ("closeIdleConnections" in server) server.closeIdleConnections()
   })
   await closeStore?.()
+  await closeByteSource?.()
 }
