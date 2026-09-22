@@ -93,7 +93,13 @@ const COMPILER_API_IN_USE: Readonly<Record<string, readonly string[]>> = {
     "ts.canHaveModifiers",
     "ts.getModifiers",
   ],
-  "tests/protections/proof-names.ts": PARSE,
+  "tests/protections/proof-names.ts": [
+    ...PARSE,
+    "Program.getTypeChecker",
+    "TypeChecker.getSymbolAtLocation",
+    "ts.NodeFlags",
+    "ts.createProgram",
+  ],
   "tests/protections/scan-retention-wiring.ts": [
     "Node.getStart",
     "Node.getText",
