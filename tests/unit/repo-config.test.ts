@@ -820,10 +820,74 @@ describe("slice0/schema-single-source-of-truth", () => {
 })
 
 describe("slice0/container-builds-and-runs", () => {
-  it("a Dockerfile pins Node 22 and installs dependencies for the documented commands", () => {
-    const dockerfile = read("Dockerfile")
-    expect(dockerfile).toMatch(/FROM\s+node:22/)
-    expect(dockerfile).toMatch(/npm ci/)
+  it("installs dependencies from the lockfile for the documented commands", () => {
+    expect(read("Dockerfile")).toMatch(/npm ci/)
+  })
+
+  it("every place that pins a Node version pins the same major", () => {
+    // WHY THIS IS NOT `toMatch(/FROM node:22/)`, which is what stood here.
+    //
+    // That line asserted a literal, so a bump had to edit it by hand, and it
+    // read one file. The runtime image an operator actually runs, and the
+    // `setup-node` steps that decide what the gate runs ON, were pinned by
+    // nothing. A bump that moved one and not the others left CI certifying the
+    // code on one runtime while the image shipped another, and nothing went
+    // red — the version the repository "runs on" would have been three
+    // different numbers, each of them written down. This guard refuses that at
+    // any version rather than at 22, so it does not have to be edited to stay
+    // true, only to stay honest about where a pin lives.
+    //
+    // WHAT THIS DOES NOT SEE. `@types/node` names a major too, and it is not in
+    // the map: it is a caret range in devDependencies, so putting it here would
+    // turn this guard red for a bump that belongs to the dependency-update
+    // group rather than to the runtime. The damage a mismatch there does is
+    // loud — a Node API the older typings lack is a `tsc` error, not a silent
+    // divergence — which is why it is named here rather than guarded. When it
+    // reaches the same major as the pins, it belongs in this map.
+    const majors = new Map<string, string>()
+
+    const fromImage = (file: string): string => {
+      const match = /^FROM\s+node:(\d+)[-.]/m.exec(read(file))
+      const major = match?.[1]
+      if (major === undefined) throw new Error(`${file} pins no node image`)
+      return major
+    }
+    majors.set("Dockerfile", fromImage("Dockerfile"))
+    majors.set("Dockerfile.runtime", fromImage("Dockerfile.runtime"))
+
+    const workflow = parseYaml(read(".github", "workflows", "ci.yml")) as {
+      jobs: Record<string, { steps?: Array<Record<string, unknown>> }>
+    }
+    let setups = 0
+    for (const [job, definition] of Object.entries(workflow.jobs)) {
+      for (const [index, step] of (definition.steps ?? []).entries()) {
+        const uses = typeof step.uses === "string" ? step.uses : ""
+        if (!uses.startsWith("actions/setup-node")) continue
+        setups += 1
+        const declared = (step.with as Record<string, unknown> | undefined)?.["node-version"]
+        expect(declared, `${job} step ${index} sets Node up without naming a version`).toBeDefined()
+        majors.set(`ci.yml ${job} step ${index}`, String(declared).split(".")[0] ?? "")
+      }
+    }
+    // FAIL-CLOSED, because the interesting failure is not disagreement but
+    // silence: a workflow that sets Node up nowhere makes every comparison
+    // below vacuously true, and a guard that reads nothing reports success.
+    expect(setups, "ci.yml sets Node up nowhere, so this compared two files").toBeGreaterThan(0)
+
+    // `engines` is a claim made to anyone who installs this, so it is one of
+    // the pins rather than a separate opinion: a floor below what the gate runs
+    // on is a supported version nothing has ever run.
+    const declared = (JSON.parse(read("package.json")) as { engines?: { node?: string } }).engines
+    const floor = /^>=\s*(\d+)/.exec(declared?.node ?? "")?.[1]
+    expect(floor, "package.json declares no engines.node floor of the form >=N").toBeDefined()
+    majors.set("package.json engines.node", floor ?? "")
+
+    expect(
+      new Set(majors.values()).size,
+      `these disagree about the Node major: ${[...majors]
+        .map(([where, major]) => `${where}=${major}`)
+        .join(", ")}`,
+    ).toBe(1)
   })
 
   it("CI actually builds the image and runs the quality gate inside it", () => {
