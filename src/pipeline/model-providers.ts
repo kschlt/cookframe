@@ -54,6 +54,11 @@ import type {
   NormalizationContext,
   NormalizationProvider,
 } from "./providers.js"
+import {
+  MultipleRecipesError,
+  type RecipeInventory,
+  UnknownRecipeCountError,
+} from "./recipe-inventory.js"
 import { type MarkerSource, sealSourceText, untrustedRegionRule } from "./untrusted-source-text.js"
 
 /** Raised when a model reply is unusable: not JSON, or not the contract shape. */
@@ -404,7 +409,12 @@ export function createModelCaptureProvider(config: ModelStageConfig): CapturePro
 
       const exchange = buildExchange(
         config,
-        `Output a single SourceSnapshot JSON object (schema/source-snapshot.ts). sourceType is "${sourceType}".`,
+        `Output a single SourceSnapshot JSON object (schema/source-snapshot.ts). sourceType is "${sourceType}". ` +
+          "Add two keys beside it, which are NOT part of that schema and are not persisted: " +
+          "`recipeCount`, the number of distinct recipes the SOURCE appears to hold, and " +
+          "`recipeTitles`, one title per counted recipe in order (use null for a recipe with no " +
+          "title). Count what is on the source, not what you chose to transcribe; a recipe that " +
+          "is only partly visible still counts.",
         trustedParts,
         sealed,
       )
@@ -439,10 +449,61 @@ export function createModelCaptureProvider(config: ModelStageConfig): CapturePro
         // payload-pointer ref resolve by construction and turn a fail-closed
         // check into a tautology. Same rule as block ids and provenance —
         // structure the pipeline vouches for is never taken from the model.
+        // CFV1-MR1. The inventory is read from THIS reply — `ADR-0014` fixes one
+        // physical model call per conversion, and a second call to ask "how many
+        // recipes were there" would be a second billed call for a question the
+        // model has already answered by looking. It is read AFTER the checks
+        // above so a reply that is unusable fails as unusable rather than as a
+        // count problem, and it is never carried into the snapshot: what a model
+        // says about the shape of a source is a claim, not a fact about it.
+        refuseUnlessOneRecipe(readInventory(parsed))
         return { sourceType, capturedText, blocks }
       })
     },
   }
+}
+
+/**
+ * Read the recipe inventory a capture reply carries (CFV1-MR1).
+ *
+ * Fails CLOSED. A reply with no usable count does not silently mean one — an
+ * unknown count is exactly the state that "assume one and transcribe the first"
+ * is indistinguishable from, which is how a four-recipe spread came back as one
+ * recipe with nothing to show that three others had been there. So an absent,
+ * non-integer or non-positive count refuses, and so does a titles list that does
+ * not line up with the count, because a report whose parts disagree is not a
+ * report a caller can act on.
+ *
+ * Not a {@link ModelReplyError}: retrying asks the same model the same question
+ * about the same source, and if the source really does hold three recipes the
+ * second answer had better be the same one.
+ */
+function readInventory(parsed: Record<string, unknown>): RecipeInventory {
+  const count = parsed["recipeCount"]
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 1) {
+    throw new UnknownRecipeCountError(
+      `the reply's \`recipeCount\` is ${JSON.stringify(count)}, not a positive integer`,
+    )
+  }
+  const raw = parsed["recipeTitles"]
+  if (!Array.isArray(raw) || raw.length !== count) {
+    throw new UnknownRecipeCountError(
+      `the reply says ${count} recipe(s) but carries ${
+        Array.isArray(raw) ? `${raw.length} title(s)` : "no title list"
+      }`,
+    )
+  }
+  return {
+    count,
+    titles: raw.map((title) =>
+      typeof title === "string" && title.trim() !== "" ? title : undefined,
+    ),
+  }
+}
+
+/** Refuse a source holding more than one recipe, carrying what it holds. */
+function refuseUnlessOneRecipe(inventory: RecipeInventory): void {
+  if (inventory.count > 1) throw new MultipleRecipesError(inventory)
 }
 
 /** Build the provenance the pipeline guarantees, from the context alone. */
