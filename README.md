@@ -60,8 +60,8 @@ single page and letting you read it four ways.
 Working today:
 
 - **Capture a page with your phone.** Photograph a cookbook page or a handwritten card with
-  [the iOS Shortcut in this repository](shortcut/). It goes straight to your instance, which saves
-  the recipe and tells you what it saved it as.
+  [the iOS Shortcut in this repository](shortcut/). It goes straight to your instance, which keeps
+  the photograph, saves the recipe and tells you what it saved it as.
 - **Import a recipe from a link.** A URL goes to your instance on its own address, with the same
   credential a photograph uses and through the same processing afterwards: the page's own
   structured data is read first, and a model reads the page only when that data is missing or
@@ -82,7 +82,7 @@ Working today:
 Built and tested, but not reachable from a running instance yet — the section below says why each
 one is still here:
 
-- keeping the photograph itself and showing it on the page;
+- a picture of the dish on a recipe's page;
 - re-converting a recipe you already have with a better model or a newer ontology.
 
 ## Status
@@ -104,9 +104,10 @@ Not there yet, stated as plainly as the rest:
 - **Capture quality has not passed its own gate.** The threshold run against real photographs
   returned FAIL, and the thresholds themselves turned out to be under-specified for sources a human
   transcribes ([`docs/open-questions.md`](docs/open-questions.md), OQ-14).
-- **The photograph you submit is converted and then not kept.** Byte storage is built and tested,
-  but a running instance wires none, so there is nothing behind a recipe's image and the pages
-  render without one.
+- **A recipe's page has no picture.** Rendering one is built and tested and not wired into the
+  pages, and nothing gives a recipe one to render: a photographed cookbook page is kept, but it is
+  deliberately not treated as a picture of the dish
+  ([`docs/recipe-ontology.md`](docs/recipe-ontology.md)), and nothing else supplies one yet.
 - **Nothing re-converts a recipe you already have.** Re-normalizing a stored source is what keeping
   the source is *for*, and it happens today only as part of an import.
 - **No library search, and no accounts** — an instance has two credentials, not users.
@@ -134,12 +135,12 @@ record can name the question it closes.
 
 ## Running an instance
 
-You need Node 26, a PostgreSQL database and an OpenAI API key. Copy
-[`.env.example`](.env.example) and fill it in. There are no defaults: an instance that is missing
-configuration refuses to start and names every variable at fault in one message, with the database
-URL refused a line later by the store's own seam, which also rejects a URL no PostgreSQL driver
-could connect with. Then apply every migration in [`migrations/`](migrations/), in order, and
-start it:
+You need Node 26, a PostgreSQL database, a directory to keep photographs in and an OpenAI API key.
+Copy [`.env.example`](.env.example) and fill it in. There are no defaults: an instance that is
+missing configuration refuses to start and names every variable at fault in one message, with the
+database URL refused a line later by the store's own seam, which also rejects a URL no PostgreSQL
+driver could connect with. Then apply every migration in [`migrations/`](migrations/), in order,
+and start it:
 
 ```bash
 npm ci
@@ -155,7 +156,8 @@ twice fails loudly rather than passing over a database that already holds recipe
 It would rather not start than start half-configured. It reads the database *before* it binds its
 port, so a database it cannot reach, or one whose migrations have not been applied, stops it with a
 message saying so — instead of an instance that comes up fine and then answers every page with an
-error. It also refuses to start if the phone's credential and the library's are the same value,
+error. It writes to the photograph directory before binding too, so one it cannot write stops it
+the same way. It also refuses to start if the phone's credential and the library's are the same value,
 which would let a lost phone open your library while every route still behaved correctly.
 
 To capture into it from a phone, import [`shortcut/Capture Recipe.plist`](shortcut/). It asks for

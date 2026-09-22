@@ -96,6 +96,12 @@ primary_region = "fra"
   # a capability URL already has.
   PUBLIC_BASE_URL = "https://cookframe.fly.dev"
 
+  # Where captured photographs are kept: the mounted volume, by the path
+  # `[mounts]` below gives it. Required with no default (`src/server/config.ts`);
+  # an instance with nowhere to keep a photograph refuses to start rather than
+  # keep it on a disk that does not survive the machine stopping.
+  STORAGE_ROOT = "/data"
+
 [http_service]
   internal_port = 8080
   force_https = true
@@ -127,13 +133,27 @@ primary_region = "fra"
   cpu_kind = "shared"
   cpus = 1
 
-# No volume is mounted, and that is deliberate rather than forgotten.
+# The volume the captured photographs are kept on (ADR-0009, ADR-0026).
 #
-# ADR-0026 puts captured images on a persistent volume attached to this machine.
-# Measured on this tree: `src/storage/filesystem-byte-store.ts` exists, and
-# NOTHING outside `src/storage/` imports it — the composition root
-# (`src/server/main.ts`) constructs no byte store, and `STORAGE_ROOT` is read
-# nowhere under `src/`. A `[mounts]` block here would declare durable storage
-# that no code writes to: configuration nobody can verify, and the kind that
-# reads as done. The volume goes in with the unit that wires the byte store into
-# the instance, and that unit is what makes this comment wrong.
+# `PDR-0001`'s tenth invariant keeps scan deletion disabled until the
+# capture-quality gate passes, so a photograph an instance was sent is kept. A
+# machine's own filesystem does not survive a stop, and this machine stops
+# whenever it is idle — so without this block every photograph would be written
+# to a disk that is gone the next time anyone opens the library. The volume is
+# what makes "kept" true across the stop the section above asks for.
+#
+# `destination` must equal `STORAGE_ROOT` in `[env]`: the process writes where
+# `STORAGE_ROOT` says and the platform persists what is under `destination`, and
+# when the two differ the photographs go to the machine's disk and vanish on the
+# next stop, with every capture answering 201. `run/the-platform-file-keeps-
+# photographs-on-the-volume` reads both and compares, the same way the port is
+# compared above.
+#
+# This block names the volume; it is not a measurement that one exists. The
+# instance has never been deployed (`OQ-46`), so what the platform does on a
+# first deploy with no such volume is unmeasured here. Creating it once, in the
+# app's region, leaves nothing to find out:
+# `fly volumes create cookframe_data --region fra --size 1`.
+[mounts]
+  source = "cookframe_data"
+  destination = "/data"
