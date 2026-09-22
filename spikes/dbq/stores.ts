@@ -12,10 +12,18 @@
  * defines has no operation for it — that gap is a DBQ finding, reported in the
  * record rather than papered over. It lives in `queries.ts` as the widening the
  * interface needs.
+ *
+ * Two more arrived after this spike ran: `storeCookingPlan` and
+ * `loadCookingPlan` (ADR-0025). They are declared here as refusals rather than
+ * implemented, because implementing them would mean adding a table and a query
+ * to a FINISHED measurement — the numbers this spike reports would then describe
+ * a shape nobody measured. Nothing in this spike calls them; when the persistent
+ * store is built, it implements them for real and the contract suite is what
+ * holds it to that.
  */
 import type { Client } from "pg"
 import { assertShape } from "./db.js"
-import type { CanonicalRecipe, SourceSnapshot } from "../../schema/index.js"
+import type { CanonicalRecipe, CookingPlan, SourceSnapshot } from "../../schema/index.js"
 import {
   type CanonicalVersion,
   type LibraryEntry,
@@ -105,8 +113,18 @@ function store(
         { recipeId, version: versionB, recipe: b },
       ]
     },
+    async storeCookingPlan(_plan: CookingPlan): Promise<void> {
+      throw new Error(NOT_MEASURED_HERE)
+    },
+    async loadCookingPlan(_recipeId: string, _version: number): Promise<CookingPlan | undefined> {
+      throw new Error(NOT_MEASURED_HERE)
+    },
   }
 }
+
+/** Why the two Cooking Plan operations refuse here; see this file's header. */
+const NOT_MEASURED_HERE =
+  "the Cooking Plan operations (ADR-0025) arrived after CFV1-DBQ measured these shapes, and are not implemented in the spike"
 
 export function createDocumentStore(client: Client, schema = "document"): RecipeRepository {
   return store(
