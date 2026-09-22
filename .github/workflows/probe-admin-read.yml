@@ -13,9 +13,12 @@ on:
   push:
     branches: [claude/project-thread-sqw9mq]
 
+# `administration: read` was rejected outright: the run failed with zero jobs,
+# which is a workflow-file rejection rather than a step failure. That is itself
+# the measurement — a workflow token cannot be granted repository-administration
+# read, so these settings are out of CI's reach without a stored PAT.
 permissions:
   contents: read
-  administration: read
   security-events: read
 
 jobs:
