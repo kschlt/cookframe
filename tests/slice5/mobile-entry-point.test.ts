@@ -35,7 +35,7 @@ import {
   createIngestApp,
   MAX_CAPTURE_BYTES,
 } from "../../src/http/ingest-app.js"
-import { bearerCredential, createIngestCredential } from "../../src/http/ingest-credential.js"
+import { bearerCredential, createInstanceCredential } from "../../src/http/instance-credential.js"
 import type { RecipeRepository } from "../../src/persistence/index.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
 import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
@@ -141,7 +141,7 @@ function harness(capture?: CaptureProvider): Harness {
   const repo = createProvisionalStore()
   const seen: Seen = {}
   const app = createIngestApp({
-    credential: createIngestCredential(CREDENTIAL),
+    credential: createInstanceCredential(CREDENTIAL, "ingest credential"),
     repo,
     capture: capture ?? capturingProvider(seen),
     normalization: createFakeNormalizationProvider(),
@@ -429,7 +429,9 @@ describe("slice5/ingest-requires-instance-credential", () => {
 
   it("refuses to be constructed with a credential short enough to guess", () => {
     // Fail closed at startup rather than serve an endpoint anyone can reach.
-    expect(() => createIngestCredential("changeme")).toThrow(/at least 32 characters/)
+    expect(() => createInstanceCredential("changeme", "ingest credential")).toThrow(
+      /at least 32 characters/,
+    )
   })
 })
 
@@ -475,7 +477,7 @@ describe("slice5/ingest-credential-is-submission-only", () => {
   it("cannot be exchanged for anything: the credential object returns only a verdict", () => {
     // There is no function here that takes the ingest credential and yields a
     // value. What cannot be asked for cannot be leaked by a handler that forgets.
-    const credential = createIngestCredential(CREDENTIAL)
+    const credential = createInstanceCredential(CREDENTIAL, "ingest credential")
     expect(Object.keys(credential)).toEqual(["accepts"])
     expect(typeof credential.accepts(CREDENTIAL)).toBe("boolean")
     expect(credential.accepts(CREDENTIAL)).toBe(true)

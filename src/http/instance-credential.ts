@@ -1,5 +1,7 @@
 /**
- * The instance-scoped ingest credential (CFV1-SL5, PDR-0003).
+ * An instance-scoped shared secret, and the check that decides whether a
+ * presented string is it (CFV1-SL5 for the ingest half, CFV1-RUN for the
+ * library half; PDR-0003, PDR-0002).
  *
  * PDR-0003 draws the line this module sits on: the Shortcut is the product's
  * mobile client, it authenticates to the ingest endpoint, and what it holds is
@@ -12,10 +14,21 @@
  * operation — decide whether a presented string is the configured one — and
  * nothing here reads, derives, wraps or returns any other credential. There is
  * no exchange endpoint to forget to guard, because there is no function that
- * takes an ingest credential and returns anything but a boolean.
+ * takes a credential and returns anything but a boolean.
  *
  * Losing the phone therefore costs submission to one instance. It does not cost
  * the library, and it does not cost the model account.
+ *
+ * **Why this is a primitive with a purpose rather than one named credential.**
+ * CFV1-RUN gave the library and recipe pages their first addresses, and they need
+ * an access rule. Reusing the *ingest* secret for them would have been the
+ * shortest wiring and would have broken PDR-0003's last clause outright: the
+ * phone's credential would then open the library, and losing the device would
+ * cost exactly what that record says it must not. So the instance configures two
+ * distinct secrets that share this one mechanism, and each names itself at
+ * construction so a misconfiguration says which one is wrong. See
+ * `src/http/pages-app.ts`, where the rule is stated beside the route it guards,
+ * and `docs/adr/ADR-0023-*` for the decision.
  */
 import { createHash, timingSafeEqual } from "node:crypto"
 
@@ -28,10 +41,10 @@ import { createHash, timingSafeEqual } from "node:crypto"
  * the fail-closed half: an instance configured with `"changeme"` should not
  * start, rather than run and be discovered.
  */
-export const MIN_INGEST_CREDENTIAL_LENGTH = 32
+export const MIN_INSTANCE_CREDENTIAL_LENGTH = 32
 
 /** Decides whether a presented credential is this instance's. Nothing else. */
-export interface IngestCredential {
+export interface InstanceCredential {
   /**
    * `true` only for the configured secret. `undefined`, the empty string and any
    * other value are false — an absent credential is never treated as assent.
@@ -40,15 +53,20 @@ export interface IngestCredential {
 }
 
 /**
- * Build the credential check from the configured secret.
+ * Build a credential check from a configured secret.
+ *
+ * `purpose` names the secret in the refusal only — it is never hashed, compared
+ * or stored, so two credentials with the same purpose string are still two
+ * different secrets. It exists because an operator who misconfigures one of the
+ * instance's two credentials should be told which.
  *
  * Throws when the secret is too short to be one, so a misconfigured instance
  * fails at startup rather than serving an endpoint anyone can reach.
  */
-export function createIngestCredential(secret: string): IngestCredential {
-  if (secret.length < MIN_INGEST_CREDENTIAL_LENGTH) {
+export function createInstanceCredential(secret: string, purpose: string): InstanceCredential {
+  if (secret.length < MIN_INSTANCE_CREDENTIAL_LENGTH) {
     throw new Error(
-      `the ingest credential must be at least ${MIN_INGEST_CREDENTIAL_LENGTH} characters, ` +
+      `the ${purpose} must be at least ${MIN_INSTANCE_CREDENTIAL_LENGTH} characters, ` +
         `so a guess cannot be cheap; got ${secret.length}`,
     )
   }
@@ -66,7 +84,7 @@ export function createIngestCredential(secret: string): IngestCredential {
   }
 }
 
-/** The one scheme this endpoint understands, with its single separating space. */
+/** The one scheme this instance understands, with its single separating space. */
 const BEARER_PREFIX = "Bearer "
 
 /**

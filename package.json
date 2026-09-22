@@ -26,11 +26,14 @@
     "test:slice4": "vitest run tests/slice4",
     "test:slice5": "vitest run tests/slice5",
     "test:cooking-ux": "vitest run tests/cooking-ux",
+    "test:run": "vitest run tests/run",
     "test:watch": "vitest",
+    "start": "tsx src/server/main.ts",
     "eval": "tsx evals/harness.ts",
     "quality": "npm run typecheck && biome ci . && vitest run"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.17",
     "hono": "^4.13.8",
     "ipaddr.js": "^2.5.0",
     "undici": "^7.29.1",
