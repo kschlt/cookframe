@@ -33,6 +33,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
+import type { Duplex } from "node:stream"
 import { fileURLToPath } from "node:url"
 import { Client } from "pg"
 import { afterAll, describe, expect, it, TestRunner } from "vitest"
@@ -556,7 +557,12 @@ async function modelRequestsRefusedLocally(onRequest: () => void): Promise<{
     asked.push("a plain request")
     res.writeHead(403).end()
   })
+  // Held so `close` can end them. A tunnel request is no longer the server's
+  // once it has been handed over, and `server.close()` waits on it forever if
+  // it is still open, which would turn the case's own teardown into the hang.
+  const tunnels = new Set<Duplex>()
   server.on("connect", (req, socket) => {
+    tunnels.add(socket)
     asked.push(req.url ?? "")
     onRequest()
     socket.end("HTTP/1.1 403 Forbidden\r\n\r\n")
@@ -567,9 +573,19 @@ async function modelRequestsRefusedLocally(onRequest: () => void): Promise<{
   return {
     env: { NODE_USE_ENV_PROXY: "1", HTTPS_PROXY: `http://127.0.0.1:${address.port}` },
     asked,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: () => {
+      for (const socket of tunnels) socket.destroy()
+      return new Promise<void>((resolve) => server.close(() => resolve()))
+    },
   }
 }
+
+/**
+ * How long the photograph case waits for its answer once the process is up.
+ * A refused model request answers in milliseconds, so this only has to be
+ * shorter than the case's budget less the start-up wait, and it is.
+ */
+const CAPTURE_ANSWER_MS = 15_000
 
 /** Whether some file under `volume` holds exactly `bytes`. The layout is the store's own. */
 function holds(volume: string, bytes: Uint8Array): boolean {
@@ -602,10 +618,24 @@ describe.skipIf(availability.mode === "skip")(
       try {
         await waitFor(started, /cookframe listening on port \d+/)
 
+        // The answer is waited for here, not through `firstAct`: the process
+        // has already bound, so what could go wrong is a request that never
+        // comes back, most likely a model request that bypassed the refusal
+        // below and is sitting out the transport's own deadline. That is bounded
+        // well inside this case's budget and named, rather than left to end as a
+        // bare timeout of the case.
         const res = await fetch(`http://127.0.0.1:${port}/capture`, {
           method: "POST",
           headers: { authorization: `Bearer ${INGEST_CREDENTIAL}`, "content-type": "image/jpeg" },
           body: photograph,
+          signal: AbortSignal.timeout(CAPTURE_ANSWER_MS),
+        }).catch((error: unknown) => {
+          throw new Error(
+            `the process did not answer the capture within ${CAPTURE_ANSWER_MS} ms ` +
+              `(model requests it made: ${model.asked.length}). What it said:\n` +
+              `${started.output() || "(nothing)"}`,
+            { cause: error },
+          )
         })
 
         // The floor. The photograph went the whole way: through the route, to
