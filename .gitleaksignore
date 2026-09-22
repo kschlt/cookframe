@@ -1,0 +1,25 @@
+# Findings this repository has looked at and accepted, one per line, each pinned
+# to the exact commit, file, rule and line that produced it.
+#
+# This is not an allowlist. It weakens no rule, excuses no path and matches no
+# pattern: a fingerprint names one finding in one commit. The same string on
+# another line, in another file, or in a later commit has a different
+# fingerprint and still fails the build. An entry here is a statement that
+# somebody read that finding and judged it, and it should stay that way — a rule
+# or a path exception would quietly cover everything that comes after it.
+#
+# ---------------------------------------------------------------------------
+# 69aa37e, tests/slice5/mobile-entry-point.test.ts:43 — generic-api-key
+#
+# A 32-character random string written into a test as the ingest credential the
+# proofs authenticate with. It authenticated an in-process test fixture and
+# nothing else: no instance was ever configured with it, and it grants nothing
+# anywhere. gitleaks was RIGHT to refuse it — a string nothing can tell apart
+# from a secret is a secret as far as any scanner can know — and the fix was to
+# stop committing one: the credential is minted per run now
+# (`randomBytes(24).toString("base64url")`), which is also why the proofs no
+# longer depend on any particular string.
+#
+# The entry remains because the string is in this branch's history and rewriting
+# that history was not available here. Nothing in the working tree matches it.
+69aa37e379bd57d837ead2362f06290d889b03d0:tests/slice5/mobile-entry-point.test.ts:generic-api-key:43

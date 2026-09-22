@@ -1,0 +1,131 @@
+{
+  "measuredAt": "2026-09-22T10:15:45.436Z",
+  "providers": "gpt-5.4",
+  "photos": 11,
+  "outcomes": {
+    "shoppable": 8,
+    "refused": 3,
+    "failed": 0
+  },
+  "endToEnd": {
+    "n": 8,
+    "minMs": 13765.12638799999,
+    "p50Ms": 19620.416648,
+    "p90Ms": 41468.841084,
+    "maxMs": 41468.841084
+  },
+  "breakdown": {
+    "submit": {
+      "n": 8,
+      "minMs": 13764.177662999995,
+      "p50Ms": 19619.486938999995,
+      "p90Ms": 41466.542245,
+      "maxMs": 41466.542245
+    },
+    "handoff": {
+      "n": 8,
+      "minMs": 0.6432719999866094,
+      "p50Ms": 0.948724999994738,
+      "p90Ms": 2.298839000002772,
+      "maxMs": 2.298839000002772
+    }
+  },
+  "modelCalls": {
+    "calls": 21,
+    "inputTokens": 145032,
+    "outputTokens": 34338
+  },
+  "runs": [
+    {
+      "photo": "photo-01",
+      "bytes": 5342238,
+      "outcome": "shoppable",
+      "totalMs": 41468.841084,
+      "submitMs": 41466.542245,
+      "handoffMs": 2.298839000002772
+    },
+    {
+      "photo": "photo-02",
+      "bytes": 6498689,
+      "outcome": "refused",
+      "totalMs": 12738.623884,
+      "submitMs": 12738.515724999997,
+      "handoffMs": 0,
+      "detail": "multiple_recipes"
+    },
+    {
+      "photo": "photo-03",
+      "bytes": 5144854,
+      "outcome": "shoppable",
+      "totalMs": 19620.416648,
+      "submitMs": 19619.486938999995,
+      "handoffMs": 0.9297090000036405
+    },
+    {
+      "photo": "photo-04",
+      "bytes": 4041486,
+      "outcome": "shoppable",
+      "totalMs": 31647.037759,
+      "submitMs": 31645.897027999992,
+      "handoffMs": 1.140731000006781
+    },
+    {
+      "photo": "photo-05",
+      "bytes": 4497216,
+      "outcome": "refused",
+      "totalMs": 21973.357978,
+      "submitMs": 21973.263716999994,
+      "handoffMs": 0,
+      "detail": "multiple_recipes"
+    },
+    {
+      "photo": "photo-06",
+      "bytes": 3597024,
+      "outcome": "shoppable",
+      "totalMs": 13765.12638799999,
+      "submitMs": 13764.177662999995,
+      "handoffMs": 0.948724999994738
+    },
+    {
+      "photo": "photo-07",
+      "bytes": 4773869,
+      "outcome": "shoppable",
+      "totalMs": 19287.501468000002,
+      "submitMs": 19286.621302000014,
+      "handoffMs": 0.880165999988094
+    },
+    {
+      "photo": "photo-08",
+      "bytes": 5442872,
+      "outcome": "shoppable",
+      "totalMs": 27957.469129000005,
+      "submitMs": 27956.825857000018,
+      "handoffMs": 0.6432719999866094
+    },
+    {
+      "photo": "photo-09",
+      "bytes": 4723355,
+      "outcome": "refused",
+      "totalMs": 6020.476123,
+      "submitMs": 6020.3824039999745,
+      "handoffMs": 0,
+      "detail": "multiple_recipes"
+    },
+    {
+      "photo": "photo-10",
+      "bytes": 5349584,
+      "outcome": "shoppable",
+      "totalMs": 18729.314069000015,
+      "submitMs": 18728.62706,
+      "handoffMs": 0.6870090000156779
+    },
+    {
+      "photo": "photo-11",
+      "bytes": 3124432,
+      "outcome": "shoppable",
+      "totalMs": 15089.295841000014,
+      "submitMs": 15088.253422000009,
+      "handoffMs": 1.0424190000048839
+    }
+  ]
+}
