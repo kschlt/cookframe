@@ -239,6 +239,24 @@ describe("base/green-merge-is-not-slowed", () => {
     expect(result.exitCode).toBe(0)
   })
 
+  it("lets a green merge result through even when the gate is loud", () => {
+    // `execFileSync` with piped stdio inherits Node's 1 MB default and THROWS
+    // past it, and that throw lands in the same catch as a failing gate. So a
+    // green gate that talks a lot came back as a refusal naming both sides —
+    // a rejection manufactured out of an output size, indistinguishable in the
+    // log from a real semantic conflict. Measured at 2 MB before the budget was
+    // made explicit; kept here because the default is invisible until it bites.
+    const dir = fixture({
+      gate: `node --check a.js && node -e "process.stdout.write('x'.repeat(2*1024*1024))"`,
+      mainFiles: { "a.js": "export const a = 1;\n", "b.js": "export const b = 1;\n" },
+      sideA: { "a.js": "export const a = 2;\n" },
+      sideB: { "b.js": "export const b = 2;\n" },
+    })
+    const result = gateOn(dir)
+    expect(result.outcome, result.summary.slice(0, 200)).toBe("green")
+    expect(result.exitCode).toBe(0)
+  })
+
   it("does not run the gate again when the head already contains the base", () => {
     // Every merge now pays for a full gate run, so a redundant one is a real
     // cost. When the head already contains the base the merge result IS the
@@ -280,6 +298,71 @@ describe("base/one-definition-of-the-gate", () => {
     // ever ran, which is the shape of proof this project keeps finding.
     expect(existsSync(marker), "the declared gate command never ran").toBe(true)
     expect(result.outcome).toBe("red")
+  })
+
+  it("runs the gate the MERGE RESULT declares, not the caller's", () => {
+    // Found at review, reproduced before being fixed. The tree was recomputed
+    // at check time and the DEFINITION OF GREEN was not: `quality` was read
+    // from the caller's checkout and then run against the merge worktree. So a
+    // change that strengthens the gate — the shape of any pull request adding a
+    // check, and `#37` did exactly that to this repository — was measured by
+    // the weaker rule it was replacing.
+    //
+    // The case above cannot see this: it declares the same `quality` in the
+    // caller's tree and on both sides, which makes "read from the repository"
+    // and "read from the tree being measured" indistinguishable. It guards the
+    // neighbouring claim, not the rule.
+    const dir = mkdtempSync(join(tmpdir(), "base-which-tree-"))
+    made.push(dir)
+    const callerGate = join(dir, "caller-gate-ran")
+    const resultGate = join(dir, "result-gate-ran")
+    const built = fixture({
+      // `main`'s gate: green on anything, and leaves a trace if it ever runs.
+      gate: touching(callerGate),
+      mainFiles: { "a.js": "export const a = 1;\n" },
+      // Side A adds a store. Green under `main`'s gate, and lands first.
+      sideA: { "new-store.js": "export const s = 1;\n" },
+      // Side B strengthens the gate and adds the check it declares. Green on
+      // its own base, which does not carry `new-store.js` yet.
+      sideB: {
+        "package.json": `${JSON.stringify(
+          {
+            name: "fixture",
+            private: true,
+            scripts: { quality: `${touching(resultGate)} && node check.mjs` },
+          },
+          null,
+          2,
+        )}\n`,
+        "check.mjs":
+          "import { existsSync } from 'node:fs';\n" +
+          "if (existsSync('new-store.js')) {\n" +
+          "  console.error('new-store.js does not satisfy the new check');\n" +
+          "  process.exit(1);\n" +
+          "}\n",
+      },
+    })
+
+    // Both sides green alone, or this fixture reproduces nothing.
+    for (const side of ["side-a", "side-b"]) {
+      run(built, "git", "checkout", "-q", side)
+      expect(
+        () =>
+          execFileSync(declaredGateCommand(built), { cwd: built, shell: true, stdio: "ignore" }),
+        `${side} is not green on its own`,
+      ).not.toThrow()
+    }
+    run(built, "git", "checkout", "-q", "main")
+    rmSync(callerGate, { force: true })
+    rmSync(resultGate, { force: true })
+
+    const result = gateOn(built)
+    expect(existsSync(resultGate), "the merge result's own gate never ran").toBe(true)
+    expect(existsSync(callerGate), "the caller's weaker gate ran instead").toBe(false)
+    expect(result.gateCommand, "the command reported was not the merge result's").toContain(
+      "check.mjs",
+    )
+    expect(result.outcome, "a merge result red under its OWN gate was reported green").toBe("red")
   })
 
   it("refuses to invent a gate when the repository declares none", () => {

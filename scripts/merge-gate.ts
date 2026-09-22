@@ -72,25 +72,41 @@ export interface MergeGateRequest {
   readonly installCommand?: string
 }
 
+/**
+ * How much of a child's output is kept.
+ *
+ * `execFileSync` with piped stdio inherits Node's 1 MB default and THROWS past
+ * it. That throw lands in the catch below, so a gate that is green but chatty
+ * was reported as a red merge result, with a summary naming both sides — a
+ * refusal manufactured out of an output size. Measured: a green gate emitting
+ * 2 MB came back `red`. Stated here so the budget is a choice rather than an
+ * inherited default; only the last few dozen lines are ever shown.
+ */
+const OUTPUT_BUDGET_BYTES = 64 * 1024 * 1024
+
 const git = (cwd: string, ...args: string[]): string =>
   execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()
 
 /**
- * The gate command, read from the repository's own declaration.
+ * The gate command, read from a tree's own declaration.
  *
  * Read rather than restated on purpose: a second definition of "green" is a
  * second thing to keep in step, and the one that drifts is always the copy. If
  * `package.json` has no `quality` script there is nothing to run and saying so
  * is better than inventing a command that looks plausible.
+ *
+ * WHICH tree is not a detail. The command that decides a merge result has to be
+ * the one the MERGE RESULT declares — see the call site below, where reading it
+ * from the caller's checkout instead was a live defect.
  */
-export function declaredGateCommand(repoDir: string): string {
-  const pkg = JSON.parse(readFileSync(join(repoDir, "package.json"), "utf8")) as {
+export function declaredGateCommand(dir: string, what = "the repository"): string {
+  const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as {
     scripts?: Record<string, string>
   }
   const declared = pkg.scripts?.["quality"]
   if (declared === undefined || declared.trim() === "") {
     throw new Error(
-      "the repository declares no `quality` script, so this check has no definition of green to run",
+      `${what} declares no \`quality\` script, so this check has no definition of green to run`,
     )
   }
   return declared
@@ -108,7 +124,10 @@ export function runMergeGate(request: MergeGateRequest): MergeGateResult {
   const { repoDir, base, head, installCommand } = request
   const baseLabel = request.baseLabel ?? base
   const headLabel = request.headLabel ?? head
-  const gateCommand = declaredGateCommand(repoDir)
+  // Read here ONLY to label the two outcomes below that never run anything, and
+  // to fail early when the caller's checkout declares no gate at all. The
+  // command that actually runs is read from the merge result, further down.
+  const declaredOnCaller = declaredGateCommand(repoDir)
 
   const baseSha = git(repoDir, "rev-parse", base)
   const headSha = git(repoDir, "rev-parse", head)
@@ -123,7 +142,7 @@ export function runMergeGate(request: MergeGateRequest): MergeGateResult {
       exitCode: 0,
       outcome: "already-current",
       gateRan: false,
-      gateCommand,
+      gateCommand: declaredOnCaller,
       installed: false,
       summary:
         `${headLabel} already contains ${baseLabel}, so the merge result is the head's own tree ` +
@@ -163,13 +182,26 @@ export function runMergeGate(request: MergeGateRequest): MergeGateResult {
         exitCode: 2,
         outcome: "conflict",
         gateRan: false,
-        gateCommand,
+        gateCommand: declaredOnCaller,
         installed: false,
         summary:
           `${headLabel} and ${baseLabel} conflict textually and could not be merged, ` +
           `so the merge result could not be measured.`,
       }
     }
+
+    // THE DEFINITION OF GREEN COMES FROM THE MERGE RESULT, not from the tree
+    // this was invoked in. Recomputing the tree while reading `quality` from
+    // somewhere else is this module's own defect one level up: a pull request
+    // that strengthens the gate is green against a base whose weaker gate is
+    // what then runs, so the merge result is measured by a rule neither side
+    // would accept. Not hypothetical — `#37` changed this repository's gate,
+    // and invoked by hand (which the usage line invites) the caller's tree is
+    // simply whatever branch happens to be checked out.
+    //
+    // Fails closed: a merge result that declares no `quality` throws here, and
+    // the job fails rather than reporting a green it never measured.
+    const gateCommand = declaredGateCommand(worktree, "the merge result")
 
     // A fresh worktree has no `node_modules`, and the gate cannot run without
     // one. Installed from the MERGE RESULT's own lockfile rather than reusing
@@ -184,6 +216,7 @@ export function runMergeGate(request: MergeGateRequest): MergeGateResult {
           cwd: worktree,
           shell: true,
           stdio: ["ignore", "pipe", "pipe"],
+          maxBuffer: OUTPUT_BUDGET_BYTES,
           env: { ...process.env, CI: "1" },
         })
       } catch (err) {
@@ -210,6 +243,7 @@ export function runMergeGate(request: MergeGateRequest): MergeGateResult {
         cwd: worktree,
         shell: true,
         stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: OUTPUT_BUDGET_BYTES,
         env: { ...process.env, CI: "1" },
       })
     } catch (err) {
