@@ -72,6 +72,13 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
       res.end()
       return
     }
+    case "/redir-without-location": {
+      // A 302 whose Location is missing. Servers do emit these, and the shape a
+      // careless refactor takes is to default the header rather than refuse.
+      res.writeHead(302)
+      res.end()
+      return
+    }
     case "/redir-hop": {
       // /redir-hop?n=K bounces to n=K-1, terminating at /ok — a chain of length K.
       const n = Number(url.searchParams.get("n") ?? "0")
@@ -224,6 +231,52 @@ describe("CFV1-S5 safe-fetch connector", () => {
     }
   })
 
+  it("url-security/dns-rebinding-refused (the validated address is the one connected to)", async () => {
+    // The proof above it asserts that a resolver answering with a private
+    // address is refused. That is a fact about `classifyAddress`, and it is
+    // reached before the connector ever hands an address down — so it cannot
+    // see WHICH address the connection is made to. Measured: replacing the
+    // connector's pinned address with the original hostname leaves that proof
+    // green, and reddens only `dns-rebinding-refused`, there with a bare
+    // transport failure because `rebind.test` has no DNS entry. A foreign
+    // failure, not an assertion about pinning.
+    //
+    // This one discriminates with two loopback addresses. The server for this
+    // case listens on `127.0.0.2` and nothing listens on `127.0.0.1`. The URL
+    // names `localhost`, which real DNS answers with `127.0.0.1`. So the fetch
+    // can only succeed if the address the guard *validated* is the address it
+    // *connected to*; a connector that passed the hostname down, or looked it
+    // up a second time, reaches an empty port and this fails.
+    const alt = createServer(handle)
+    await new Promise<void>((resolve) => alt.listen(0, "127.0.0.2", () => resolve()))
+    const altPort = (alt.address() as AddressInfo).port
+    try {
+      const toAlt: Resolver = async () => ["127.0.0.2"]
+      const fetcher = makeFetcher({ resolve: toAlt })
+      try {
+        // The refusal is caught and restated rather than left to propagate: a
+        // bare `TRANSPORT` escaping here would report the empty port, not the
+        // property that was violated.
+        let body: string
+        try {
+          body = new TextDecoder().decode(
+            (await fetcher.fetch(`http://localhost:${altPort}/ok`)).bytes,
+          )
+        } catch (error) {
+          const code = error instanceof SafeFetchError ? error.reasonCode : String(error)
+          throw new Error(
+            `the connection did not go to the validated address 127.0.0.2 — it was refused as ${code}, which is what reaching \`localhost\`'s own answer (127.0.0.1, nothing listening) looks like`,
+          )
+        }
+        expect(body, "the server on the validated address answered").toContain("a recipe")
+      } finally {
+        await fetcher.close()
+      }
+    } finally {
+      await new Promise<void>((resolve) => alt.close(() => resolve()))
+    }
+  })
+
   it("url-security/multi-address-answer-refused", async () => {
     // A name resolving to several addresses, one of them private, is refused
     // whole — the guard classifies every returned address, not just the first,
@@ -281,6 +334,21 @@ describe("CFV1-S5 safe-fetch connector", () => {
       const result = await fetcher.fetch(local("/redir-to-ok"))
       expect(result.finalUrl).toBe(local("/ok"))
       expect(new TextDecoder().decode(result.bytes)).toContain("a recipe")
+    } finally {
+      await fetcher.close()
+    }
+  })
+
+  it("url-security/redirect-invalid-refused", async () => {
+    // Measured, and the reason this proof exists: `REDIRECT_INVALID` was named
+    // nowhere in `tests/` before this one. Replacing the guard's refusal with
+    // `response.headers.get("location") || "/ok"` — a default instead of a
+    // refusal, which is what a refactor reaching for the simpler type does —
+    // left every proof in this directory green. The promise was in
+    // `safe-fetch.ts` and in ADR-0010's prose, and nothing held it.
+    const fetcher = makeFetcher()
+    try {
+      await expectRefusal(fetcher, local("/redir-without-location"), ReasonCode.REDIRECT_INVALID)
     } finally {
       await fetcher.close()
     }

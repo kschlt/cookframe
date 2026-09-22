@@ -26,6 +26,7 @@ import {
   StoreNotMigratedError,
 } from "../../src/persistence/index.js"
 import { createFakeNormalizationProvider } from "../../src/pipeline/fake-providers.js"
+import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
 import {
   applyMigration,
   decideDatabaseAvailability,
@@ -179,16 +180,9 @@ describe("persistence/no-storage-type-escapes-the-seam", () => {
     // module reaching for `pg` is how a storage type starts appearing in
     // signatures elsewhere.
     const importers: string[] = []
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const full = join(dir, entry.name)
-        if (entry.isDirectory()) walk(full)
-        else if (entry.name.endsWith(".ts")) {
-          if (/from "pg"/.test(readFileSync(full, "utf8"))) importers.push(full)
-        }
-      }
+    for (const full of filesUnder(join(repoRoot, "src"), { match: SOURCE_EXTENSIONS })) {
+      if (/from "pg"/.test(readFileSync(full, "utf8"))) importers.push(full)
     }
-    walk(join(repoRoot, "src"))
     expect(importers.map((p) => p.replace(`${repoRoot}/`, ""))).toEqual([
       "src/persistence/postgres-store.ts",
     ])
