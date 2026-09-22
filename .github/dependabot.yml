@@ -42,12 +42,13 @@ updates:
           - minor
           - patch
     # typescript stays on 5.x: its 7.x native port drops the classic compiler
-    # API that five source-parsing guards use, and moving them onto the vendor's
-    # `unstable/*` entry point or weakening them to a regex is not acceptable.
-    # See ADR-0028. The `^5.7.0` caret in package.json already caps the install;
-    # this ignore stops the ungrabbable major from reopening every week and
-    # churning the grouped development-dependencies pull request. Minor and patch
-    # TypeScript updates still flow.
+    # API that the source-parsing guards use (named, file by file, in
+    # tests/protections/compiler-surface.test.ts), and moving them onto the
+    # vendor's `unstable/*` entry point or weakening them to a regex is not
+    # acceptable. See ADR-0034. The `^5.7.0` caret in package.json already caps
+    # the install; this ignore stops the ungrabbable major from reopening every
+    # week and churning the grouped development-dependencies pull request. Minor
+    # and patch TypeScript updates still flow.
     ignore:
       - dependency-name: typescript
         update-types:
