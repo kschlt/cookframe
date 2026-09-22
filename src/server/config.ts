@@ -48,6 +48,19 @@ export interface InstanceConfiguration {
    * cannot see its public name at all.
    */
   readonly publicBaseUrl: string
+  /**
+   * The directory the byte store keeps captured photographs in (ADR-0009): on a
+   * deployment, the mounted volume (ADR-0026's second cut, "byte storage reaches
+   * the platform as a directory path and nothing else").
+   *
+   * Required rather than defaulted for the reason every other value here is. A
+   * default directory would be one inside the container's own filesystem, which
+   * a stopped machine does not keep — so an instance without a volume would take
+   * photographs, answer 201, and lose them on its next stop, while `PDR-0001`'s
+   * tenth invariant says a scan is not deleted until the capture-quality gate
+   * passes. Refusing to start is the only answer that cannot look like success.
+   */
+  readonly storageRoot: string
 }
 
 /** One variable that is missing or unusable, and why. */
@@ -84,6 +97,7 @@ export const REQUIRED_CONFIGURATION: readonly string[] = [
   "COOKFRAME_INGEST_CREDENTIAL",
   "COOKFRAME_LIBRARY_CREDENTIAL",
   "PUBLIC_BASE_URL",
+  "STORAGE_ROOT",
 ]
 
 /** An environment as this module reads it: names to values, nothing more. */
@@ -116,6 +130,7 @@ export function readConfiguration(env: Environment): InstanceConfiguration {
   const ingestCredential = required("COOKFRAME_INGEST_CREDENTIAL")
   const libraryCredential = required("COOKFRAME_LIBRARY_CREDENTIAL")
   const rawPublicBaseUrl = required("PUBLIC_BASE_URL")
+  const storageRoot = required("STORAGE_ROOT")
 
   // A port that is not a port is a fault of the same kind as an absent one: the
   // process would otherwise bind something nobody asked for, or fail with a
@@ -188,6 +203,7 @@ export function readConfiguration(env: Environment): InstanceConfiguration {
     ingestCredential,
     libraryCredential,
     publicBaseUrl,
+    storageRoot,
   }
 }
 
