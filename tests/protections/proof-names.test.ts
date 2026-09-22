@@ -99,6 +99,12 @@ describe("protections/every-proof-can-be-named", () => {
     // reader should be able to read belongs in the reader, not in this count.
     // A red that gets waved through without looking guards nothing.
     //
+    // A total is the weaker of two forms, measured: a registration that moved
+    // from `schema-org-mapping.test.ts` to `tree.test.ts` left it at 35 and
+    // green, while a per-file table (05add71, reverted in this PR) went red and
+    // named both files. The per-file form waits for the follow-up that teaches
+    // the reader to render `.each` titles, which may make it unnecessary.
+    //
     // Against the reader it is redundant, and kept anyway. Of the thirteen
     // plants measured against the reader, none dies here alone; each also
     // reddens a fixture or a named proof above. So the number is not what holds
@@ -125,6 +131,7 @@ describe("outer", () => {
   it(\`no substitution\`, () => {})
   it(\`composed \${x}\`, () => {})
   it.each([1, 2])("row %s", () => {})
+  it.for([1, 2])("for row %s", () => {})
   describe(\`composed \${x}\`, () => {
     it("lost", () => {})
   })
@@ -135,6 +142,7 @@ withDb("bound", () => {
 })
 const pattern = /x/
 pattern.test("not a registration")
+;(it as typeof it)("behind a cast", () => {})
 `
 
 describe("protections/every-proof-can-be-named", () => {
@@ -153,9 +161,18 @@ describe("protections/every-proof-can-be-named", () => {
     expect(composed.map((c) => c.why)).toEqual([
       "composed name",
       "named from a table",
+      "named from a table",
       "composed name",
       "inside a describe with a composed name",
     ])
+    // A KNOWN LIMIT, held as an assertion rather than written as a sentence:
+    // a registration called through a cast, `(it as typeof it)("…")`, is
+    // read as nothing at all, neither named nor counted. The tree has none.
+    // Measured with it: moving one registration out of one file this way and
+    // into another left the total unchanged. A reader taught to see through the
+    // cast turns this red, and the expectation then changes on purpose.
+    expect([...named, ...composed.map((c) => c.why)].join("\n")).not.toContain("behind a cast")
+    expect(named.length + composed.length).toBe(13)
   })
 
   it("accepts names that share a stem but are not inside one another", () => {
