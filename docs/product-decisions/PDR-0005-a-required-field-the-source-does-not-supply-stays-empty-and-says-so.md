@@ -4,7 +4,7 @@ title: "A required field the source does not supply stays empty and says so"
 status: accepted
 date: 2026-09-22
 tags: ["contract", "capture", "normalization", "omission", "product"]
-decides: ["OQ-38"]
+decides: ["OQ-39"]
 related_to: ["PDR-0001"]
 ---
 
@@ -35,7 +35,7 @@ field with neither is unfalsifiable by construction: whatever is in it, no check
 So this is not a prompting problem. A prompt asking the model not to invent a title is asking it to
 violate the schema it is also told to satisfy, and nothing downstream could tell whether it had
 obeyed. The same root cause produced finding 2 of the same run — a complete ingredient list derived
-from method prose on a card that had none — which is recorded separately as `OQ-39` and is NOT
+from method prose on a card that had none — which is recorded separately as `OQ-40` and is NOT
 decided here.
 
 ## Decision
@@ -81,7 +81,7 @@ never a synthesized grounding. A migration could not do better — it would have
 by the code enforcing it.
 
 **Two things this record deliberately does not decide.** Whether a canonical recipe may carry an
-ingredient list derived from method prose (`OQ-39`), and whether the fields that are required and
+ingredient list derived from method prose (`OQ-40`), and whether the fields that are required and
 *parsed* rather than quoted — `Ingredient.name`, `Equipment.name`,
 `InstructionStep.normalizedActionText`, `PreparedComponent.label` — need their own answer. Those
 cite evidence but are excluded from verbatim verification by design

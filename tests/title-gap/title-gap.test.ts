@@ -161,7 +161,7 @@ describe("title-gap/a-manufactured-title-is-refused", () => {
     expect(() => verifyTitleGrounding(titlelessCard, canonical)).toThrow(UngroundedTitleError)
   })
 
-  it("names what was cited, so a refusal is diagnosable", () => {
+  it("names what was cited and which half failed, so a refusal is diagnosable", () => {
     const canonical = CanonicalRecipe.parse(canonicalOf(titlelessCard, manufacturedTitle))
     try {
       verifyTitleGrounding(titlelessCard, canonical)
@@ -169,6 +169,7 @@ describe("title-gap/a-manufactured-title-is-refused", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(UngroundedTitleError)
       expect((error as UngroundedTitleError).citedBlockTypes).toEqual(["instruction"])
+      expect((error as UngroundedTitleError).reason).toBe("no_title_block_cited")
     }
   })
 
@@ -183,7 +184,11 @@ describe("title-gap/a-manufactured-title-is-refused", () => {
     expect(() => verifyTitleGrounding(titledCard, canonical)).not.toThrow()
   })
 
-  it("accepts a title that cites the title block among others", () => {
+  it("accepts a title that cites the title block among others, WHEN the wording matches", () => {
+    // The wording is what makes this legal, not the presence of the ref. The
+    // sibling test below plants the same citation shape with the method step's
+    // wording and requires a refusal; until review, only this half existed and
+    // the citation shape alone was treated as sufficient.
     const canonical = CanonicalRecipe.parse(
       canonicalOf(titledCard, {
         state: "from_source",
@@ -192,6 +197,99 @@ describe("title-gap/a-manufactured-title-is-refused", () => {
       }),
     )
     expect(() => verifyTitleGrounding(titledCard, canonical)).not.toThrow()
+  })
+
+  it("refuses the photo-gate title even when the title block is cited beside it", () => {
+    // Found by review on a head where this passed. Citing a `title` block ended
+    // the check before the wording was compared, so the manufactured
+    // method-step title — the one defect this module exists for — went through
+    // as soon as the model listed the real title block too.
+    const canonical = CanonicalRecipe.parse(
+      canonicalOf(titledCard, {
+        state: "from_source",
+        sourceText: "Zwiebeln schneiden.",
+        sourceRefs: [{ blockId: "b-instr-1" }, { blockId: "b-title" }],
+      }),
+    )
+    expect(() => verifyTitleGrounding(titledCard, canonical)).toThrow(UngroundedTitleError)
+  })
+
+  it("refuses an invented title that cites the real title block", () => {
+    // Also found by review. The card is a photograph, so claim verification is
+    // off (ADR-0019) and nothing else in the tree looks at the wording: a name
+    // nobody wrote was storable as the source's own words.
+    const canonical = CanonicalRecipe.parse(
+      canonicalOf(titledCard, {
+        state: "from_source",
+        sourceText: "Omas beste Rindersuppe mit Einlage",
+        sourceRefs: [{ blockId: "b-title" }],
+      }),
+    )
+    try {
+      verifyTitleGrounding(titledCard, canonical)
+      expect.unreachable("an invented title must be refused")
+    } catch (error) {
+      expect(error).toBeInstanceOf(UngroundedTitleError)
+      expect((error as UngroundedTitleError).reason).toBe("wording_not_in_the_title_block")
+    }
+  })
+
+  it("refuses a title that normalizes to nothing", () => {
+    // `.min(1)` admits " ", and every string contains the empty string, so a
+    // whitespace title would be accepted by containment alone — absence in a
+    // new disguise, on the field built to make absence sayable.
+    const canonical = CanonicalRecipe.parse(
+      canonicalOf(titledCard, {
+        state: "from_source",
+        sourceText: "   ",
+        sourceRefs: [{ blockId: "b-title" }],
+      }),
+    )
+    expect(() => verifyTitleGrounding(titledCard, canonical)).toThrow(UngroundedTitleError)
+  })
+
+  it("accepts the source's own heading read past a parenthetical", () => {
+    // Containment, not equality: taking part of the heading the source wrote is
+    // not inventing, and a capture that keeps a subtitle in the same block must
+    // not force a refusal.
+    const withSubtitle = SourceSnapshotSchema.parse({
+      ...titledCard,
+      id: "snap-card-subtitle",
+      blocks: titledCard.blocks.map((b) =>
+        b.type === "title" ? { ...b, text: "Zwiebelsuppe (Grundrezept)" } : b,
+      ),
+    })
+    const canonical = CanonicalRecipe.parse(
+      canonicalOf(withSubtitle, {
+        state: "from_source",
+        sourceText: "Zwiebelsuppe",
+        sourceRefs: [{ blockId: "b-title" }],
+      }),
+    )
+    expect(() => verifyTitleGrounding(withSubtitle, canonical)).not.toThrow()
+  })
+
+  it("compares against each cited title block separately, never against them joined", () => {
+    // `claim-support` paid three review rounds for this: the model writes its
+    // own refs, so scoring against joined text lets it widen its own haystack.
+    // "Zwiebelsuppe mit Speck" is in neither block and in their concatenation.
+    const twoHeadings = SourceSnapshotSchema.parse({
+      ...titledCard,
+      id: "snap-two-headings",
+      blocks: [
+        { id: "b-title", order: 0, type: "title", text: "Zwiebelsuppe mit" },
+        { id: "b-title-2", order: 1, type: "title", text: "Speck" },
+        ...titlelessCard.blocks.map((b) => ({ ...b, order: b.order + 2 })),
+      ],
+    })
+    const canonical = CanonicalRecipe.parse(
+      canonicalOf(twoHeadings, {
+        state: "from_source",
+        sourceText: "Zwiebelsuppe mit Speck",
+        sourceRefs: [{ blockId: "b-title" }, { blockId: "b-title-2" }],
+      }),
+    )
+    expect(() => verifyTitleGrounding(twoHeadings, canonical)).toThrow(UngroundedTitleError)
   })
 
   it("has nothing to check on a declared gap", () => {
