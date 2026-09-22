@@ -16,13 +16,13 @@ import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import { parse as parseYaml } from "yaml"
 import {
   collectDrift,
   type DeclaredKeys,
   FORMAT_KEYS_MARKER,
   loadRecordKeys,
   parseDeclaredKeys,
+  readFrontMatter,
 } from "./adr-format-drift.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -36,11 +36,10 @@ function readRecord(idPrefix: string): string {
   return readFileSync(join(adrDir, file), "utf8")
 }
 
-/** Parse a record's front matter as an object. */
+/** Parse a record's front matter as an object, via the drift check's own reader —
+ * so the test parses front matter exactly as the loader does, not by a private copy. */
 function frontMatter(idPrefix: string): Record<string, unknown> {
-  const match = readRecord(idPrefix).match(/^---\n([\s\S]*?)\n---\n/)
-  if (match === null) throw new Error(`${idPrefix} has no front matter`)
-  return (parseYaml(match[1] as string) as Record<string, unknown>) ?? {}
+  return readFrontMatter(readRecord(idPrefix))
 }
 
 const declared: DeclaredKeys = parseDeclaredKeys(readRecord("ADR-0020"))
@@ -79,9 +78,18 @@ describe("adr-format/one-definition-of-the-format", () => {
     const readme = readFileSync(join(adrDir, "README.md"), "utf8")
     expect(readme).toMatch(/ADR-0020/)
     // The README is not a second definition: it holds neither the machine-readable
-    // block nor a prose re-enumeration of the optional keys.
+    // block nor a re-enumeration of the declared keys. The old guard pinned three
+    // key spellings in one order — a re-enumeration in any other spelling or order
+    // slipped past it. Instead, count how many declared keys appear as whole words
+    // anywhere in the README: prose that references the record names a key or two in
+    // passing (e.g. `status`, `supersedes`), but repeating the list would name most
+    // of them. Assert fewer than half — spelling- and order-independent.
     expect(readme).not.toContain(FORMAT_KEYS_MARKER)
-    expect(readme).not.toMatch(/`superseded_by`.*`depends_on`.*`related_to`/s)
+    const allDeclared = [...declared.required, ...declared.optional, ...declared.reserved]
+    const named = allDeclared.filter((key) => new RegExp(`\\b${key}\\b`).test(readme))
+    expect(named.length, `README names too many declared keys: ${named.join(", ")}`).toBeLessThan(
+      allDeclared.length / 2,
+    )
   })
 })
 
@@ -94,6 +102,24 @@ describe("adr-format/undeclared-key-fails", () => {
     expect(drift).toContainEqual({
       kind: "undeclared-key",
       key: "invented_key",
+      record: "ADR-9999",
+    })
+  })
+})
+
+describe("adr-format/missing-required-key-fails", () => {
+  it("a record that omits a required key is a drift", () => {
+    // `required` is a real constraint, not a label: a record missing one of them
+    // drifts. Without this, `required` and `optional` would be interchangeable and
+    // the declaration could not say a key must always be present.
+    const withoutDate = declared.required.filter((k) => k !== "date")
+    const drift = collectDrift(
+      [{ id: "ADR-9999", keys: [...withoutDate, ...declared.optional] }],
+      declared,
+    )
+    expect(drift).toContainEqual({
+      kind: "missing-required-key",
+      key: "date",
       record: "ADR-9999",
     })
   })
@@ -118,6 +144,23 @@ describe("adr-format/unused-declared-key-fails", () => {
     }
     const drift = collectDrift(records, reservedGhost)
     expect(drift.some((v) => v.key === "ghost_key")).toBe(false)
+  })
+})
+
+describe("adr-format/the-loader-recovers-each-record-id", () => {
+  it("loadRecordKeys captures the full id from the filename, not a truncated prefix", () => {
+    // The synthetic drift proofs feed collectDrift hand-built RecordKeys, so they
+    // never exercise the loader that turns a filename into an id. This does: it runs
+    // the real loader over the tree. The id must be the full `ADR-NNNN`, never cut at
+    // the first hyphen — the title that follows carries hyphens too, and cutting there
+    // collapses every record's id to the bare "ADR", which reads as one id repeated.
+    const ids = loadRecordKeys(adrDir, ADR_ID).map((r) => r.id)
+    expect(ids).toContain("ADR-0006")
+    expect(ids).toContain("ADR-0020")
+    expect(ids).not.toContain("ADR")
+    for (const id of ids) expect(id).toMatch(/^ADR-\d+$/)
+    // No two records share an id — the collapse-to-"ADR" bug produced N identical ids.
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })
 

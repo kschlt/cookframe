@@ -39,11 +39,12 @@ export interface RecordKeys {
   readonly keys: readonly string[]
 }
 
-/** A single drift: a key that should not be used, or a declaration gone stale. */
+/** A single drift: a key that should not be used, a missing required key, or a
+ * declaration gone stale. */
 export interface DriftViolation {
-  readonly kind: "undeclared-key" | "stale-declared-key"
+  readonly kind: "undeclared-key" | "missing-required-key" | "stale-declared-key"
   readonly key: string
-  /** The record that used an undeclared key; absent for a stale declaration. */
+  /** The offending record; absent for a stale declaration (which names no record). */
   readonly record?: string
 }
 
@@ -52,6 +53,9 @@ export interface DriftViolation {
  * return every drift. Empty means the declaration and the records agree.
  *
  * - `undeclared-key`: a record carries a key the declaration does not list.
+ * - `missing-required-key`: a record is missing a `required` key. This is what
+ *   makes `required` a real constraint rather than a label — the declaration says
+ *   every record carries these, so a record that does not is drift.
  * - `stale-declared-key`: a `required`/`optional` key no record uses. `reserved`
  *   keys are exempt (that is what reserving one means).
  */
@@ -69,10 +73,16 @@ export function collectDrift(
   const violations: DriftViolation[] = []
 
   for (const record of records) {
+    const present = new Set<string>(record.keys)
     for (const key of record.keys) {
       usedKeys.add(key)
       if (!declaredSet.has(key)) {
         violations.push({ kind: "undeclared-key", key, record: record.id })
+      }
+    }
+    for (const key of declared.required) {
+      if (!present.has(key)) {
+        violations.push({ kind: "missing-required-key", key, record: record.id })
       }
     }
   }
@@ -86,23 +96,29 @@ export function collectDrift(
   return violations
 }
 
-/** The top-level front-matter keys of one record file, in file order. */
-function frontMatterKeys(text: string): string[] {
-  const match = text.match(/^---\n([\s\S]*?)\n---\n/)
+/**
+ * Parse a record's YAML front matter to an object. Tolerant of CRLF endings, and
+ * the one front-matter reader the drift check and its tests share, rather than the
+ * `^---\n…\n---\n` regex being written out per call site.
+ */
+export function readFrontMatter(text: string): Record<string, unknown> {
+  const match = text.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---\n/)
   if (match === null) throw new Error("record has no front matter")
-  const parsed = parseYaml(match[1] as string) as Record<string, unknown> | null
-  return parsed === null ? [] : Object.keys(parsed)
+  return (parseYaml(match[1] as string) as Record<string, unknown> | null) ?? {}
 }
 
-/** Load every `NNNN`-style record in a directory as its id and its keys. */
+/** Load every record in a directory whose filename matches `idPattern`, as its
+ * id (captured from the filename by that pattern) and its front-matter keys. */
 export function loadRecordKeys(dir: string, idPattern: RegExp): RecordKeys[] {
   return readdirSync(dir)
     .filter((f) => f.endsWith(".md") && idPattern.test(f))
     .sort()
     .map((f) => {
-      const text = readFileSync(join(dir, f), "utf8")
-      const id = f.replace(/-.*$/, "").replace(/\.md$/, "")
-      return { id, keys: frontMatterKeys(text) }
+      const keys = Object.keys(readFrontMatter(readFileSync(join(dir, f), "utf8")))
+      // Capture the id (e.g. "ADR-0006"), never cut at the first hyphen — the
+      // title that follows also contains hyphens.
+      const id = f.match(idPattern)?.[0] ?? f.replace(/\.md$/, "")
+      return { id, keys }
     })
 }
 
