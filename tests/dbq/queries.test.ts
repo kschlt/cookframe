@@ -57,8 +57,16 @@ function corpus(): CanonicalVersion[] {
     mutate(r)
     return r
   }
+  /** The declared gap: the source had no title, and the record says so. */
+  const untitle = (r: CanonicalRecipe): void => {
+    ;(r as { title: CanonicalRecipe["title"] }).title = { state: "not_in_source" }
+  }
   const rename = (r: CanonicalRecipe, title: string): void => {
-    ;(r as { title: string }).title = title
+    ;(r as { title: CanonicalRecipe["title"] }).title = {
+      state: "from_source",
+      sourceText: title,
+      sourceRefs: [{ blockId: "b-title" }],
+    }
   }
   return [
     { recipeId: "r-1", version: 1, recipe: at("r-1", (r) => rename(r, "Gratin, first run")) },
@@ -82,6 +90,13 @@ function corpus(): CanonicalVersion[] {
     },
     { recipeId: "r-2", version: 1, recipe: at("r-2", (r) => rename(r, "Second recipe")) },
     { recipeId: "r-3", version: 1, recipe: at("r-3", (r) => rename(r, "Third recipe")) },
+    // A recipe whose source carried no title (PDR-0005). Without one in the
+    // corpus, every shape stored and read back only `from_source` titles, so
+    // the declared gap crossed no store at all: the relational shape's
+    // `title_state`/`title_source_text` split and the library query's null
+    // handling were both unexercised, and either could have been wrong while
+    // all three shapes agreed.
+    { recipeId: "r-4", version: 1, recipe: at("r-4", untitle) },
   ]
 }
 
@@ -140,7 +155,16 @@ describe.skipIf(needsDb)("CFV1-DBQ query evaluation", () => {
       await useShape(db(), shape)
 
       const library = await listLibrary(db(), shape)
-      expect(library.map((e) => e.recipeId).sort()).toEqual(["r-1", "r-2", "r-3"])
+      expect(library.map((e) => e.recipeId).sort()).toEqual(["r-1", "r-2", "r-3", "r-4"])
+      // The titleless recipe lists with NO title key, not with a null and not
+      // with a stand-in. Every shape reaches this through different SQL — a
+      // jsonb path for the document and hybrid, a column for the relational —
+      // and the agreement check below would not catch a shared mistake, so the
+      // shape of the row is asserted here.
+      expect(library.find((e) => e.recipeId === "r-4")).toEqual({
+        recipeId: "r-4",
+        latestVersion: 1,
+      })
       // The library lists the LATEST version of each recipe, never an earlier one.
       expect(library.find((e) => e.recipeId === "r-1")).toEqual({
         recipeId: "r-1",
@@ -173,7 +197,11 @@ describe.skipIf(needsDb)("CFV1-DBQ query evaluation", () => {
       const repo = STORES[shape](db())
       const latest = await repo.loadLatestCanonical("r-1")
       expect(latest?.version, `${shape}: r-1 has two runs, the latest is 2`).toBe(2)
-      expect(latest?.recipe.title, shape).toBe("Gratin, second run")
+      expect(latest?.recipe.title, shape).toEqual({
+        state: "from_source",
+        sourceText: "Gratin, second run",
+        sourceRefs: [{ blockId: "b-title" }],
+      })
       expect(
         await repo.loadLatestCanonical("r-2"),
         `${shape}: a single-version recipe`,
@@ -235,10 +263,16 @@ describe.skipIf(needsDb)("CFV1-DBQ query evaluation", () => {
       expect(b.recipe, shape).toEqual(expected[1]?.recipe)
 
       const diff = await compareRuns(repo, "r-1", 1, 2)
+      // `/title/sourceText`, not `/title`: the diff compares LEAVES, and since
+      // PDR-0005 the title is an object whose wording is the leaf that differs
+      // between the two runs. The path naming the changed field rather than
+      // the whole node is the point of a leaf diff, and every shape must
+      // report the same one — the relational shape decomposes the title into
+      // columns and a `source_ref` row, so agreeing here is not free.
       expect(
         diff.differences.map((d) => d.path),
         shape,
-      ).toContain("/title")
+      ).toContain("/title/sourceText")
       expect(diff.same, shape).toBeGreaterThan(0)
     }
   })

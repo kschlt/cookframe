@@ -64,9 +64,13 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
       )
       const first = await repo.loadLatestCanonical(appended.recipeId)
       if (first === undefined) throw new Error("precondition: recipe should load")
-      ;(first.recipe as { title: string }).title = "mutated by caller"
+      ;(first.recipe as { title: unknown }).title = {
+        state: "from_source",
+        sourceText: "mutated by caller",
+        sourceRefs: [{ blockId: "b-title" }],
+      }
       const second = await repo.loadLatestCanonical(appended.recipeId)
-      expect(second?.recipe.title).not.toBe("mutated by caller")
+      expect(second?.recipe.title).not.toMatchObject({ sourceText: "mutated by caller" })
     })
   })
 
@@ -141,7 +145,15 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
       await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("run-2")))
       const latest = await repo.loadLatestCanonical(v.recipeId)
       expect(await repo.listLibrary()).toEqual([
-        { recipeId: v.recipeId, latestVersion: 2, title: latest?.recipe.title },
+        {
+          recipeId: v.recipeId,
+          latestVersion: 2,
+          // The listing carries the source's own wording, or no key at all —
+          // never the title object, and never a stand-in for a missing one.
+          ...(latest?.recipe.title.state === "from_source"
+            ? { title: latest.recipe.title.sourceText }
+            : {}),
+        },
       ])
     })
 

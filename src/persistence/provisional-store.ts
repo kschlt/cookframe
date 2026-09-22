@@ -75,7 +75,14 @@ class ProvisionalStore implements RecipeRepository {
     for (const [recipeId, versions] of this.#versions) {
       const latest = versions[versions.length - 1]
       if (latest === undefined) continue
-      entries.push({ recipeId, latestVersion: versions.length, title: latest.title })
+      entries.push({
+        recipeId,
+        latestVersion: versions.length,
+        // A declared gap stays a gap in the listing: no key at all rather than
+        // a borrowed string, which is what `LibraryEntry.title` being optional
+        // is for.
+        ...(latest.title.state === "from_source" ? { title: latest.title.sourceText } : {}),
+      })
     }
     return entries
   }

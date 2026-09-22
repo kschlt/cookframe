@@ -113,7 +113,11 @@ function canonicalReply(opts: {
   return JSON.stringify({
     id: "model-chosen",
     schemaVersion: SCHEMA_VERSION,
-    title: opts.title,
+    title: {
+      state: "from_source",
+      sourceText: opts.title,
+      sourceRefs: [{ blockId: opts.titleRef }],
+    },
     yields: [],
     ingredientGroups: [
       {
@@ -514,6 +518,13 @@ describe("injection/unsupported-claim-fails-resolution", () => {
       },
     }) as unknown as CanonicalRecipe
 
+  /** The id the capture policy gave the snapshot's `title` block. */
+  const titleBlockId = (snapshot: { blocks: readonly { id: string; type: string }[] }): string => {
+    const block = snapshot.blocks.find((b) => b.type === "title")
+    if (block === undefined) throw new Error("precondition: the adapter emits a title block")
+    return block.id
+  }
+
   it("converts an ADAPTER-CAPTURED page whose facts cite the payload, end to end", async () => {
     // The coverage gap that let the false refusal exist. `tests/slice4` drives
     // the URL import with a FAKE normalization provider, so claim verification
@@ -554,7 +565,13 @@ describe("injection/unsupported-claim-fails-resolution", () => {
     const reply = JSON.stringify({
       id: "model-chosen",
       schemaVersion: SCHEMA_VERSION,
-      title: "Linsensuppe",
+      // The adapter emits a `title` block for the payload's `name`, so a title
+      // has real evidence to cite even on the payload-pointer path.
+      title: {
+        state: "from_source",
+        sourceText: "Linsensuppe",
+        sourceRefs: [{ blockId: titleBlockId(snapshot) }],
+      },
       yields: [],
       ingredientGroups: [
         {
@@ -993,7 +1010,7 @@ describe("injection/refusal-is-not-retried", () => {
       normCtx,
     )
     expect(transport.seen).toHaveLength(2)
-    expect(recipe.title).toBe("Linsensuppe")
+    expect(recipe.title).toMatchObject({ state: "from_source", sourceText: "Linsensuppe" })
   })
 })
 
@@ -1002,7 +1019,7 @@ describe("injection/legitimate-fallback-page-unaffected", () => {
     const recipe = await createModelNormalizationProvider(
       stage(sequence(faithfulLinsensuppe)),
     ).normalize(plainPage, normCtx)
-    expect(recipe.title).toBe("Linsensuppe")
+    expect(recipe.title).toMatchObject({ state: "from_source", sourceText: "Linsensuppe" })
     expect(recipe.ingredientGroups[0]?.ingredients[0]?.sourceText).toBe("250 g rote Linsen")
   })
 
@@ -1079,7 +1096,7 @@ describe("injection/legitimate-fallback-page-unaffected", () => {
       photo,
       normCtx,
     )
-    expect(recipe.title).toBe("Linsensuppe")
+    expect(recipe.title).toMatchObject({ state: "from_source", sourceText: "Linsensuppe" })
   })
 })
 
