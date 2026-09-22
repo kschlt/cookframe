@@ -128,17 +128,97 @@ function spawnInstance(env: Record<string, string>): Started {
   return { child, output: () => output, exited }
 }
 
-/** Wait until `match` appears in the child's output, or give up loudly. */
-async function waitFor(started: Started, match: RegExp, timeoutMs = 30_000): Promise<string> {
+/**
+ * How long a spawned process gets to do the first thing it is going to do:
+ * announce its port, or refuse and exit.
+ *
+ * Measured, not chosen (the CFV1-TMO rule). Each proof here waits for one start
+ * or one refusal at a time. The slowest single-process proof, schema setup
+ * included, took about 0.5 s on an idle four-core machine, 4.1 s with 32 busy
+ * loops competing for it, and 6.4 s with 48, which is the load that reproduced
+ * the #80 incident. This is about five times the worst of them. A proof that reaches it has met a process that did NEITHER,
+ * which is its own finding, and it says so rather than timing out.
+ */
+const FIRST_ACT_DEADLINE_MS = 30_000
+
+/** The line the process prints once its port is bound, and never before. */
+const LISTENING = /listening on port \d+/
+
+/** What a spawned process did first. */
+type FirstAct =
+  | { readonly printed: string }
+  | { readonly exited: number | null }
+  | { readonly silent: true }
+
+/**
+ * Watch a spawned process until it prints `match`, exits, or runs out of time,
+ * and say which came first.
+ *
+ * This is the one place a proof here waits on a process, and it exists because
+ * waiting on only ONE of those turns a wrong outcome into a timeout. A proof that
+ * waits for a refusal and gets a process that bound its port instead sat out the
+ * whole deadline, and then went red at whichever assertion came next, reading
+ * like a hang (measured: 30042 ms, red at the table name, with the port long
+ * since announced). The same is true the other way round: a proof waiting for
+ * the port sat out the deadline beside a process that had already exited.
+ * Watching for both ends the wait at the first thing that happened, so the red
+ * names what did.
+ *
+ * Output is checked before exit, so a process that announces its port and then
+ * exits counts as having announced it. That order is what keeps "it bound first,
+ * then noticed" from passing as a refusal.
+ */
+async function firstAct(
+  started: Started,
+  match: RegExp,
+  timeoutMs = FIRST_ACT_DEADLINE_MS,
+): Promise<FirstAct> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const found = match.exec(started.output())
-    if (found !== null) return found[0]
+    if (found !== null) return { printed: found[0] }
+    if (started.child.exitCode !== null || started.child.signalCode !== null) {
+      return { exited: await started.exited }
+    }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  throw new Error(
-    `the process never printed ${match}. What it did say:\n${started.output() || "(nothing)"}`,
-  )
+  return { silent: true }
+}
+
+/** Wait until `match` appears in the child's output, or say why it never will. */
+async function waitFor(started: Started, match: RegExp): Promise<string> {
+  const act = await firstAct(started, match)
+  if ("printed" in act) return act.printed
+  const what =
+    "exited" in act
+      ? `exited with ${act.exited} before printing ${match}`
+      : `neither printed ${match} nor exited within ${FIRST_ACT_DEADLINE_MS} ms`
+  throw new Error(`the process ${what}. What it did say:\n${started.output() || "(nothing)"}`)
+}
+
+/**
+ * Wait for the process to refuse: exit non-zero without ever announcing a port.
+ *
+ * Every refusal proof here used to race the exit against a 30-second timer and
+ * then require the result not to be 0. The string "timed out" is not 0, so that
+ * line passed for a process that never exited at all, and the proof went red
+ * only later, at whichever assertion first read the output. Here each way of
+ * not refusing is its own failure, named for what the process did instead.
+ */
+async function refusal(started: Started): Promise<void> {
+  const act = await firstAct(started, LISTENING)
+  const said = `What it said:\n${started.output() || "(nothing)"}`
+  if ("printed" in act) {
+    throw new Error(`the process started instead of refusing: it printed "${act.printed}". ${said}`)
+  }
+  if ("silent" in act) {
+    throw new Error(
+      `the process neither refused nor started within ${FIRST_ACT_DEADLINE_MS} ms. ${said}`,
+    )
+  }
+  if (act.exited === 0 || act.exited === null) {
+    throw new Error(`the process exited with ${act.exited}, which is not a refusal. ${said}`)
+  }
 }
 
 /**
@@ -263,11 +343,7 @@ describe("run/absent-configuration-refuses-by-name", () => {
 
     const started = spawnInstance(env)
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
       expect(started.output()).toContain("COOKFRAME_LIBRARY_CREDENTIAL")
       // Nothing bound, so the absent value was not defaulted into an instance
       // that appears to work.
@@ -288,11 +364,7 @@ describe("run/absent-configuration-refuses-by-name", () => {
     const started = spawnInstance(environment(port))
 
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
       // The store seam's own refusal, not merely the string "DATABASE_URL"
       // appearing somewhere. A composition root with the URL written into it
       // also fails here — against a database with no tables — and its message
@@ -336,11 +408,7 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
     const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
 
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
       // Named as the operator's missing step, not as a driver error about a
       // relation — which is the whole difference the refusal exists to make.
       expect(started.output()).toContain("migrations/0001-the-recipe-store.sql")
@@ -410,11 +478,7 @@ describe("wire/the-port-opens-only-behind-a-reachable-store", () => {
     )
 
     try {
-      const code = await Promise.race([
-        started.exited,
-        new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-      ])
-      expect(code, `Output:\n${started.output()}`).not.toBe(0)
+      await refusal(started)
 
       const firstLine = started.output().trimStart().split("\n")[0] ?? ""
       expect(firstLine, `Output:\n${started.output()}`).toContain(
@@ -488,11 +552,7 @@ describe.skipIf(availability.mode === "skip")(
         const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
 
         try {
-          const code = await Promise.race([
-            started.exited,
-            new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
-          ])
-          expect(code, `Output:\n${started.output()}`).not.toBe(0)
+          await refusal(started)
           // The table it could not read, named. Every earlier table exists
           // here, so a refusal naming one of those would mean the probe never
           // reached this migration's table at all.
