@@ -177,6 +177,17 @@ applied to content: **a model's claim about the source is evidence, never author
   page does not contain anywhere is refused, which is the proof beside it.
   It is disclosed rather than patched because a rule that tried to close it would be guessing at
   intent, and a guess dressed as a guarantee is worse than a stated limit.
+- **A `sourceRef` may name a `payloadPointer` instead of a `blockId`, and both are verified.** The
+  pointer is resolved against the snapshot's structured payload (RFC 6901) and each scalar leaf
+  under it is a candidate on its own — never joined, for the same reason blocks are never joined:
+  the model picks the pointer, so joining would let it pick how much text its claim is scored
+  against. Numbers and booleans count as leaves, because a payload's `recipeYield` is often the
+  number 4 and a claim quoting it is as legitimate as one quoting a string.
+  This was a **false refusal** before, and the only one of this record's failures in that
+  direction: collecting block ids alone scored a payload-cited claim against nothing and refused it
+  however verbatim its wording was. It broke exactly the path whose evidence no model wrote — the
+  deterministic JSON-LD adapter's own output. No acceptance criterion reached it, because the
+  fallback criterion says "a page with NO structured data", which is the complementary case.
 - Verification rests on multi-token claims. A one-word claim is contained in almost any block that
   uses the word, which is correct — the block does contain it — but it means the protection lives
   where a fabricated recipe's content lives, not everywhere uniformly.

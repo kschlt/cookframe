@@ -54,18 +54,24 @@ import type { CanonicalRecipe, SourceRef, SourceSnapshot, SourceType } from "../
  */
 export const SUPPORT_COVERAGE_THRESHOLD = 0.7
 
-/** Raised when a cited block does not support the fact citing it. */
+/** Raised when what a fact cites — a block or a payload pointer — does not support it. */
 export class UnsupportedClaimError extends Error {
   constructor(
     readonly claim: string,
     readonly blockIds: readonly string[],
     readonly coverage: number,
+    /** Payload pointers the fact cited, if any. A ref names one or the other. */
+    readonly payloadPointers: readonly string[] = [],
   ) {
+    const cited = [
+      ...(blockIds.length > 0 ? [`block(s) ${blockIds.join(", ")}`] : []),
+      ...(payloadPointers.length > 0 ? [`payload pointer(s) ${payloadPointers.join(", ")}`] : []),
+    ]
     super(
-      `a fact is not supported by the source it cites — no cited block contains ` +
+      `a fact is not supported by the source it cites — nothing it cites contains ` +
         `its wording (nearest coverage ${coverage.toFixed(2)}): ` +
         `${JSON.stringify(claim.slice(0, 200))} cited ` +
-        `${blockIds.length > 0 ? `block(s) ${blockIds.join(", ")}` : "no block"}`,
+        `${cited.length > 0 ? cited.join(" and ") : "nothing"}`,
     )
     this.name = "UnsupportedClaimError"
   }
@@ -284,11 +290,63 @@ export function claimsAreVerified(snapshot: SourceSnapshot): boolean {
  * calibration, on a corpus harder than this rule governs — and a refusal is
  * recoverable where an invented allergen in a persisted recipe is not.
  */
+/**
+ * Resolve an RFC 6901 JSON Pointer against the structured source payload.
+ *
+ * Returns `undefined` when the pointer addresses nothing, which contributes no
+ * evidence rather than throwing — `resolveSourceRefs` is what reports a ref that
+ * does not resolve, and this module reports claims that are not supported. The
+ * two stay separate so neither starts reporting the other's failures.
+ */
+function resolvePointer(payload: unknown, pointer: string): unknown {
+  if (pointer === "") return payload
+  if (!pointer.startsWith("/")) return undefined
+  let node: unknown = payload
+  for (const raw of pointer.slice(1).split("/")) {
+    const key = raw.replaceAll("~1", "/").replaceAll("~0", "~")
+    if (Array.isArray(node)) {
+      const index = Number(key)
+      if (!Number.isInteger(index) || index < 0 || index >= node.length) return undefined
+      node = node[index]
+    } else if (typeof node === "object" && node !== null) {
+      if (!Object.hasOwn(node, key)) return undefined
+      node = (node as Record<string, unknown>)[key]
+    } else {
+      return undefined
+    }
+  }
+  return node
+}
+
+/**
+ * The scalar leaves under a resolved payload node, each as its OWN candidate.
+ *
+ * Never joined. A structured payload is a tree of values the source published,
+ * and joining them would rebuild exactly the haystack the block rule spent three
+ * review rounds removing: the model picks the pointer, so it would pick how much
+ * text its claim is scored against. One leaf is one thing the source said, which
+ * is what a block is.
+ *
+ * Numbers and booleans are included, stringified. A payload's `recipeYield` is
+ * often the number 4, and a claim quoting it is as legitimate as one quoting a
+ * string — leaving them out would be the same false refusal this function exists
+ * to fix, in a different shape.
+ */
+function payloadLeaves(node: unknown, into: string[]): void {
+  if (typeof node === "string") into.push(node)
+  else if (typeof node === "number" || typeof node === "boolean") into.push(String(node))
+  else if (Array.isArray(node)) for (const child of node) payloadLeaves(child, into)
+  else if (typeof node === "object" && node !== null) {
+    for (const child of Object.values(node)) payloadLeaves(child, into)
+  }
+}
+
 export function verifyClaimSupport(snapshot: SourceSnapshot, canonical: CanonicalRecipe): void {
   if (!claimsAreVerified(snapshot)) return
   const blockText = new Map(snapshot.blocks.map((b) => [b.id, b.text]))
   const claims: Claim[] = []
   collectClaims(canonical, [], claims)
+  const payload = snapshot.structuredSourcePayload
   for (const claim of claims) {
     const ids = claim.refs.map((r) => r.blockId).filter((id): id is string => id !== undefined)
     // Refs are resolved elsewhere; an id absent here contributes no evidence
@@ -312,6 +370,17 @@ export function verifyClaimSupport(snapshot: SourceSnapshot, canonical: Canonica
     const cited = ids
       .map((id) => blockText.get(id))
       .filter((text): text is string => text !== undefined)
+    // A ref may name a `payloadPointer` instead of a `blockId` — the schema
+    // permits either and the deterministic JSON-LD adapter emits the second, so
+    // collecting only block ids scored such a claim against NOTHING and refused
+    // it however verbatim its wording was. That was a false refusal on the one
+    // path whose evidence no model wrote, and it is the failure direction this
+    // module must not have: the structured payload is the adapter's parse of the
+    // page, not a model's account of it.
+    for (const ref of claim.refs) {
+      if (ref.payloadPointer === undefined) continue
+      payloadLeaves(resolvePointer(payload, ref.payloadPointer), cited)
+    }
     // CONTAINMENT, in at least one cited block. Not a coverage threshold.
     //
     // The relaxation was removed because the size of the text a claim is
@@ -338,6 +407,7 @@ export function verifyClaimSupport(snapshot: SourceSnapshot, canonical: Canonica
       claim.text,
       ids,
       cited.reduce((best, text) => Math.max(best, supportCoverage(claim.text, text)), 0),
+      claim.refs.map((r) => r.payloadPointer).filter((p): p is string => p !== undefined),
     )
   }
 }

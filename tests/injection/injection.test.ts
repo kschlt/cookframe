@@ -455,6 +455,110 @@ describe("injection/instruction-carrying-page-is-inert", () => {
 })
 
 describe("injection/unsupported-claim-fails-resolution", () => {
+  // The structured-payload half of the rule. A `sourceRef` may name a
+  // `payloadPointer` instead of a `blockId` — the schema says so and the
+  // deterministic JSON-LD adapter emits it — and verification collected only
+  // block ids, so such a claim was scored against NOTHING and refused however
+  // verbatim it was. A false refusal on the one path whose evidence no model
+  // wrote. No acceptance criterion reaches it: the fallback criterion says "a
+  // page with NO structured data", which is the complementary case.
+  const payloadSnapshot = SourceSnapshotSchema.parse({
+    id: "s-payload",
+    version: 0,
+    sourceType: "url",
+    capturedText: "Linsensuppe\n250 g rote Linsen\n1 Zwiebel",
+    blocks: [{ id: "b-title", order: 0, type: "title", text: "Linsensuppe" }],
+    structuredSourcePayload: {
+      "@type": "Recipe",
+      name: "Linsensuppe",
+      recipeYield: 4,
+      recipeIngredient: ["250 g rote Linsen", "1 Zwiebel"],
+    },
+    captureProvenance: { sourceAdapter: "url", adapterVersion: "1", runId: "r" },
+  })
+
+  const citing = (sourceText: string, pointer: string): CanonicalRecipe =>
+    ({
+      id: "r1",
+      schemaVersion: SCHEMA_VERSION,
+      title: "Linsensuppe",
+      yields: [],
+      ingredientGroups: [
+        {
+          id: "g1",
+          sourceRefs: [{ payloadPointer: "/recipeIngredient" }],
+          ingredients: [
+            {
+              id: "i1",
+              sourceText,
+              name: sourceText,
+              qualifiers: [],
+              scalingEligibility: "unknown",
+              sourceRefs: [{ payloadPointer: pointer }],
+            },
+          ],
+        },
+      ],
+      instructionSections: [],
+      provenance: {
+        sourceSnapshotId: "s-payload",
+        sourceSnapshotVersion: 0,
+        targetOntologyVersion: "0.0.1",
+        runId: "r",
+      },
+    }) as unknown as CanonicalRecipe
+
+  it("accepts a verbatim claim citing the structured payload, not only a block", () => {
+    expect(() =>
+      verifyClaimSupport(payloadSnapshot, citing("250 g rote Linsen", "/recipeIngredient/0")),
+    ).not.toThrow()
+  })
+
+  it("accepts a claim citing a NUMBER in the payload", () => {
+    // `recipeYield` is the number 4. Leaving non-string leaves out would be the
+    // same false refusal in a different shape.
+    expect(() => verifyClaimSupport(payloadSnapshot, citing("4", "/recipeYield"))).not.toThrow()
+  })
+
+  it("still refuses an invention citing the payload", () => {
+    expect(() =>
+      verifyClaimSupport(payloadSnapshot, citing("3 EL Erdnussbutter", "/recipeIngredient/0")),
+    ).toThrow(UnsupportedClaimError)
+  })
+
+  it("does NOT join the payload's leaves, however wide the pointer", () => {
+    // The haystack lesson, applied to the second ref shape.
+    //
+    // The discriminating claim is one that spans the SEAM between two leaves.
+    // My first attempt used "250 g Zwiebel", which containment refuses whether
+    // the leaves are joined or not — so it passed against a deliberately joined
+    // implementation and proved nothing. Joining is not harmless: it creates
+    // adjacencies at the seams that the source never had. "Linsen 1 Zwiebel" is
+    // contained in `"250 g rote Linsen" + " " + "1 Zwiebel"` and in neither leaf
+    // alone, which is precisely the recombination a join would readmit.
+    for (const pointer of ["/recipeIngredient", ""]) {
+      expect(() =>
+        verifyClaimSupport(payloadSnapshot, citing("Linsen 1 Zwiebel", pointer)),
+      ).toThrow(UnsupportedClaimError)
+      // Still refused for the plain welded case too.
+      expect(() => verifyClaimSupport(payloadSnapshot, citing("250 g Zwiebel", pointer))).toThrow(
+        UnsupportedClaimError,
+      )
+    }
+    // And the same wide pointer still accepts a claim one leaf contains whole.
+    expect(() =>
+      verifyClaimSupport(payloadSnapshot, citing("1 Zwiebel", "/recipeIngredient")),
+    ).not.toThrow()
+  })
+
+  it("refuses a pointer that addresses nothing, rather than resolving it loosely", () => {
+    expect(() =>
+      verifyClaimSupport(payloadSnapshot, citing("250 g rote Linsen", "/recipeIngredient/9")),
+    ).toThrow(UnsupportedClaimError)
+  })
+})
+
+describe("injection/unsupported-claim-fails-resolution", () => {
   it("refuses a fact whose cited block does not support it", async () => {
     // The ref RESOLVES — `b-ing-1` is a real block — and the recipe is
     // schema-valid. Only verification catches it.
