@@ -360,6 +360,21 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The SCANNER is pinned here, beside the other version pins, because
+          # otherwise it is pinned in somebody else's repository. The action
+          # resolves its binary as `process.env.GITLEAKS_VERSION || "8.24.3"`
+          # (`src/index.js`), so without this line the day gitleaks-action
+          # changes that literal is the day `secret-scan` scans with a different
+          # tool, with nothing in this tree to show for it. That is the same
+          # argument the `unit` job's `setup-python` step makes about an
+          # unpinned interpreter, and the scanner is its peer. `8.24.3` is what
+          # the action resolves today, so this pins the present rather than
+          # changing it.
+          #
+          # NOT `latest`: the action treats that value as "resolve the newest
+          # release at run time", which is an unpin wearing a pin's clothes.
+          # `ci/secret-scan-pins-its-scanner` refuses it.
+          GITLEAKS_VERSION: "8.24.3"
 
   # Actually builds the dev/CI container and runs the documented quality gate
   # inside it, so "the container builds and runs the documented commands" is
