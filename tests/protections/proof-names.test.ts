@@ -89,7 +89,16 @@ describe("protections/every-proof-can-be-named", () => {
     // `url-capture-wiring.test.ts` and moved the count from 25 to 26. #94 added
     // nine more in `shopping-handoff.test.ts` and `configuration.test.ts` and
     // moved it to 35. Both times this was the only assertion in the file to
-    // fail. Against the reader it is redundant, and kept anyway. Of the thirteen
+    // fail. The nine from #94 were each looked at before the number moved:
+    // all are `it.each` with a `%s` or `%j` format, so their names come from a
+    // table and no static reader can give them.
+    //
+    // So this number moves with merges, and that is its purpose. When it is
+    // red, do not move it by reflex. Look at the new sites first: a name the
+    // reader should be able to read belongs in the reader, not in this count.
+    // A red that gets waved through without looking guards nothing.
+    //
+    // Against the reader it is redundant, and kept anyway. Of the thirteen
     // plants measured against the reader, none dies here alone; each also
     // reddens a fixture or a named proof above. So the number is not what holds
     // the reader. It is what makes a proof this guard cannot see arrive as a
