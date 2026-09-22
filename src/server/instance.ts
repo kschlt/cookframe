@@ -46,7 +46,7 @@ import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "../http/not-f
 import { createPagesApp } from "../http/pages-app.js"
 import type { RecipeRepository } from "../persistence/index.js"
 import type { UrlByteSource } from "../security/url-byte-source.js"
-import type { CapabilityStore } from "../shopping/capability-token.js"
+import { type CapabilityStore, capabilityUrl } from "../shopping/capability-token.js"
 
 /**
  * Everything the composed instance runs on. Every collaborator is injected
@@ -69,6 +69,12 @@ export interface InstanceDeps {
   readonly normalization: IngestAppDeps["normalization"]
   readonly policy: IngestAppDeps["policy"]
   readonly identity: IngestAppDeps["identity"]
+  /**
+   * The public address this instance answers at (`PUBLIC_BASE_URL`), which is
+   * what a minted capability URL is built on. Injected like everything else here:
+   * the composition root reads the environment, this module never does.
+   */
+  readonly publicBaseUrl: string
   readonly targetOntologyVersion: string
   readonly sourceAdapter: string
   readonly adapterVersion: string
@@ -142,7 +148,19 @@ export function composeInstance(deps: InstanceDeps): Hono {
     }),
   )
   app.route("/", createCapabilityApp({ store: deps.capabilityStore, repo: deps.repo }))
-  app.route("/", createPagesApp({ credential: deps.libraryCredential, repo: deps.repo }))
+  app.route(
+    "/",
+    createPagesApp({
+      credential: deps.libraryCredential,
+      repo: deps.repo,
+      // The SAME store the capability route above resolves against, not a second
+      // one: a token minted here has to be a token that route can serve.
+      capabilityStore: deps.capabilityStore,
+      // Built HERE, from configuration, so the app is handed a way to name a
+      // token's address without ever holding the instance's own (ADR-0026, cut 3).
+      capabilityUrlFor: (token) => capabilityUrl(deps.publicBaseUrl, token),
+    }),
+  )
 
   return app
 }

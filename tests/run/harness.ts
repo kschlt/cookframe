@@ -13,6 +13,7 @@
  * `CanonicalRecipe.parse` so a contract change breaks them here rather than
  * somewhere subtler.
  */
+import { createServer } from "node:net"
 import { CanonicalRecipe, SCHEMA_VERSION } from "../../schema/index.js"
 import { createInstanceCredential } from "../../src/http/instance-credential.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
@@ -131,6 +132,28 @@ export interface TestInstanceOptions {
   /** Replaces the deterministic fake — a slow one, for the stop proof. */
   readonly capture?: CaptureProvider
   /**
+   * Replaces the in-memory store — a counting one, for the handoff proof that
+   * has to show a refused request minted NOTHING. The store offers no
+   * enumeration (ADR-0016), so from outside a token nobody was told about is
+   * invisible; only the call itself can be seen.
+   */
+  readonly capabilityStore?: CapabilityStore
+  /**
+   * Configure `PUBLIC_BASE_URL` as the instance's REAL address, so a capability
+   * URL it mints is one a proof can fetch.
+   *
+   * Opt-in, and the reason is the port. The address is configuration — the
+   * operator tells the instance where it answers, because nothing in the process
+   * can work that out — and it is composed into the app before the socket is
+   * bound. Every other proof here binds port `0` and learns its port afterwards,
+   * which is too late for this value. So a proof that needs it pays for a port
+   * found by binding one and letting go (`freePort`), with the small race that
+   * carries, and no other proof does.
+   */
+  readonly servesItsOwnAddress?: boolean
+  /** Used by {@link testInstanceDeps} directly; `startTestInstance` sets it itself. */
+  readonly publicBaseUrl?: string
+  /**
    * The egress seam the URL route fetches through. A proof that imports a link
    * passes the REAL safe-fetch-backed source with `allowLoopback`, so it goes
    * through the same code a production instance runs; the default below is for
@@ -153,8 +176,12 @@ export interface TestInstanceOptions {
  * chosen port is a flake waiting for a busy machine.
  */
 export async function startTestInstance(options: TestInstanceOptions = {}): Promise<TestInstance> {
-  const built = testInstanceDeps(options)
-  const running = await startInstance(built.deps, 0)
+  const port = options.servesItsOwnAddress === true ? await freePort() : 0
+  const built = testInstanceDeps({
+    ...options,
+    ...(port === 0 ? {} : { publicBaseUrl: `http://127.0.0.1:${port}` }),
+  })
+  const running = await startInstance(built.deps, port)
   return {
     ...running,
     repo: built.repo,
@@ -173,19 +200,31 @@ export interface TestInstanceParts {
 }
 
 /**
+ * The public address an instance is configured with when a proof does not ask
+ * for its real one.
+ *
+ * Deliberately a name that resolves nowhere (`.invalid` is reserved for exactly
+ * that): a proof that minted a capability URL and then fetched it without asking
+ * for {@link TestInstanceOptions.servesItsOwnAddress} fails loudly with a lookup
+ * error, rather than quietly reaching something else.
+ */
+export const UNBOUND_PUBLIC_BASE_URL = "https://unbound.invalid"
+
+/**
  * The same collaborators {@link startTestInstance} runs on, without binding a
  * port — so a proof about the COMPOSITION rather than about the socket can call
  * `composeInstance` directly and still be looking at what the process serves.
  */
 export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanceParts {
   const repo = createProvisionalStore()
-  const capabilityStore = createInMemoryCapabilityStore()
+  const capabilityStore = options.capabilityStore ?? createInMemoryCapabilityStore()
   const closed = { count: 0 }
   let n = 0
 
   const deps: InstanceDeps = {
     repo,
     capabilityStore,
+    publicBaseUrl: options.publicBaseUrl ?? UNBOUND_PUBLIC_BASE_URL,
     ingestCredential: createInstanceCredential(INGEST_CREDENTIAL, "ingest credential"),
     libraryCredential: createInstanceCredential(LIBRARY_CREDENTIAL, "library credential"),
     capture: options.capture ?? createFakeCaptureProvider(),
@@ -214,6 +253,31 @@ export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanc
   }
 
   return { deps, repo, capabilityStore, closed }
+}
+
+/**
+ * A port nobody is on, found by binding one and letting go.
+ *
+ * `PORT=0` would be simpler and is deliberately refused by the configuration: an
+ * operator who sets it gets an instance on a port they cannot predict, which is
+ * indistinguishable from one that did not start. The proof carries the cost of
+ * that strictness rather than loosening the rule to suit itself.
+ */
+export function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer()
+    probe.on("error", reject)
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address()
+      if (address === null || typeof address === "string") {
+        probe.close()
+        reject(new Error("could not obtain a free port"))
+        return
+      }
+      const { port } = address
+      probe.close(() => resolve(port))
+    })
+  })
 }
 
 /** The submission the ingest route accepts, as the fake capture provider reads it. */

@@ -30,7 +30,6 @@
 import { spawn } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { readdirSync, readFileSync } from "node:fs"
-import { createServer } from "node:net"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "pg"
@@ -45,7 +44,7 @@ import {
   provisionSchema,
   urlForSchema,
 } from "../persistence/postgres-harness.js"
-import { canonical, INGEST_CREDENTIAL, LIBRARY_CREDENTIAL } from "./harness.js"
+import { canonical, freePort, INGEST_CREDENTIAL, LIBRARY_CREDENTIAL } from "./harness.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
@@ -59,31 +58,6 @@ function declaredStartCommand(): string {
     throw new Error("package.json declares no `start` script, so there is no way to run this")
   }
   return start
-}
-
-/**
- * A port nobody is on, found by binding one and letting go.
- *
- * `PORT=0` would be simpler and is deliberately refused by the configuration: an
- * operator who sets it gets an instance on a port they cannot predict, which is
- * indistinguishable from one that did not start. The proof carries the cost of
- * that strictness rather than loosening the rule to suit itself.
- */
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const probe = createServer()
-    probe.on("error", reject)
-    probe.listen(0, "127.0.0.1", () => {
-      const address = probe.address()
-      if (address === null || typeof address === "string") {
-        probe.close()
-        reject(new Error("could not obtain a free port"))
-        return
-      }
-      const { port } = address
-      probe.close(() => resolve(port))
-    })
-  })
 }
 
 /**
@@ -107,6 +81,10 @@ function environment(port: number, databaseUrl?: string): Record<string, string>
     OPENAI_MODEL: "not-a-real-model",
     COOKFRAME_INGEST_CREDENTIAL: INGEST_CREDENTIAL,
     COOKFRAME_LIBRARY_CREDENTIAL: LIBRARY_CREDENTIAL,
+    // The address this spawned instance answers at, which is what a capability
+    // URL is built on. It is the real one, so a URL this process mints is a URL
+    // this process serves.
+    PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
     ...(databaseUrl === undefined ? {} : { DATABASE_URL: databaseUrl }),
   }
 }
@@ -590,6 +568,54 @@ describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-the-library"
     }
   }, 120_000)
 })
+
+describe.skipIf(availability.mode === "skip")(
+  "run/the-process-hands-out-urls-on-its-configured-address",
+  () => {
+    it("mints a capability URL on PUBLIC_BASE_URL, and serves the token under it", async () => {
+      // The composition root's half of CFV1-SHOP. `shopping-handoff.test.ts`
+      // drives the handoff in process, where the harness supplies the address;
+      // what only a spawned process can show is that `main.ts` passes the
+      // CONFIGURED value through, rather than something it made up or read off a
+      // request.
+      //
+      // Which is why the configured address carries a path prefix no request to
+      // this process ever carries. A base URL taken from the request — its
+      // `Host`, its path — could not produce `/behind-a-proxy`, and ADR-0026's
+      // third cut says the origin comes from configuration and nowhere else. The
+      // prefix is what a reverse proxy in front of the instance would strip, so
+      // the fetch below strips it too and asks the process for the rest.
+      const schema = await ownSchema()
+      const seed = createPostgresStore(schema.url)
+      try {
+        await seed.repository.appendCanonicalVersion(canonical("r-share", "Linsensuppe"))
+      } finally {
+        await seed.close()
+      }
+
+      const port = await freePort()
+      const base = `http://127.0.0.1:${port}/behind-a-proxy`
+      const started = spawnInstance({ ...environment(port, schema.url), PUBLIC_BASE_URL: base })
+      try {
+        await waitFor(started, /listening on port/)
+
+        const minted = await fetch(`http://127.0.0.1:${port}/recipes/r-share/share`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${LIBRARY_CREDENTIAL}` },
+        })
+        expect(minted.status, `Output:\n${started.output()}`).toBe(200)
+        const shared = (await minted.json()) as { token: string; url: string }
+        expect(shared.url).toBe(`${base}/r/${shared.token}`)
+
+        const served = await fetch(`http://127.0.0.1:${port}/r/${shared.token}`)
+        expect(served.status).toBe(200)
+        expect(((await served.json()) as { name?: string }).name).toBe("Linsensuppe")
+      } finally {
+        started.child.kill("SIGKILL")
+      }
+    }, 60_000)
+  },
+)
 
 describe("wire/the-process-runs-the-durable-store", () => {
   it("no module under src/ constructs the provisional store", () => {
