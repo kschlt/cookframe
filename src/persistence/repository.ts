@@ -21,7 +21,7 @@
  * (repo-config `slice0/schema-single-source-of-truth`). Types are imported from
  * the contract.
  */
-import type { CanonicalRecipe, SourceSnapshot } from "../../schema/index.js"
+import type { CanonicalRecipe, CookingPlan, SourceSnapshot } from "../../schema/index.js"
 
 /** One persisted, immutable Canonical Recipe version. */
 export interface CanonicalVersion {
@@ -71,8 +71,21 @@ export class RecipeVersionNotFoundError extends Error {
 }
 
 /**
- * The persistence operations — ADR-0003's original five plus the read ADR-0018
- * added. Everything the pipeline persists goes through this interface, and every
+ * Raised when a Cooking Plan is offered for storage without naming the Canonical
+ * version it was derived from. A plan is derived data whose only meaning is
+ * relative to one version of one recipe (ADR-0025); filed without that, it is an
+ * artefact nobody can tell apart from a stale one.
+ */
+export class UnversionedCookingPlanError extends Error {
+  constructor(readonly recipeId: string) {
+    super(`the Cooking Plan for ${recipeId} names no Canonical version to belong to`)
+    this.name = "UnversionedCookingPlanError"
+  }
+}
+
+/**
+ * The persistence operations — ADR-0003's original five, the read ADR-0018
+ * added, and the two ADR-0025 added for the derived Cooking Plan. Everything the pipeline persists goes through this interface, and every
  * document is validated against the versioned contract before it is written (see
  * `./validate.ts`).
  */
@@ -114,4 +127,34 @@ export interface RecipeRepository {
     versionA: number,
     versionB: number,
   ): Promise<readonly [CanonicalVersion, CanonicalVersion]>
+
+  /**
+   * (7, ADR-0025) Store the derived Cooking Plan for ONE Canonical version.
+   *
+   * The plan names the version it belongs to, in `derivation.canonicalVersion`,
+   * rather than the caller naming it alongside: two places to say it is two
+   * places to disagree, and the disagreement would be a plan served for a recipe
+   * it was not derived from. A plan that names no version is refused with {@link
+   * UnversionedCookingPlanError}, and one naming a version this store does not
+   * hold with {@link RecipeVersionNotFoundError} — a stored plan whose recipe
+   * version does not exist is an untraceable artefact, which the slice forbids
+   * for a plan's contents and forbids no less for the plan itself.
+   *
+   * Last write per (recipe, version) wins. The plan is derived data: re-deriving
+   * the same version yields the same bytes (ADR-0023), so there is nothing an
+   * append would preserve, and no comparison of two runs to serve.
+   */
+  storeCookingPlan(plan: CookingPlan): Promise<void>
+
+  /**
+   * (8, ADR-0025) Load the stored Cooking Plan for one version of one recipe, or
+   * `undefined` when none is stored.
+   *
+   * Keyed by version, not by recipe: a plan derived from version 2 must not be
+   * served for version 3, and keying it this way makes that impossible rather
+   * than checked. Absence is a RETURN VALUE and the ordinary state of every
+   * recipe not yet cooked — `PDR-0004` ships `lazy`, so the caller derives on a
+   * miss rather than failing.
+   */
+  loadCookingPlan(recipeId: string, version: number): Promise<CookingPlan | undefined>
 }

@@ -17,10 +17,15 @@ export {
 } from "./postgres-store.js"
 export { createProvisionalStore } from "./provisional-store.js"
 export type { CanonicalVersion, LibraryEntry, RecipeRepository } from "./repository.js"
-export { RecipeVersionNotFoundError, SnapshotNotFoundError } from "./repository.js"
+export {
+  RecipeVersionNotFoundError,
+  SnapshotNotFoundError,
+  UnversionedCookingPlanError,
+} from "./repository.js"
 export {
   resolveSourceRefs,
   UnresolvedSourceRefError,
   validateCanonical,
+  validateCookingPlan,
   validateSnapshot,
 } from "./validate.js"

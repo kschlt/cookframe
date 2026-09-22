@@ -104,8 +104,19 @@ describe("slice2/usable-with-source-unavailable", () => {
    * storage, the pipeline or the security layer — so there is no expression
    * anywhere under `src/render/` that could reach a Source Snapshot, a stored
    * byte or the original URL, whatever a future page decides it needs.
+   *
+   * `src/cooking/` was added to this list by CFV1-SL6, and it is the only entry
+   * that is a directory of this repository's own code rather than a contract or
+   * a template helper. An exception on trust would be the hole this guard exists
+   * to close, so it is not taken on trust: the proof below walks `src/cooking/`
+   * by the SAME rule, so the wall holds one module further out rather than
+   * gaining a door. The derivation is admitted because the rule for whether a
+   * unit's amount block earns its place is a fact about the plan, and a copy of
+   * it here would be a second place for the page and the stored plan to
+   * disagree.
    */
-  const ALLOWED = new Set(["../../schema/index.js", "hono/html", "hono/utils/html"])
+  const COOKING_ENTRY = "../cooking/index.js"
+  const ALLOWED = new Set(["../../schema/index.js", "hono/html", "hono/utils/html", COOKING_ENTRY])
 
   /**
    * A relative specifier is judged by where it RESOLVES, not by how it is
@@ -128,6 +139,36 @@ describe("slice2/usable-with-source-unavailable", () => {
       expect(offenders).toEqual([])
     })
   }
+
+  it("holds the one admitted directory to the same rule, rather than trusting it", () => {
+    // Without this, allowing `../cooking/index.js` would admit whatever IT
+    // imports, and the wall would be one re-export away from a store.
+    //
+    // A bare specifier is judged by `ALLOWED`, exactly as the render clause
+    // judges it. The first version of this clause admitted anything spelled
+    // `node:*`, which is the hole review found: `node:http` and `node:net` are
+    // the way to the original URL this wall says it keeps out, and they left
+    // all 139 proofs green. `node:fs` did go red — but at
+    // `slice1/storage-identity-confinement`, a different guard, so this clause
+    // was taking credit for a kill that was not its own.
+    const cookingDir = join(repoRoot, "src", "cooking")
+    // Judged by where it RESOLVES, like everything else here. `ALLOWED` holds
+    // the contract by its spelling from `src/render/`, which is a different
+    // depth; a second spelling of the same file is the class this closes.
+    const schemaBarrel = join(repoRoot, "schema", "index.js")
+    const files = tsFilesUnder(cookingDir)
+    expect(files.length, "there is no cooking module to check").toBeGreaterThan(2)
+    for (const file of files) {
+      const offenders = importsOf(file).filter((specifier) =>
+        specifier.startsWith(".")
+          ? !resolve(dirname(file), specifier).startsWith(`${cookingDir}/`) &&
+            resolve(dirname(file), specifier) !== schemaBarrel &&
+            !resolve(dirname(file), specifier).startsWith(`${renderDir}/`)
+          : !ALLOWED.has(specifier),
+      )
+      expect(offenders, `${relative(repoRoot, file)} reaches past the wall`).toEqual([])
+    }
+  })
 
   it("the ban is judged by where a specifier resolves, not by how it is spelled", () => {
     const fromRender = join(renderDir, "library.ts")

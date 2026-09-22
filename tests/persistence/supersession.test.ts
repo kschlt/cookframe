@@ -41,8 +41,25 @@ describe("repo-reads/supersession-is-declared-and-justified", () => {
 
   it("the new record supersedes the five-operation interface record", () => {
     expect(widening.frontMatter.id).toBe("ADR-0018")
-    expect(widening.frontMatter.status).toBe("accepted")
     expect(widening.frontMatter.supersedes ?? []).toContain("ADR-0003")
+    // `accepted` or `superseded`, not `proposed` and not `deprecated`. This
+    // record was accepted, and the rule it is built on guarantees it will one
+    // day be superseded in turn — the interface widens again the next time a
+    // caller demands it (ADR-0025 is the first such time). Pinning it to
+    // `accepted` would make this proof fail on the very event it describes,
+    // and a proof that must be edited to stay true is not a guard.
+    expect(["accepted", "superseded"]).toContain(widening.frontMatter.status)
+  })
+
+  it("declares its own supersession on both sides, if it has one", () => {
+    // The chain is the thing under proof, not this one link: a record that has
+    // been superseded names its successor, and the successor names it back.
+    if (widening.frontMatter.status !== "superseded") return
+    const successors = widening.frontMatter.superseded_by ?? []
+    expect(successors.length, "superseded without naming a successor").toBeGreaterThan(0)
+    for (const id of successors) {
+      expect(readAdr(id).frontMatter.supersedes ?? [], id).toContain("ADR-0018")
+    }
   })
 
   it("the superseded record declares the supersession on its side too", () => {

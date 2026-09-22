@@ -12,7 +12,7 @@
  *     Canonical Recipe must resolve against the Snapshot it was normalized from,
  *     and an unresolvable ref FAILS rather than being silently dropped.
  */
-import { CanonicalRecipe, type SourceRef, SourceSnapshot } from "../../schema/index.js"
+import { CanonicalRecipe, CookingPlan, type SourceRef, SourceSnapshot } from "../../schema/index.js"
 
 /** Parse (and thereby validate) a Source Snapshot; throws on invalid input. */
 export function validateSnapshot(input: unknown): SourceSnapshot {
@@ -22,6 +22,11 @@ export function validateSnapshot(input: unknown): SourceSnapshot {
 /** Parse (and thereby validate) a Canonical Recipe; throws on invalid input. */
 export function validateCanonical(input: unknown): CanonicalRecipe {
   return CanonicalRecipe.parse(input)
+}
+
+/** Parse (and thereby validate) a derived Cooking Plan; throws on invalid input. */
+export function validateCookingPlan(input: unknown): CookingPlan {
+  return CookingPlan.parse(input)
 }
 
 /** Raised when a Canonical Recipe references evidence absent from its Snapshot. */

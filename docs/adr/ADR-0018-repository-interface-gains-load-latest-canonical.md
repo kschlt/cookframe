@@ -1,7 +1,8 @@
 ---
 id: "ADR-0018"
 title: "The repository interface gains loadLatestCanonical, widening ADR-0003 from five operations to six"
-status: accepted
+status: superseded
+superseded_by: ["ADR-0025"]
 date: 2026-09-21
 tags: ["persistence", "boundaries", "repository-interface"]
 supersedes: ["ADR-0003"]
