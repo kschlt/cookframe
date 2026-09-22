@@ -17,7 +17,7 @@
  * and the upload. No phone and no mobile network are reachable from where this
  * runs, so the figure is instance-side — from the request arriving to the
  * shopping document being served. The two missing legs are real friction and are
- * registered in `MEASUREMENT.md`, not quietly folded in.
+ * registered in `METHOD.md`, not quietly folded in.
  *
  * A distribution, never a best case. The friction a user feels is the slow tail,
  * and one good run says nothing about it.
@@ -133,7 +133,14 @@ interface Run {
   readonly detail?: string
 }
 
-/** The distribution. A single figure is the thing this is here not to report. */
+/**
+ * The distribution. A single figure is the thing this is here not to report.
+ *
+ * Nearest-rank, clamped to the last element — defined in `METHOD.md`, which was
+ * committed before any figure existed. With n around ten, `p90` is the
+ * second-slowest run and is reported as a rank, not as an estimate of a
+ * population quantile. Change this and you change what `METHOD.md` promised.
+ */
 function distribution(values: readonly number[]): Record<string, number> {
   const sorted = [...values].sort((a, b) => a - b)
   const at = (q: number): number =>
@@ -184,10 +191,13 @@ async function main(): Promise<void> {
   console.log(`# ${files.length} photo(s) from ${photosDir}\n`)
 
   const runs: Run[] = []
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
     const bytes = new Uint8Array(readFileSync(file))
     const mediaType = sniff(bytes, file) as string
-    const photo = file.slice(file.lastIndexOf("/") + 1)
+    // The record carries a POSITION, not the camera's filename. The corpus is
+    // private and stays out of the repository; the order is filename order, so
+    // whoever holds the photographs can map a row back and nobody else can.
+    const photo = `photo-${String(index + 1).padStart(2, "0")}`
 
     // ONE timed region, opened before the submission and closed when the
     // shopping document is in hand. The stage marks are read inside it.
