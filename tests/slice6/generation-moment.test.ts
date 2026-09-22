@@ -15,16 +15,22 @@
  */
 import { randomBytes } from "node:crypto"
 import { describe, expect, it } from "vitest"
+import {
+  PLAN_GENERATION_POLICIES,
+  PLAN_GENERATION_POLICY_ENV,
+  readPlanGenerationPolicy,
+} from "../../src/cooking/index.js"
 import { createCookingApp } from "../../src/http/cooking-app.js"
 import type { IngestIdentity } from "../../src/http/ingest-app.js"
 import { createIngestApp } from "../../src/http/ingest-app.js"
-import { createIngestCredential } from "../../src/http/ingest-credential.js"
+import { createInstanceCredential } from "../../src/http/instance-credential.js"
 import { afterCurrentTurn, createAfterImport } from "../../src/http/plan-generation.js"
 import type { RecipeRepository } from "../../src/persistence/index.js"
 import { createProvisionalStore } from "../../src/persistence/index.js"
 import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
 import { createFakeNormalizationProvider } from "../../src/pipeline/fake-providers.js"
 import type { CaptureProvider, CaptureResult } from "../../src/pipeline/providers.js"
+import { bellPepper } from "./fixtures.js"
 
 const CREDENTIAL = randomBytes(24).toString("base64url")
 const PAGE = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4])
@@ -63,7 +69,7 @@ function harness(
   const deferred: (() => Promise<void> | void)[] = []
   const failures: string[] = []
   const app = createIngestApp({
-    credential: createIngestCredential(CREDENTIAL),
+    credential: createInstanceCredential(CREDENTIAL, "ingest credential"),
     repo,
     capture: captureProvider(),
     normalization: createFakeNormalizationProvider(),
@@ -115,7 +121,7 @@ describe("slice6/background-does-not-delay-response", () => {
     h.deferred.length = 0
     const never = new Promise<void>(() => {})
     const app = createIngestApp({
-      credential: createIngestCredential(CREDENTIAL),
+      credential: createInstanceCredential(CREDENTIAL, "ingest credential"),
       repo: h.repo,
       capture: captureProvider(),
       normalization: createFakeNormalizationProvider(),
@@ -205,5 +211,59 @@ describe("slice6/incomplete-generation-degrades-to-lazy", () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(h.failures).toContain(recipeId)
+  })
+})
+
+describe("slice6/generation-follows-configured-policy", () => {
+  it("obeys the configured policy where generation is actually decided", async () => {
+    // The seam's own file proves the policy is READ correctly. Review found
+    // that it proves nothing about the policy being OBEYED: deleting the check
+    // from `createAfterImport` left every assertion there green, and the kill
+    // came from `background-does-not-delay-response` — a different criterion.
+    // So the criterion's own id now drives the hook under both values.
+    for (const policy of PLAN_GENERATION_POLICIES) {
+      const h = harness(policy)
+      const created = (await (await submit(h.app)).json()) as {
+        recipeId: string
+        version: number
+      }
+      expect(h.deferred.length, policy).toBe(policy === "background" ? 1 : 0)
+      for (const work of h.deferred) await work()
+      expect(
+        (await h.repo.loadCookingPlan(created.recipeId, created.version)) !== undefined,
+        policy,
+      ).toBe(policy === "background")
+    }
+  })
+
+  it("reads the policy the environment states, and generates accordingly", () => {
+    // The two halves joined: the value an operator sets is the value the hook
+    // acts on, rather than a value read into a variable nobody consults.
+    const configured = readPlanGenerationPolicy({ [PLAN_GENERATION_POLICY_ENV]: "background" })
+    const scheduled: (() => Promise<void> | void)[] = []
+    const hook = createAfterImport({
+      repo: createProvisionalStore(),
+      policy: configured,
+      schedule: (work) => void scheduled.push(work),
+    })
+    hook({ recipeId: "r", version: 1, recipe: bellPepper })
+    expect(scheduled).toHaveLength(1)
+  })
+})
+
+describe("slice6/lazy-default-generates-nothing-at-import", () => {
+  it("stores no plan when an import runs under the shipped default", async () => {
+    // `importGeneratesPlan` is a total function whose body is `return false`
+    // and whose return type is `false`, so a no-op passes the assertion that
+    // calls it. That was honest in the first half, where nothing could generate
+    // at import; the hook exists now, so the id is held to the behaviour.
+    const h = harness(readPlanGenerationPolicy({}))
+    const created = (await (await submit(h.app)).json()) as { recipeId: string; version: number }
+
+    expect(h.deferred, "the shipped default scheduled generation").toEqual([])
+    expect(await h.repo.loadCookingPlan(created.recipeId, created.version)).toBeUndefined()
+    // And the recipe really was imported, so the emptiness above is not the
+    // emptiness of an import that never happened.
+    expect(await h.repo.loadLatestCanonical(created.recipeId)).toBeDefined()
   })
 })

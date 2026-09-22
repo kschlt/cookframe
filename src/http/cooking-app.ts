@@ -36,6 +36,7 @@ import { Hono } from "hono"
 import { deriveCookingPlan } from "../cooking/index.js"
 import type { RecipeRepository } from "../persistence/index.js"
 import { renderCookingPage, renderRecipePage } from "../render/index.js"
+import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "./not-found.js"
 
 /** The collaborators this route composes; every one injected (ADR-0004). */
 export interface CookingAppDeps {
@@ -48,9 +49,26 @@ export interface CookingAppDeps {
   readonly onDegraded?: (recipeId: string, reason: unknown) => void
 }
 
-const NOT_FOUND_BODY = "Not Found"
-const NOT_FOUND_HEADERS = { "content-type": "text/plain; charset=utf-8" } as const
-const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" } as const
+/**
+ * A FRESH headers object for one response — never a module constant.
+ *
+ * `@hono/node-server` writes the content length back into the record a handler
+ * hands `c.body(...)`, so a shared constant gains a NUMBER-valued key on its
+ * first response and Hono's next response over the same record throws
+ * `TypeError: v is not iterable`. `src/http/not-found.ts` measured and recorded
+ * that; this route had it and a re-measurement here was worse than the note
+ * warns, because a ONE-KEY record does not dodge it at all: the cooking page
+ * answered 200, then 500, then 500, with the constant left holding
+ * `{"content-type":…,"Content-Length":13}`.
+ *
+ * It reached review green because 900 proofs drive this app with
+ * `app.request(...)`, which never touches the adapter. So the proof that guards
+ * it binds a socket and asks for the page TWICE — one request passes either
+ * way, which is the same reason CFV1-RUN's equalized-miss proof asks twice.
+ */
+const htmlHeaders = (): Record<string, string> => ({
+  "content-type": "text/html; charset=utf-8",
+})
 
 /**
  * Build the cooking app. Both routes answer HTML; an unknown recipe id is the
@@ -60,12 +78,15 @@ const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" } as const
 export function createCookingApp(deps: CookingAppDeps): Hono {
   const app = new Hono()
 
-  app.notFound((c) => c.body(NOT_FOUND_BODY, 404, NOT_FOUND_HEADERS))
+  // The instance's one answer for a miss, imported rather than repeated: two
+  // copies of the same three values are two things that can drift apart, which
+  // is why `src/http/not-found.ts` exists (CFV1-RUN, ADR-0021).
+  app.notFound((c) => c.body(NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders()))
 
   app.get("/recipes/:id", async (c) => {
     const version = await deps.repo.loadLatestCanonical(c.req.param("id"))
     if (version === undefined) return c.notFound()
-    return c.body(renderRecipePage(version.recipe), 200, HTML_HEADERS)
+    return c.body(renderRecipePage(version.recipe), 200, htmlHeaders())
   })
 
   app.get("/recipes/:id/cook", async (c) => {
@@ -80,12 +101,12 @@ export function createCookingApp(deps: CookingAppDeps): Hono {
     try {
       const plan =
         stored ?? deriveCookingPlan(version.recipe, { canonicalVersion: version.version })
-      return c.body(renderCookingPage(plan), 200, HTML_HEADERS)
+      return c.body(renderCookingPage(plan), 200, htmlHeaders())
     } catch (error) {
       // The recipe is authoritative and the plan is derived; whatever went wrong
       // with the plan, the recipe is still readable, so that is what is served.
       deps.onDegraded?.(recipeId, error)
-      return c.body(renderRecipePage(version.recipe), 200, HTML_HEADERS)
+      return c.body(renderRecipePage(version.recipe), 200, htmlHeaders())
     }
   })
 

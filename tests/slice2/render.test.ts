@@ -143,16 +143,28 @@ describe("slice2/usable-with-source-unavailable", () => {
   it("holds the one admitted directory to the same rule, rather than trusting it", () => {
     // Without this, allowing `../cooking/index.js` would admit whatever IT
     // imports, and the wall would be one re-export away from a store.
+    //
+    // A bare specifier is judged by `ALLOWED`, exactly as the render clause
+    // judges it. The first version of this clause admitted anything spelled
+    // `node:*`, which is the hole review found: `node:http` and `node:net` are
+    // the way to the original URL this wall says it keeps out, and they left
+    // all 139 proofs green. `node:fs` did go red — but at
+    // `slice1/storage-identity-confinement`, a different guard, so this clause
+    // was taking credit for a kill that was not its own.
     const cookingDir = join(repoRoot, "src", "cooking")
+    // Judged by where it RESOLVES, like everything else here. `ALLOWED` holds
+    // the contract by its spelling from `src/render/`, which is a different
+    // depth; a second spelling of the same file is the class this closes.
+    const schemaBarrel = join(repoRoot, "schema", "index.js")
     const files = tsFilesUnder(cookingDir)
     expect(files.length, "there is no cooking module to check").toBeGreaterThan(2)
     for (const file of files) {
       const offenders = importsOf(file).filter((specifier) =>
         specifier.startsWith(".")
           ? !resolve(dirname(file), specifier).startsWith(`${cookingDir}/`) &&
-            specifier !== "../../schema/index.js" &&
+            resolve(dirname(file), specifier) !== schemaBarrel &&
             !resolve(dirname(file), specifier).startsWith(`${renderDir}/`)
-          : !specifier.startsWith("node:"),
+          : !ALLOWED.has(specifier),
       )
       expect(offenders, `${relative(repoRoot, file)} reaches past the wall`).toEqual([])
     }
