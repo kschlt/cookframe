@@ -199,7 +199,7 @@ describe("CFV1-S5 safe-fetch connector", () => {
     }
   })
 
-  it("url-security/dns-rebinding-refused", async () => {
+  it("url-security/dns-rebinding-refused (one resolution, nothing to rebind to)", async () => {
     // The TOCTOU bypass consumes two DNS answers: the first classified, the
     // second connected to. The connector resolves once and pins, so a resolver
     // that would flip to a private address on a *second* lookup never gets one.
@@ -290,7 +290,7 @@ describe("CFV1-S5 safe-fetch connector", () => {
     }
   })
 
-  it("url-security/redirect-revalidation", async () => {
+  it("url-security/redirect-revalidation (a later hop to a private literal)", async () => {
     // A chain whose *first* hop is allowed but whose *later* hop points at a
     // refused destination is refused at that hop, and the refusal names it.
     const fetcher = makeFetcher()
@@ -363,7 +363,7 @@ describe("CFV1-S5 safe-fetch connector", () => {
     }
   })
 
-  it("url-security/size-bound-fails-closed", async () => {
+  it("url-security/size-bound-fails-closed (declared length over the bound)", async () => {
     const fetcher = makeFetcher({ maxBytes: 1000 })
     try {
       await expectRefusal(fetcher, local("/big"), ReasonCode.SIZE_LIMIT)
@@ -394,7 +394,7 @@ describe("CFV1-S5 safe-fetch connector", () => {
     }
   })
 
-  it("url-security/content-type-bound-fails-closed", async () => {
+  it("url-security/content-type-bound-fails-closed (a type outside the allowlist)", async () => {
     const fetcher = makeFetcher()
     try {
       await expectRefusal(fetcher, local("/wrong-ct"), ReasonCode.CONTENT_TYPE_NOT_ALLOWED)
