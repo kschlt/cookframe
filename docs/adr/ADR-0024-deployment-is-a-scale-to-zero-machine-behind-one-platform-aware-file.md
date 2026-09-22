@@ -1,5 +1,5 @@
 ---
-id: "ADR-0025"
+id: "ADR-0024"
 title: "Deployment: a scale-to-zero machine and a sleeping managed Postgres, behind one platform-aware file"
 status: proposed
 date: 2026-09-22
@@ -119,16 +119,22 @@ contains, which a first attempt got wrong. That covers the binding half of cut 4
 
 | cut | what a test must assert over `src/` | state |
 |---|---|---|
-| 1 | the only database package any module imports is `pg` — no provider-specific driver, no HTTP-over-`fetch` transport | owed. Vacuous on this branch, since no module imports a database package at all; `CFV1-PG` is what first makes it breakable |
-| 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own file | owed. True on this branch: only `src/storage/filesystem-byte-store.ts` |
-| 3 + 4 | `process.env` is read in exactly one file, the entry point's composition root; every other module takes configuration as an argument | owed, and `CFV1-RUN` makes it real rather than vacuous — it puts the one read in `main.ts` and keeps `config.ts` a pure function of an environment mapping, which is the shape this assertion has to pin before a second reader appears |
+| 1 | the only database package any module imports is `pg` — no provider-specific driver, no HTTP-over-`fetch` transport | owed. Vacuous on the merge result, since no module imports a database package at all; `CFV1-PG` is what first makes it breakable |
+| 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own file | owed. True on the merge result: only `src/storage/filesystem-byte-store.ts` |
+| 3 + 4 | no module takes its configuration from the environment except through a declared seam: a parameter every caller can inject, pre-filled from `process.env` at exactly one point in the signature — never a read inside a function body, and never a module-level constant. The inventory of such seams is declared with the test | owed. Two exist on the merge result: `readPlanGenerationPolicy` (`src/cooking/policy.ts`) and `CFV1-RUN`'s composition root, with `CFV1-PG`'s database-URL reader to follow. Each is an injection seam rather than a hidden read — which is why the assertion is about the shape, not about the count |
 | 4 (binding) | nothing outside the entry point names the server adapter, a socket module, `createServer` or `.listen` | **done**, by `run/only-the-entry-point-binds` (`CFV1-RUN`) |
-| 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on this branch: the only packages `src/` imports are `hono`, `undici` and `ipaddr.js` |
+| 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on the merge result: the only packages `src/` imports are `hono`, `undici` and `ipaddr.js` |
 
-Every "true on this branch" above was checked against the tree this record was written on, and three
-of the five rows change as `CFV1-PG` and `CFV1-RUN` land — which is the argument for writing the
-four owed tests with those units rather than after them. They start green, so the first thing any of
-them ever catches is a regression.
+Every "true" above was measured on the merge result of this branch against `main`, not on the tree
+this record was first drafted on. That distinction cost a round: the cut-3 row first read
+"`process.env` appears nowhere under `src/`", which was true when it was written and false by the
+time it was read, because `CFV1-SL6` landed a configuration seam in between. The row is now about
+the *shape* a seam must have rather than about there being none, which is the form that survives the
+next unit adding one — and it is the form that makes the sentence below true instead of aspirational.
+
+The owed tests belong with `CFV1-PG` and `CFV1-RUN` rather than after them, because those units are
+what first make three of these rows breakable. Each has to start green on the tree it lands in, so
+the first thing any of them ever catches is a regression.
 
 Two further commitments, because leaving them implicit is how they get lost:
 
