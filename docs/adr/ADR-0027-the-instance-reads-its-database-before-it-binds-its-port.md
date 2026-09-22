@@ -20,9 +20,10 @@ style.
 
 **`pg` connects lazily.** `createPostgresStore(url)` builds a pool and issues no statement, so it
 succeeds against a database that is unreachable, or reachable and empty — one the operator never
-applied `migrations/0001-the-recipe-store.sql` to. Applying that migration is deliberately a manual
-step (`ADR-0015`, and `.env.example` gives the operator the exact `psql` command), which makes an
-empty database the single likeliest way this instance is ever misconfigured.
+applied the migrations to. Applying them is deliberately a manual step (`ADR-0015`, and
+`.env.example` gives the operator the exact `psql` command), which makes an empty database the
+single likeliest way this instance is ever misconfigured — and `migrations/` holds more than one
+file, so a **half**-migrated database is the second likeliest.
 
 Without a check, such an instance **starts**. It binds its port, answers an unknown path with
 `ADR-0024`'s equalized miss exactly as that record requires, passes any liveness probe that asks
@@ -40,9 +41,16 @@ nothing was reading it at a start.
 **The composition root performs one real repository read before `startInstance`, and refuses to
 start when it fails.**
 
-- The probe is `listLibrary()` — an operation the instance actually performs, not a `select 1`. A
-  query invented for the probe can pass against a database on which every real operation fails,
-  which would make the check a ritual rather than a measurement.
+- The probe is a real operation, not a `select 1`. A query invented for the probe can pass against a
+  database on which every real operation fails, which would make the check a ritual rather than a
+  measurement.
+- It is **one read per migration-backed area**, not one read: `listLibrary()` reaches the recipe
+  store (`0001`) and `loadCookingPlan()` the plan store (`0002`). A database migrated only to `0001`
+  answers the first perfectly, so a single probe would let exactly this record's failure through one
+  migration further along. Absence is a return value for both, so neither needs a fixture.
+- The refusal names the relation the driver reported missing. PostgreSQL does not send the `TABLE`
+  error field for `42P01`, so that name is read out of the message; naming a fixed table instead was
+  harmless with one migration and sends an operator to the wrong file with two.
 - `StoreNotMigratedError` is rethrown **as itself**, so the refusal names
   `migrations/0001-the-recipe-store.sql` and the operator reads their own missing step rather than
   a driver's complaint about a relation.
@@ -75,7 +83,13 @@ something always asks.
 an instance that stops when idle (`ADR-0025`, proposed) that cost is paid on every wake. It is one
 read; the alternative is a wake that serves 500s.
 
-**What this does not decide:** the program still does not migrate itself. Applying the migration
+**Every new migration that adds a table the instance reads owes the probe a line.** This is the
+maintenance cost, and it is real: forgetting it does not break anything visibly — the check simply
+covers less than this record says it does, and the instance goes back to binding on a database it
+cannot fully serve. `run/a-half-migrated-database-refuses-by-name` applies only the FIRST migration,
+read off the directory rather than named, so it gets stricter on its own as `migrations/` grows.
+
+**What this does not decide:** the program still does not migrate itself. Applying the migrations
 remains the operator's step, and a program that migrates its own database is a different decision
 that needs its own record.
 
@@ -92,7 +106,9 @@ here can.
 
 **Probe with `select 1`.** Cheaper and reachable without the repository, and it proves the pool can
 connect — which is not the claim. It passes against an empty database, the likeliest
-misconfiguration of the two.
+misconfiguration of the two. It is also not available to the composition root: `ADR-0003` keeps
+`pg` out of it, so the only reads it can make are the repository's own. That confinement is what
+makes the weak version of this check unbuildable rather than merely unwise.
 
 **Put `DATABASE_URL` in `REQUIRED_CONFIGURATION` as well.** It would group the refusal with the
 others, at the price of two independent rules for one variable. The one that drifts is always the

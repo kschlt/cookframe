@@ -40,6 +40,7 @@ import { createPostgresStore } from "../../src/persistence/index.js"
 import {
   decideDatabaseAvailability,
   isReachable,
+  MIGRATIONS,
   type ProvisionedSchema,
   provisionSchema,
   urlForSchema,
@@ -389,6 +390,64 @@ describe.skipIf(availability.mode === "skip")("run/an-unmigrated-database-refuse
     }
   }, 60_000)
 })
+
+describe.skipIf(availability.mode === "skip")(
+  "run/a-half-migrated-database-refuses-by-name",
+  () => {
+    it("refuses to start when a later migration was never applied", async () => {
+      // The mistake the first migration's proof cannot reach. `migrations/` holds
+      // more than one file, an operator applies them by hand, and stopping after
+      // the first leaves a database that answers `listLibrary` perfectly — so a
+      // startup read probing only the recipe store lets the instance bind and 500
+      // every cooking route. That is the exact failure ADR-0027 exists to prevent,
+      // one migration further along, and it is why the probe reads once per
+      // migration-backed area rather than once.
+      if (availability.mode !== "run") throw new Error("unreachable: the suite is skipped")
+      const first = MIGRATIONS[0]
+      if (first === undefined) throw new Error("no migrations to apply")
+
+      const schema = `cf_half_${randomBytes(6).toString("hex")}`
+      const admin = new Client({ connectionString: availability.url })
+      await admin.connect()
+      try {
+        await admin.query(`create schema "${schema}"`)
+        await admin.query(`set search_path to "${schema}"`)
+        // ONLY the first, read off the directory rather than named here: a third
+        // migration must make this case stricter, never silently unchanged.
+        await admin.query(first.sql)
+      } finally {
+        await admin.end().catch(() => {})
+      }
+
+      const port = await freePort()
+      const started = spawnInstance(environment(port, urlForSchema(availability.url, schema)))
+
+      try {
+        const code = await Promise.race([
+          started.exited,
+          new Promise<"timed out">((resolve) => setTimeout(() => resolve("timed out"), 30_000)),
+        ])
+        expect(code, `Output:\n${started.output()}`).not.toBe(0)
+        // The table it could not read, named. `recipe_version` exists here, so a
+        // refusal naming that one would mean the probe never reached the second
+        // migration's tables at all.
+        expect(started.output()).toContain("cooking_plan")
+        expect(started.output()).toContain("migrations/")
+        expect(started.output()).not.toContain("listening on port")
+        await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow()
+      } finally {
+        started.child.kill("SIGKILL")
+        const cleanup = new Client({ connectionString: availability.url })
+        await cleanup.connect()
+        try {
+          await cleanup.query(`drop schema if exists "${schema}" cascade`)
+        } finally {
+          await cleanup.end().catch(() => {})
+        }
+      }
+    }, 60_000)
+  },
+)
 
 describe.skipIf(availability.mode === "skip")("wire/a-restart-keeps-the-library", () => {
   it("what one process serves, the next process started against the same database still serves", async () => {

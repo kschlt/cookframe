@@ -100,6 +100,14 @@ async function main(): Promise<void> {
   // pass against a database where every operation the instance actually performs
   // fails. It is the cheapest read the repository has.
   //
+  // ONE read per migration-backed area, because `migrations/` holds more than
+  // one file and a database can be half-migrated. `listLibrary` reaches the
+  // recipe store (`0001`) and `loadCookingPlan` the plan store (`0002`); an
+  // instance that came up on `0001` alone would serve its library and answer
+  // every cooking route with a 500, which is the same failure one migration
+  // further along. Absence is a return value for both, so neither needs a
+  // fixture and neither costs more than a round trip.
+  //
   // The cost, stated: the process now needs its database reachable to come up at
   // all, so a restart during an outage leaves the instance down rather than up
   // and failing. For a single-user instance an operator restarts themselves
@@ -107,6 +115,9 @@ async function main(): Promise<void> {
   // trade `resolveDatabaseUrl` already made by refusing an absent URL.
   try {
     await repo.listLibrary()
+    // An id nothing can hold: the answer is always `undefined`, so what this
+    // measures is only whether the table it reads can be read at all.
+    await repo.loadCookingPlan("startup-probe", 1)
   } catch (error) {
     await store.close().catch(() => {})
     if (error instanceof StoreNotMigratedError) throw error

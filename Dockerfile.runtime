@@ -36,9 +36,9 @@ COPY . .
 #
 # DATABASE_URL is required too, and is refused by the store's own seam rather
 # than by that list (`src/persistence/configuration.ts`). The schema is NOT
-# created by this image: an operator applies `migrations/0001-the-recipe-store.sql`
-# once, and a container started against a database without it exits naming that
-# file instead of serving 500s (ADR-0027).
+# created by this image: an operator applies every file in `migrations/` once, in
+# filename order, and a container started against a database missing any of them
+# exits naming the table it could not read instead of serving 500s (ADR-0027).
 #
 # PORT is not defaulted here for the same reason it is not defaulted in the
 # code: an instance that binds a port nobody chose is an instance whose operator

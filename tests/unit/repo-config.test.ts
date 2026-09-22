@@ -567,13 +567,22 @@ describe("CI workflow (ci.yml)", () => {
       .map((s) => s.run)
       .filter((r): r is string => typeof r === "string")
       .join("\n")
+    // EVERY migration, by globbing the directory rather than by naming files.
+    // A named list is a list somebody has to remember to extend, and that is
+    // not hypothetical: `0002-the-cooking-plan.sql` arrived while this step
+    // named only `0001`, and the job stayed green because the route that needs
+    // the second table is not the one the step curls.
     expect(
       containerRuns,
-      "the container job never applies the migration, so the image starts against empty tables",
-      // `psql`, then any shell line-continuations, then the migration file. Not
-      // "psql appears somewhere and the filename appears somewhere": those match
-      // two unrelated commands, which is how this kind of guard stops guarding.
-    ).toMatch(/psql(?:[^\n]*\\\n)*[^\n]*-f migrations\/0001-the-recipe-store\.sql/)
+      "the container job does not apply migrations/ as a whole, so a new migration can be forgotten",
+    ).toMatch(/for\s+\w+\s+in\s+migrations\/\*\.sql\b/)
+    expect(
+      containerRuns,
+      "the container job never runs psql over the migrations it globbed",
+      // `psql`, then any shell line-continuations, then the loop variable. Not
+      // "psql appears somewhere and the glob appears somewhere": those match two
+      // unrelated commands, which is how this kind of guard stops guarding.
+    ).toMatch(/psql(?:[^\n]*\\\n)*[^\n]*-f "\$\w+"/)
     expect(
       containerRuns,
       "the runtime container is given no DATABASE_URL, so it cannot come up at all",

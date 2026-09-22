@@ -380,11 +380,15 @@ jobs:
           ingest="run-ci-$(openssl rand -hex 16)"
           library="run-ci-$(openssl rand -hex 16)"
 
-          # Applied with the command an operator is told to run, from the file
-          # they are told to run it from (`.env.example`). A schema built any
-          # other way here would be a schema nobody will ever have.
-          psql "postgres://postgres:postgres@127.0.0.1:5432/postgres" \
-            -v ON_ERROR_STOP=1 -f migrations/0001-the-recipe-store.sql
+          # Applied with the command an operator is told to run (`.env.example`).
+          # A schema built any other way here would be a schema nobody will ever
+          # have. The GLOB is the point: a list of filenames is a list somebody
+          # has to remember to extend, and `0002` arrived while this step named
+          # only `0001`.
+          for migration in migrations/*.sql; do
+            psql "postgres://postgres:postgres@127.0.0.1:5432/postgres" \
+              -v ON_ERROR_STOP=1 -f "$migration"
+          done
 
           # The service is published on the RUNNER's loopback, and the container
           # has its own. `host.docker.internal` is how it reaches the host, and
