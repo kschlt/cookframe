@@ -41,6 +41,25 @@ const PARSE = [
 
 /** Each file that calls the compiler API, and what it calls. */
 const COMPILER_API_IN_USE: Readonly<Record<string, readonly string[]>> = {
+  "tests/protections/capture-provenance.ts": [
+    ...PARSE,
+    "CompilerHost.getSourceFile",
+    "ModuleResolutionHost.directoryExists",
+    "ModuleResolutionHost.fileExists",
+    "ModuleResolutionHost.readFile",
+    "Node.getText",
+    "Program.getTypeChecker",
+    "ScriptReferenceHost.getSourceFile",
+    "Type.getSymbol",
+    "Type.isUnion",
+    "TypeChecker.getContextualType",
+    "TypeChecker.getSymbolAtLocation",
+    "ts.ModuleKind",
+    "ts.ModuleResolutionKind",
+    "ts.SyntaxKind",
+    "ts.createCompilerHost",
+    "ts.createProgram",
+  ],
   "tests/protections/compiler-surface.test.ts": [
     "System.readFile",
     "ts.parseJsonConfigFileContent",
