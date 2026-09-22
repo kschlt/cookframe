@@ -201,3 +201,50 @@ jobs:
         run: docker build -t cookframe:ci .
       - name: Run the quality gate inside the container
         run: docker run --rm cookframe:ci npm run quality
+
+  # CFV1-BASE. Every other job here measures this pull request's head against
+  # the base it was BRANCHED from. Twice in one night that was not enough: two
+  # pull requests, each green against its own base, produced a broken `main`
+  # when both landed, and neither had a textual conflict for git to report.
+  #
+  # This job measures the MERGE RESULT, recomputed here against whatever the
+  # base tip is now rather than read from a ref GitHub calculated when this pull
+  # request was last pushed — a merge result computed once and trusted an hour
+  # later has the same fault the job exists to close.
+  #
+  # It runs the repository's own `quality` script, read from `package.json`
+  # rather than restated, so this adds no second definition of green. A
+  # typecheck alone is known to be insufficient by measurement: the second
+  # incident typechecks perfectly and dies in its tests.
+  #
+  # Cost, stated rather than left to be discovered: every merge now waits for a
+  # second full gate run. On this repository that is a few minutes, against a
+  # default branch that was red for an hour on the first incident and until a
+  # repair pull request on the second.
+  #
+  # Skipped when the head already contains the base — the merge result is then
+  # the head's own tree, which the other jobs have already measured.
+  merge-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the merge has to be computed, not looked up.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Fetched here, at run time, so the base is the live tip rather than the
+      # one this pull request was opened against.
+      - name: Fetch the current base tip
+        run: git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+      - name: Run the declared gate against the merge result
+        run: |
+          npx tsx scripts/merge-gate.ts \
+            --base=FETCH_HEAD \
+            --head="${{ github.event.pull_request.head.sha }}" \
+            --base-label="${{ github.event.pull_request.base.ref }} as it stands now" \
+            --head-label="PR #${{ github.event.pull_request.number }}"
