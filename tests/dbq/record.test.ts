@@ -153,4 +153,39 @@ describe("CFV1-DBQ decision record", () => {
       /\|\s*open/,
     )
   })
+
+  it("dbq/query-1-timing-correction-reaches-the-register — a figure made incomparable says so", () => {
+    // Same class as the lower-bound correction above, and recorded the same way
+    // rather than left in a review ledger. ADR-0015's query-1 row was measured
+    // when `listLibrary` read whatever `search_path` already pointed at; it now
+    // sets the path itself, so a later run's query-1 time carries a round-trip
+    // the recorded figure does not. The record is not rewritten, so the register
+    // is where a reader of it can meet the caveat.
+    //
+    // Its own row rather than a line on OQ-34: the two corrections have
+    // different subjects (how many leaves differ, versus whether a latency is
+    // comparable), they are made wrong by different causes, and each is open on
+    // a different re-measurement — so one row carrying both could not be cited
+    // precisely, and "closed" would be ambiguous.
+    const { text } = decidingRecord()
+    expect(text, "the record no longer carries the query-1 row this is about").toMatch(
+      /\|\s*1 — library list\s*\|/,
+    )
+
+    const register = read("docs", "open-questions.md")
+    const rows = register.split("\n").filter((l) => /^\| OQ-\d+[a-z]? \|/.test(l))
+    const carrying = rows.filter((l) => /search_path/.test(l) && /listLibrary/.test(l))
+    expect(
+      carrying,
+      "no register row records that ADR-0015's query-1 timing is not comparable",
+    ).toHaveLength(1)
+    const row = carrying[0] as string
+    expect(row, "the row does not say the figure is not comparable").toMatch(
+      /\*{0,2}not comparable/,
+    )
+    expect(row, "the row is marked closed while nothing has re-measured it").toMatch(/\|\s*open/)
+    // And it must not be the same row as the lower-bound one: a row carrying two
+    // corrections cannot be cited for either.
+    expect(row, "the two corrections were merged into one row").not.toMatch(/445/)
+  })
 })

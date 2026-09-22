@@ -266,6 +266,70 @@ describe("multi-recipe/jsonld-counts-without-a-model", () => {
     expect(extraction.inventory.titles).toEqual(["A", "B", "C"])
   })
 
+  // `@id` separates even where the names agree — both directions.
+  //
+  // Found by review, and it was this unit's own defect reached through the guard
+  // meant to stop it: `@id` was consulted only where BOTH nodes lacked a name,
+  // so two nodes sharing a name collapsed however plainly their identifiers said
+  // otherwise. The richer one imported; the other vanished without trace, which
+  // is exactly the silent truncation CFV1-MR1 exists to prevent.
+  //
+  // Not exotic. Two variants of one dish on one page carry the same `name` and
+  // different `@id`: ice cream with and without a machine, overnight and
+  // same-day dough, two starters. Roundups are both where the refusal matters
+  // most and where repeated names are likeliest.
+  //
+  // Proved in BOTH directions deliberately. A fix pushed only in the separating
+  // direction would be held by a proof that a function returning "always
+  // distinct" also passes — and that function refuses every ordinary page whose
+  // duplicate emission omits `@id`. The collapsing cases are what make the
+  // separating one mean something.
+  const variant = (id: string | undefined, name: string, yieldValue: string) =>
+    recipe(name, {
+      ...(id === undefined ? {} : { "@id": id }),
+      recipeYield: yieldValue,
+    })
+
+  it("separates two same-named nodes whose `@id`s say they are different nodes", () => {
+    const extraction = extractRecipeJsonLd(
+      new TextDecoder().decode(
+        page(
+          graph(
+            variant("https://x.test/ice#custard", "Vanilla Ice Cream", "1 litre"),
+            variant("https://x.test/ice#no-churn", "Vanilla Ice Cream", "600 ml"),
+          ),
+        ),
+      ),
+    )
+    expect(extraction.kind, "a second recipe was dropped without trace").toBe("multiple")
+    if (extraction.kind !== "multiple") throw new Error("unreachable")
+    expect(extraction.inventory.count).toBe(2)
+    // Both titles, repeated. A report that deduplicated the TITLES would say
+    // "2 recipes" and list one, which is a report whose parts disagree.
+    expect(extraction.inventory.titles).toEqual(["Vanilla Ice Cream", "Vanilla Ice Cream"])
+  })
+
+  it.each([
+    ["the same `@id` twice", "https://x.test/ice#one", "https://x.test/ice#one"],
+    ["no `@id` on either node", undefined, undefined],
+    ["an `@id` on one node only", "https://x.test/ice#one", undefined],
+  ])("still collapses a duplicate emission with %s", (_what, first, second) => {
+    // None of these is evidence of a second recipe, and the duplicate emission
+    // this collapsing exists for — `@graph` plus standalone — is precisely the
+    // equal-or-absent case. Separating here would refuse ordinary pages.
+    const extraction = extractRecipeJsonLd(
+      new TextDecoder().decode(
+        page(
+          graph(
+            variant(first, "Vanilla Ice Cream", "1 litre"),
+            variant(second, "Vanilla Ice Cream", "1 litre"),
+          ),
+        ),
+      ),
+    )
+    expect(extraction.kind, "an ordinary single-recipe page was refused").toBe("sufficient")
+  })
+
   it("refuses several recipes BEFORE asking whether one of them is sufficient", () => {
     // A page with three recipes is not a page to extract one from, however
     // complete that one is. Deciding sufficiency first would route a

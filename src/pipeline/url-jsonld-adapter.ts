@@ -166,9 +166,28 @@ function missingRequired(recipe: JsonObject): string[] {
  * normalized `name`, or an equal `@id` when neither carries a name. A node with
  * neither gets a group of its own, so an unnameable recipe RAISES the count
  * rather than vanishing into another.
+ *
+ * **`@id` separates even when the names agree.** An earlier version consulted
+ * `@id` only where BOTH nodes lacked a name, so two nodes sharing a name
+ * collapsed however plainly their identifiers said they were different nodes.
+ * Two variants of one dish on a page — ice cream with and without a machine,
+ * overnight and same-day dough — carry the same `name` and different `@id`, and
+ * the richer one was imported while the other vanished without trace. That is
+ * this unit's own defect, reached through the guard meant to stop it, so the
+ * rule now reads the strongest available discriminator instead of discarding it
+ * exactly where it would decide.
+ *
+ * Only a PRESENT and DIFFERING pair separates. Equal, absent on both sides, or
+ * present on one side only collapses as before, because none of those is
+ * evidence of a second recipe — and the duplicate emission this function exists
+ * for (`@graph` plus standalone) is precisely the equal-or-absent case.
  */
 function distinctRecipes(objects: readonly JsonObject[]): readonly JsonObject[] {
-  const groups = new Map<string, JsonObject>()
+  // Grouped by name first, then split by `@id` within a name. Two passes rather
+  // than one composite key, because a node carrying a name but no `@id` must
+  // still land in its name's group: keying on both at once would give it a group
+  // of its own and refuse an ordinary page whose duplicate emission omits `@id`.
+  const groups = new Map<string, JsonObject[]>()
   let anonymous = 0
   for (const obj of objects) {
     if (!isRecipe(obj)) continue
@@ -177,11 +196,38 @@ function distinctRecipes(objects: readonly JsonObject[]): readonly JsonObject[] 
     const key =
       name !== undefined ? `name:${name}` : id !== undefined ? `id:${id}` : `#${anonymous++}`
     const held = groups.get(key)
-    if (held === undefined || requiredSatisfiedCount(obj) > requiredSatisfiedCount(held)) {
-      groups.set(key, obj)
+    if (held === undefined) groups.set(key, [obj])
+    else held.push(obj)
+  }
+
+  const richest = (nodes: readonly JsonObject[]): JsonObject =>
+    nodes.reduce((best, node) =>
+      requiredSatisfiedCount(node) > requiredSatisfiedCount(best) ? node : best,
+    )
+
+  const out: JsonObject[] = []
+  for (const members of groups.values()) {
+    // The distinct `@id`s inside this name group. Two or more mean the page
+    // itself says these are different nodes, whatever their names agree on.
+    const byId = new Map<string, JsonObject[]>()
+    for (const node of members) {
+      const id = asDisplayString(node["@id"])
+      if (id === undefined) continue
+      const held = byId.get(id)
+      if (held === undefined) byId.set(id, [node])
+      else held.push(node)
+    }
+    if (byId.size > 1) {
+      // One recipe per distinct `@id`. Members without an `@id` carry no signal
+      // that they are a further recipe, so they fold in rather than inflating
+      // the count — collapsing too little refuses an importable page, which is
+      // the recoverable direction but still a cost.
+      for (const sameId of byId.values()) out.push(richest(sameId))
+    } else {
+      out.push(richest(members))
     }
   }
-  return [...groups.values()]
+  return out
 }
 
 /** The inventory of a page's distinct recipes, in the order they were emitted. */
