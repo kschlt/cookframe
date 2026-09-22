@@ -90,18 +90,24 @@ const REFUSAL = {
 }
 
 describe("run/a-heif-photograph-is-refused-before-the-model", () => {
-  it.each(["image/heic", "image/heif"])(
-    "refuses %s by its type, and says what to send instead",
-    async (contentType) => {
-      // Bytes that are NOT a HEIF container, so the byte check below cannot
-      // answer for the type check: only the declared type refuses these.
-      const { reads } = await instance()
-      const res = await submit(captureBody("Synthetic Loaf labelled HEIF"), contentType)
-      expect(res.status, "a HEIF type passed the door").toBe(415)
-      expect(await res.json()).toEqual(REFUSAL)
-      expect(reads(), "a HEIF photograph was handed to capture").toBe(0)
-    },
-  )
+  // Bytes that are NOT a HEIF container, so the byte check below cannot answer
+  // for the type check: only the declared type refuses these. One named proof
+  // per type rather than a table, so each name is one the proof-name guard reads.
+  async function refusedByType(contentType: string): Promise<void> {
+    const { reads } = await instance()
+    const res = await submit(captureBody("Synthetic Loaf labelled HEIF"), contentType)
+    expect(res.status, "a HEIF type passed the door").toBe(415)
+    expect(await res.json()).toEqual(REFUSAL)
+    expect(reads(), "a HEIF photograph was handed to capture").toBe(0)
+  }
+
+  it("refuses image/heic by its type, and says what to send instead", async () => {
+    await refusedByType("image/heic")
+  })
+
+  it("refuses image/heif by its type, and says what to send instead", async () => {
+    await refusedByType("image/heif")
+  })
 
   it("refuses HEIF bytes under a JPEG label, after keeping them and before reading them", async () => {
     const { reads, volume } = await instance()

@@ -61,16 +61,23 @@ describe("protections/the-photo-door-is-no-wider-than-the-vendor", () => {
     }
   })
 
-  it.each(["image/heic", "image/heif"])(
-    "refuses a %s image before the request is sent",
-    async (mediaType) => {
-      const error = await transport()
-        .send(withImage(mediaType))
-        .catch((e: unknown) => e)
-      expect(error).toBeInstanceOf(UnsupportedImageMediaTypeError)
-      expect((error as UnsupportedImageMediaTypeError).mediaType).toBe(mediaType)
-    },
-  )
+  // One named proof per format rather than a table, so each name is one the
+  // proof-name guard reads.
+  async function refusedBeforeSending(mediaType: string): Promise<void> {
+    const error = await transport()
+      .send(withImage(mediaType))
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(UnsupportedImageMediaTypeError)
+    expect((error as UnsupportedImageMediaTypeError).mediaType).toBe(mediaType)
+  }
+
+  it("refuses an image/heic image before the request is sent", async () => {
+    await refusedBeforeSending("image/heic")
+  })
+
+  it("refuses an image/heif image before the request is sent", async () => {
+    await refusedBeforeSending("image/heif")
+  })
 
   it("sends a format the provider reads, so the refusal above is not a refusal of everything", async () => {
     const error = await transport()
