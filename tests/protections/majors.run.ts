@@ -14,12 +14,21 @@
  * worse than either, because it is the verdict an exit-code harness prints as a
  * pass.
  *
- * The exit code is non-zero unless every mutation was killed. Refusals count:
- * a refused mutation is not a passed one, it is a list that has drifted from
- * the tree.
+ * The exit code is non-zero unless every mutation was killed, and at least one
+ * was. Refusals count: a refused mutation is not a passed one, it is a list that
+ * has drifted from the tree. The arithmetic is `tallyGroup`, `sumTallies` and
+ * `exitCodeFor` in `majors.ts`, where the gate can hold it; this file only runs
+ * the harnesses and prints.
  */
 import { join } from "node:path"
-import { MAJOR_HARNESSES, repoRoot } from "./majors.js"
+import {
+  exitCodeFor,
+  MAJOR_HARNESSES,
+  repoRoot,
+  sumTallies,
+  type Tally,
+  tallyGroup,
+} from "./majors.js"
 import { formatReport, runMutations, vitestRunner } from "./mutation.js"
 
 const requested = process.argv.slice(2).filter((arg) => !arg.startsWith("-"))
@@ -35,8 +44,7 @@ if (selected.length === 0) {
   process.exit(2)
 }
 
-let killed = 0
-let notKilled = 0
+const tallies: Tally[] = []
 
 for (const harness of selected) {
   console.log(`\n=== ${harness.id} (landed in ${harness.landedIn})`)
@@ -50,17 +58,12 @@ for (const harness of selected) {
       vitestRunner(repoRoot),
     )
     console.log(formatReport(report))
-    for (const result of report.results) {
-      if (result.verdict.outcome === "killed") killed += 1
-      else notKilled += 1
-    }
-    // A refusal is neither a kill nor a survival, and it must not be counted as
-    // the first: it means this list no longer describes the tree, which is the
-    // failure `majors.test.ts` exists to catch earlier than here.
-    notKilled += report.refusals.length
-    if (!report.baseline.usable) notKilled += group.mutations.length
+    // The counting is `tallyGroup` in majors.ts, where majors.test.ts holds it
+    // against every way a count can be wrong. Nothing is added up here.
+    tallies.push(tallyGroup(report, group.mutations.length))
   }
 }
 
-console.log(`\n${killed} killed, ${notKilled} not killed`)
-process.exit(notKilled === 0 ? 0 : 1)
+const total = sumTallies(tallies)
+console.log(`\n${total.killed} killed, ${total.notKilled} not killed`)
+process.exit(exitCodeFor(total))

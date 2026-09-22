@@ -309,7 +309,7 @@ describe("base/refusal-names-both-sides", () => {
 })
 
 describe("base/green-merge-is-not-slowed", () => {
-  it("lets a green merge result through", () => {
+  it("lets a green merge result through when the gate is quiet", () => {
     const dir = fixture({
       gate: "node --check a.js && node --check b.js",
       mainFiles: { "a.js": "export const a = 1;\n", "b.js": "export const b = 1;\n" },
