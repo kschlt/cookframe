@@ -136,8 +136,9 @@ function spawnInstance(env: Record<string, string>): Started {
  * or one refusal at a time. The slowest single-process proof, schema setup
  * included, took about 0.5 s on an idle four-core machine, 4.1 s with 32 busy
  * loops competing for it, and 6.4 s with 48, which is the load that reproduced
- * the #80 incident. This is about five times the worst of them. A proof that reaches it has met a process that did NEITHER,
- * which is its own finding, and it says so rather than timing out.
+ * the #80 incident. This is about five times the worst of them. A proof that
+ * reaches it has met a process that did NEITHER, which is its own finding, and
+ * it says so rather than timing out.
  */
 const FIRST_ACT_DEADLINE_MS = 30_000
 
