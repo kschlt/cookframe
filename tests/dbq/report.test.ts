@@ -40,6 +40,20 @@ const readings = (): Partial<Record<Shape, ShapeReading>> => {
 const bodyRows = (lines: readonly string[]): string[] =>
   lines.filter((l) => l.startsWith("| ") && !l.startsWith("| query |") && !l.startsWith("|---"))
 
+// Why this criterion lives HERE and not in `queries.test.ts`, where its name
+// used to sit. The name is declared in the backlog spec (CFV1-DBQ), so it is
+// part of the contract and has to keep resolving — but the test that carried it
+// never touched the reporting code, and it sat inside
+// `describe.skipIf(needsDb)`. With no database on a normal run that whole block
+// skips, so the declared criterion reported PASS while executing nothing: a
+// vacuous proof of exactly the kind this repo keeps finding. Moving it here
+// switches it ON — these three cases run with no database and exercise the
+// renderer itself. The agreement property that the old test really did check is
+// still checked, under its own honest name (`dbq/shapes-agree-on-every-query`),
+// still behind the database gate where it belongs.
+//
+// So this is not a rename that orphaned a criterion; reverting it would put the
+// criterion back behind the skip and turn it off again.
 describe("dbq/results-reported-per-query-and-shape", () => {
   it("emits one row for every query and every shape, not an aggregate", () => {
     const rows = bodyRows(renderPerQueryPerShape(SHAPES, readings()))
