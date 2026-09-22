@@ -1,0 +1,751 @@
+{
+  "id": "s4-spaghetti-alla-nerano",
+  "schemaVersion": "1.0.0",
+  "title": "Spaghetti alla Nerano",
+  "sourceName": "Cookframe Fixtures",
+  "sourceUrl": "https://example.invalid/spaghetti-alla-nerano",
+  "yields": [
+    {
+      "id": "y-1",
+      "sourceText": "4 servings",
+      "valueExpression": {
+        "sourceText": "4",
+        "kind": "exact",
+        "value": 4
+      },
+      "unit": "servings",
+      "scalingEligibility": "allowed",
+      "sourceRefs": [
+        {
+          "blockId": "b-yield-1"
+        }
+      ]
+    }
+  ],
+  "equipment": [
+    {
+      "id": "e-mandoline",
+      "sourceText": "Mandoline",
+      "name": "Mandoline",
+      "qualifiers": [],
+      "sourceRefs": [
+        {
+          "blockId": "b-eq-e-mandoline"
+        }
+      ]
+    },
+    {
+      "id": "e-pot",
+      "sourceText": "High-sided pot",
+      "name": "High-sided pot",
+      "qualifiers": [],
+      "sourceRefs": [
+        {
+          "blockId": "b-eq-e-pot"
+        }
+      ]
+    },
+    {
+      "id": "e-pan",
+      "sourceText": "Wide pan",
+      "name": "Wide pan",
+      "qualifiers": [],
+      "sourceRefs": [
+        {
+          "blockId": "b-eq-e-pan"
+        }
+      ]
+    }
+  ],
+  "ingredientGroups": [
+    {
+      "id": "g-1",
+      "sourceRefs": [
+        {
+          "blockId": "b-ing-list"
+        }
+      ],
+      "ingredients": [
+        {
+          "id": "i-zucchini",
+          "sourceText": "25 oz zucchini",
+          "name": "zucchini",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-zucchini"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "25",
+            "kind": "exact",
+            "value": 25
+          },
+          "unit": "oz"
+        },
+        {
+          "id": "i-spaghetti",
+          "sourceText": "11 oz spaghetti",
+          "name": "spaghetti",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-spaghetti"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "11",
+            "kind": "exact",
+            "value": 11
+          },
+          "unit": "oz"
+        },
+        {
+          "id": "i-provolone",
+          "sourceText": "5.3 oz Provolone del Monaco",
+          "name": "Provolone del Monaco",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-provolone"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "5.3",
+            "kind": "exact",
+            "value": 5.3
+          },
+          "unit": "oz"
+        },
+        {
+          "id": "i-parmesan",
+          "sourceText": "1/4 cup Parmigiano Reggiano",
+          "name": "Parmigiano Reggiano",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-parmesan"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "1/4",
+            "kind": "exact",
+            "value": 0.25
+          },
+          "unit": "cup"
+        },
+        {
+          "id": "i-garlic",
+          "sourceText": "1 clove garlic",
+          "name": "garlic",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-garlic"
+            }
+          ],
+          "quantityExpression": {
+            "sourceText": "1",
+            "kind": "exact",
+            "value": 1
+          },
+          "unit": "clove"
+        },
+        {
+          "id": "i-basil",
+          "sourceText": "basil",
+          "name": "basil",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-basil"
+            }
+          ]
+        },
+        {
+          "id": "i-frying-oil",
+          "sourceText": "extra virgin olive oil, for frying",
+          "name": "extra virgin olive oil",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-frying-oil"
+            }
+          ]
+        },
+        {
+          "id": "i-salt",
+          "sourceText": "fine salt",
+          "name": "fine salt",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-salt"
+            }
+          ]
+        },
+        {
+          "id": "i-black-pepper",
+          "sourceText": "black pepper",
+          "name": "black pepper",
+          "qualifiers": [],
+          "scalingEligibility": "proportional",
+          "sourceRefs": [
+            {
+              "blockId": "b-ing-i-black-pepper"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preparedComponents": [
+    {
+      "id": "c-fried-zucchini",
+      "label": "fried zucchini",
+      "createdByStepId": "st-1",
+      "sourceRefs": [
+        {
+          "blockId": "b-instr-st-1"
+        }
+      ]
+    },
+    {
+      "id": "c-pasta-water",
+      "label": "pasta cooking water",
+      "createdByStepId": "st-3",
+      "sourceRefs": [
+        {
+          "blockId": "b-instr-st-3"
+        }
+      ]
+    }
+  ],
+  "instructionSections": [
+    {
+      "id": "sec-1",
+      "sourceRefs": [
+        {
+          "blockId": "b-instr-list"
+        }
+      ],
+      "steps": [
+        {
+          "id": "st-1",
+          "sourceText": "Wash and trim the zucchini, then thinly slice into rounds. Fry the slices in batches until golden.",
+          "normalizedActionText": "Wash and trim the zucchini, then thinly slice into rounds. Fry the slices in batches until golden.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-1"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-zucchini",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-zucchini"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-frying-oil",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-frying-oil"
+                }
+              ]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [
+            {
+              "equipmentId": "e-mandoline",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-1"
+                }
+              ]
+            }
+          ],
+          "producesComponents": ["c-fried-zucchini"],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "5-6 min per batch",
+                "kind": "exact",
+                "value": 6,
+                "unit": "min"
+              },
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-1"
+                }
+              ]
+            }
+          ],
+          "temperatures": [
+            {
+              "sourceText": "150 °C (300 °F)",
+              "valueExpression": {
+                "sourceText": "150 °C (300 °F)",
+                "kind": "exact"
+              },
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-1"
+                }
+              ]
+            }
+          ],
+          "donenessCues": [
+            {
+              "sourceText": "until golden",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-1"
+                }
+              ]
+            }
+          ],
+          "prerequisiteCues": [
+            {
+              "sourceText": "Heat frying oil to 150 °C (300 °F)",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-1"
+                }
+              ]
+            }
+          ],
+          "waitCues": []
+        },
+        {
+          "id": "st-2",
+          "sourceText": "Drain the fried zucchini on paper towels. Season with salt and scatter torn basil. Set aside.",
+          "normalizedActionText": "Drain the fried zucchini on paper towels. Season with salt and scatter torn basil. Set aside.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-2"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-salt",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-salt"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "to taste",
+                "kind": "qualitative"
+              }
+            },
+            {
+              "ingredientId": "i-basil",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-basil"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "to taste",
+                "kind": "qualitative"
+              }
+            }
+          ],
+          "componentUses": [
+            {
+              "componentId": "c-fried-zucchini",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-comp-c-fried-zucchini"
+                }
+              ]
+            }
+          ],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "st-3",
+          "sourceText": "Coarsely grate the Parmesan and Provolone. Cook the spaghetti in the boiling salted water until very al dente.",
+          "normalizedActionText": "Coarsely grate the Parmesan and Provolone. Cook the spaghetti in the boiling salted water until very al dente.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-3"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-spaghetti",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-spaghetti"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-parmesan",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-parmesan"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-provolone",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-provolone"
+                }
+              ]
+            }
+          ],
+          "componentUses": [],
+          "equipmentUses": [
+            {
+              "equipmentId": "e-pot",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-3"
+                }
+              ]
+            }
+          ],
+          "producesComponents": ["c-pasta-water"],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "6 min",
+                "kind": "exact",
+                "value": 6,
+                "unit": "min"
+              },
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-3"
+                }
+              ]
+            }
+          ],
+          "temperatures": [],
+          "donenessCues": [
+            {
+              "sourceText": "very al dente",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-3"
+                }
+              ]
+            }
+          ],
+          "prerequisiteCues": [
+            {
+              "sourceText": "Bring a high-sided pot of salted water to a boil",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-3"
+                }
+              ]
+            }
+          ],
+          "waitCues": []
+        },
+        {
+          "id": "st-4",
+          "sourceText": "Heat oil in a wide pan. Add the whole garlic to infuse, then remove it. Add the fried zucchini.",
+          "normalizedActionText": "Heat oil in a wide pan. Add the whole garlic to infuse, then remove it. Add the fried zucchini.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-4"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-garlic",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-garlic"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-frying-oil",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-frying-oil"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "2 1/2",
+                "kind": "exact",
+                "value": 2.5
+              },
+              "unit": "tbsp"
+            }
+          ],
+          "componentUses": [
+            {
+              "componentId": "c-fried-zucchini",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-comp-c-fried-zucchini"
+                }
+              ]
+            }
+          ],
+          "equipmentUses": [
+            {
+              "equipmentId": "e-pan",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-4"
+                }
+              ]
+            }
+          ],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "st-5",
+          "sourceText": "Add a ladle of pasta cooking water and saute briefly. Drain the spaghetti into the pan, saving the cooking water.",
+          "normalizedActionText": "Add a ladle of pasta cooking water and saute briefly. Drain the spaghetti into the pan, saving the cooking water.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-5"
+            }
+          ],
+          "ingredientUses": [],
+          "componentUses": [
+            {
+              "componentId": "c-pasta-water",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-comp-c-pasta-water"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "1 ladle",
+                "kind": "exact",
+                "value": 1
+              }
+            },
+            {
+              "componentId": "c-pasta-water",
+              "usage": "reserve_for_later",
+              "sourceRefs": [
+                {
+                  "blockId": "b-comp-c-pasta-water"
+                }
+              ]
+            }
+          ],
+          "equipmentUses": [
+            {
+              "equipmentId": "e-pan",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-5"
+                }
+              ]
+            }
+          ],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        },
+        {
+          "id": "st-6",
+          "sourceText": "Stir the spaghetti risotto-style, adding pasta water as needed. Off the heat, stir in part of the Provolone until creamy, then sprinkle over the Parmesan and the remaining Provolone.",
+          "normalizedActionText": "Stir the spaghetti risotto-style, adding pasta water as needed. Off the heat, stir in part of the Provolone until creamy, then sprinkle over the Parmesan and the remaining Provolone.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-6"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-provolone",
+              "usage": "use_partial_unspecified",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-provolone"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-parmesan",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-parmesan"
+                }
+              ]
+            },
+            {
+              "ingredientId": "i-provolone",
+              "usage": "use_remaining",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-provolone"
+                }
+              ]
+            }
+          ],
+          "componentUses": [
+            {
+              "componentId": "c-pasta-water",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-comp-c-pasta-water"
+                }
+              ]
+            }
+          ],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [
+            {
+              "durationExpression": {
+                "sourceText": "3 min",
+                "kind": "exact",
+                "value": 3,
+                "unit": "min"
+              },
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-6"
+                }
+              ]
+            }
+          ],
+          "temperatures": [],
+          "donenessCues": [
+            {
+              "sourceText": "until creamy",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-6"
+                }
+              ]
+            }
+          ],
+          "prerequisiteCues": [],
+          "waitCues": [
+            {
+              "sourceText": "Take off the heat before adding cheese so it melts creamy, not clumpy",
+              "sourceRefs": [
+                {
+                  "blockId": "b-instr-st-6"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "st-7",
+          "sourceText": "Stir in torn basil and a final ladle of pasta water. Finish with freshly ground black pepper and serve hot.",
+          "normalizedActionText": "Stir in torn basil and a final ladle of pasta water. Finish with freshly ground black pepper and serve hot.",
+          "sourceRefs": [
+            {
+              "blockId": "b-instr-st-7"
+            }
+          ],
+          "ingredientUses": [
+            {
+              "ingredientId": "i-basil",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-basil"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "to taste",
+                "kind": "qualitative"
+              }
+            },
+            {
+              "ingredientId": "i-black-pepper",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-ing-i-black-pepper"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "to taste",
+                "kind": "qualitative"
+              }
+            }
+          ],
+          "componentUses": [
+            {
+              "componentId": "c-pasta-water",
+              "usage": "use_now",
+              "sourceRefs": [
+                {
+                  "blockId": "b-comp-c-pasta-water"
+                }
+              ],
+              "quantityExpression": {
+                "sourceText": "1 ladle",
+                "kind": "exact",
+                "value": 1
+              }
+            }
+          ],
+          "equipmentUses": [],
+          "producesComponents": [],
+          "durations": [],
+          "temperatures": [],
+          "donenessCues": [],
+          "prerequisiteCues": [],
+          "waitCues": []
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "sourceSnapshotId": "snap-s4-nerano",
+    "sourceSnapshotVersion": 1,
+    "targetOntologyVersion": "1.0.0",
+    "runId": "run-s4-nerano-1"
+  }
+}
