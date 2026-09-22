@@ -24,6 +24,31 @@ import type { ModelExchange, ModelReply, ModelTransport } from "./providers.js"
 /** The provider's chat endpoint. Operator configuration, never derived from content. */
 const OPENAI_CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
+/**
+ * The image formats the provider reads, as its vision guide lists them: PNG,
+ * JPEG, WEBP and non-animated GIF
+ * (https://developers.openai.com/api/docs/guides/images-vision, read
+ * 2026-09-22). HEIC and HEIF are not among them; the provider's own error for
+ * one is reported as "unsupported image", though no request carrying one has
+ * been sent from here to see it. So an image in any other format is refused
+ * here, before the request is sent, rather than learned about from the vendor
+ * after the call was made.
+ */
+export const OPENAI_IMAGE_MEDIA_TYPES: readonly string[] = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]
+
+/** An image part in a format the provider does not read, refused before sending. */
+export class UnsupportedImageMediaTypeError extends Error {
+  constructor(readonly mediaType: string) {
+    super(`the model provider does not read ${mediaType} images`)
+    this.name = "UnsupportedImageMediaTypeError"
+  }
+}
+
 export interface OpenAITransportOptions {
   readonly apiKey: string
   readonly model: string
@@ -69,6 +94,11 @@ export function createOpenAITransport(options: OpenAITransportOptions): ModelTra
 
   return {
     async send(exchange): Promise<ModelReply> {
+      for (const part of exchange.parts) {
+        if (part.kind === "image" && !OPENAI_IMAGE_MEDIA_TYPES.includes(part.mediaType)) {
+          throw new UnsupportedImageMediaTypeError(part.mediaType)
+        }
+      }
       const { json, latencyMs } = await send({
         model: options.model,
         messages: [
