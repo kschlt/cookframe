@@ -203,9 +203,9 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
     // The phone is the only party that knows what it took the photo with; a
     // provider that has to sniff the bytes would take its text path on an image.
     const h = harness()
-    await submit(h.app, { contentType: "image/heic" })
+    await submit(h.app, { contentType: "image/webp" })
     expect(h.seen.bytes).toEqual(PAGE)
-    expect(h.seen.mediaType).toBe("image/heic")
+    expect(h.seen.mediaType).toBe("image/webp")
   })
 
   it("refuses a media type this instance does not accept, before capturing anything", async () => {
@@ -216,7 +216,7 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
   })
 
   it.each(ACCEPTED_CAPTURE_TYPES)(
-    "accepts %s, the types an iPhone actually produces",
+    "accepts %s, each a format the model provider reads",
     async (t) => {
       // Read off the declared list rather than a hand-written copy of it: a type
       // added to the allowlist and broken in the handler fails here.
@@ -274,9 +274,9 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
     // simply does not work on their phone.
     const h = harness()
     expect((await submit(h.app, { contentType: "IMAGE/JPEG" })).status).toBe(201)
-    expect((await submit(h.app, { contentType: "Image/Heic; charset=utf-8" })).status).toBe(201)
+    expect((await submit(h.app, { contentType: "Image/Webp; charset=utf-8" })).status).toBe(201)
     expect(h.seen.mediaType, "the type reached capture in the header's own casing").toBe(
-      "image/heic",
+      "image/webp",
     )
   })
 

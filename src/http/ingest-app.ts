@@ -54,17 +54,46 @@ import { bearerCredential } from "./instance-credential.js"
  * What the phone may submit.
  *
  * An allowlist, not a denylist: an unrecognised type is refused rather than
- * handed to a capture provider that would have to guess. HEIC and HEIF are here
- * because that is what an iPhone produces by default, and a Shortcut that has to
- * convert first is friction on the journey this slice exists to measure.
+ * handed to a capture provider that would have to guess. It is also no wider
+ * than what the model provider reads. HEIC and HEIF were on it once, because
+ * that is what an iPhone produces by default, but the provider's vision guide
+ * lists PNG, JPEG, WEBP and GIF only, so a HEIC would have been kept, sent,
+ * and refused by the vendor, answered as a 500 (from its documentation; no HEIC
+ * has been sent to it from here). Refused here, the person reads why before
+ * anything is paid for. The Shortcut in `shortcut/` sends `image/jpeg`.
  */
-export const ACCEPTED_CAPTURE_TYPES: readonly string[] = [
-  "image/jpeg",
-  "image/png",
-  "image/heic",
-  "image/heif",
-  "image/webp",
-]
+export const ACCEPTED_CAPTURE_TYPES: readonly string[] = ["image/jpeg", "image/png", "image/webp"]
+
+/** The refusal for a type off the list. */
+const UNSUPPORTED_TYPE_BODY = {
+  error: "unsupported_media_type",
+  message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}`,
+} as const
+
+/**
+ * The refusal for a HEIF photograph, by its declared type or by its bytes. The
+ * same first clause, and the one thing a person can do about it: a PDF is not
+ * told how to send a HEIC.
+ */
+const HEIF_REFUSED_BODY = {
+  error: "unsupported_media_type",
+  message: `${UNSUPPORTED_TYPE_BODY.message}; a HEIC or HEIF photo has to be sent as JPEG`,
+} as const
+
+/** The declared types that name a HEIF photograph, answered with {@link HEIF_REFUSED_BODY}. */
+const HEIF_TYPES: readonly string[] = ["image/heic", "image/heif"]
+
+/**
+ * Whether the bytes are an ISO base media file — the container HEIC, HEIF and
+ * AVIF all use, marked by an `ftyp` box at offset 4. None of the accepted
+ * formats starts that way (JPEG is `FF D8 FF`, PNG `89 50 4E 47`, WEBP
+ * `RIFF`), so a body that does is a HEIF-family image whatever its label says.
+ * The label is the phone's claim, and a camera set to High Efficiency makes
+ * HEIC; checked here so that claim being wrong costs a sentence, not a call.
+ */
+function isIsoBaseMediaFile(bytes: Uint8Array): boolean {
+  return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
+}
 
 /**
  * The largest submission accepted, in bytes. Generous next to a phone
@@ -242,10 +271,7 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
         (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? ""
       if (!ACCEPTED_CAPTURE_TYPES.includes(mediaType)) {
         return c.json(
-          {
-            error: "unsupported_media_type",
-            message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}`,
-          },
+          HEIF_TYPES.includes(mediaType) ? HEIF_REFUSED_BODY : UNSUPPORTED_TYPE_BODY,
           415,
         )
       }
@@ -275,6 +301,13 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
         await deps.scanStore.put(body)
       } catch {
         return c.json({ error: "capture_failed" }, 500)
+      }
+
+      // After keeping, before reading. It passed the door on its label, so it is
+      // a photograph this instance was sent and is kept like any other; what it
+      // cannot be is read, since the provider does not take HEIF.
+      if (isIsoBaseMediaFile(body)) {
+        return c.json(HEIF_REFUSED_BODY, 415)
       }
 
       try {
