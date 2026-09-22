@@ -41,7 +41,7 @@
     "hono": "^4.13.8",
     "ipaddr.js": "^2.5.0",
     "pg": "^8.23.0",
-    "undici": "^7.29.1",
+    "undici": "^8.11.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
