@@ -57,17 +57,31 @@ import { bearerCredential } from "./instance-credential.js"
  * handed to a capture provider that would have to guess. It is also no wider
  * than what the model provider reads. HEIC and HEIF were on it once, because
  * that is what an iPhone produces by default, but the provider's vision guide
- * lists PNG, JPEG, WEBP and GIF only: a HEIC was kept, sent, and failed at the
- * vendor as a 500. Refused here, the person reads why before anything is paid
- * for. The Shortcut in `shortcut/` sends `image/jpeg`.
+ * lists PNG, JPEG, WEBP and GIF only, so a HEIC would have been kept, sent,
+ * and refused by the vendor, answered as a 500 (from its documentation; no HEIC
+ * has been sent to it from here). Refused here, the person reads why before
+ * anything is paid for. The Shortcut in `shortcut/` sends `image/jpeg`.
  */
 export const ACCEPTED_CAPTURE_TYPES: readonly string[] = ["image/jpeg", "image/png", "image/webp"]
 
-/** The refusal for a type off the list, and for HEIF bytes under a type on it. */
+/** The refusal for a type off the list. */
 const UNSUPPORTED_TYPE_BODY = {
   error: "unsupported_media_type",
-  message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}; a HEIC or HEIF photo has to be sent as JPEG`,
+  message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}`,
 } as const
+
+/**
+ * The refusal for a HEIF photograph, by its declared type or by its bytes. The
+ * same first clause, and the one thing a person can do about it: a PDF is not
+ * told how to send a HEIC.
+ */
+const HEIF_REFUSED_BODY = {
+  error: "unsupported_media_type",
+  message: `${UNSUPPORTED_TYPE_BODY.message}; a HEIC or HEIF photo has to be sent as JPEG`,
+} as const
+
+/** The declared types that name a HEIF photograph, answered with {@link HEIF_REFUSED_BODY}. */
+const HEIF_TYPES: readonly string[] = ["image/heic", "image/heif"]
 
 /**
  * Whether the bytes are an ISO base media file — the container HEIC, HEIF and
@@ -256,7 +270,10 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
       const mediaType =
         (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? ""
       if (!ACCEPTED_CAPTURE_TYPES.includes(mediaType)) {
-        return c.json(UNSUPPORTED_TYPE_BODY, 415)
+        return c.json(
+          HEIF_TYPES.includes(mediaType) ? HEIF_REFUSED_BODY : UNSUPPORTED_TYPE_BODY,
+          415,
+        )
       }
 
       const body = new Uint8Array(await c.req.arrayBuffer())
@@ -290,7 +307,7 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
       // a photograph this instance was sent and is kept like any other; what it
       // cannot be is read, since the provider does not take HEIF.
       if (isIsoBaseMediaFile(body)) {
-        return c.json(UNSUPPORTED_TYPE_BODY, 415)
+        return c.json(HEIF_REFUSED_BODY, 415)
       }
 
       try {

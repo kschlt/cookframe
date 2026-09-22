@@ -79,6 +79,19 @@ describe("protections/the-photo-door-is-no-wider-than-the-vendor", () => {
     await refusedBeforeSending("image/heif")
   })
 
+  it("refuses any format outside the provider's list, not only the two this unit is about", async () => {
+    // The rule is an allowlist. Held with formats that are neither HEIC nor
+    // HEIF, so a check written as a denylist of those two cannot pass here.
+    for (const mediaType of ["image/tiff", "image/bmp", "image/avif"]) {
+      const error = await transport()
+        .send(withImage(mediaType))
+        .catch((e: unknown) => e)
+      expect(error, `${mediaType} was sent to a provider that does not read it`).toBeInstanceOf(
+        UnsupportedImageMediaTypeError,
+      )
+    }
+  })
+
   it("sends a format the provider reads, so the refusal above is not a refusal of everything", async () => {
     const error = await transport()
       .send(withImage("image/jpeg"))

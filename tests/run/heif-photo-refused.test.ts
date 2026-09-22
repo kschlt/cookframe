@@ -4,8 +4,9 @@
  * ends in a 500.
  *
  * The provider's vision guide lists PNG, JPEG, WEBP and GIF. The photo route
- * accepted `image/heic` and `image/heif` as well, so a HEIC was kept, handed to
- * capture, sent, and failed at the vendor. No proof saw it, because every proof
+ * accepted `image/heic` and `image/heif` as well, so a HEIC would have been
+ * kept, handed to capture, sent, and refused by the vendor (from its
+ * documentation; no HEIC has been sent to it from here). No proof saw it, because every proof
  * of the route ran on the deterministic fake, which reads any bytes. So a HEIC
  * is now refused in two places, and this file measures both on a running
  * instance:
@@ -89,6 +90,26 @@ const REFUSAL = {
   message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}; a HEIC or HEIF photo has to be sent as JPEG`,
 }
 
+/**
+ * A HEIF-family body with the given `ftyp` brand. `heic` is an iPhone still;
+ * `heix`, `mif1` and `msf1` are other HEIF brands a camera writes, and `avif` is
+ * the same container around another codec. The provider reads none of them.
+ */
+const isoBody = (brand: string): Uint8Array =>
+  new Uint8Array([
+    0x00,
+    0x00,
+    0x00,
+    0x18,
+    ...new TextEncoder().encode(`ftyp${brand}`),
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    ...new TextEncoder().encode(`mif1${brand}`),
+    ...new TextEncoder().encode("Synthetic HEIF Loaf"),
+  ])
+
 describe("run/a-heif-photograph-is-refused-before-the-model", () => {
   // Bytes that are NOT a HEIF container, so the byte check below cannot answer
   // for the type check: only the declared type refuses these. One named proof
@@ -119,6 +140,29 @@ describe("run/a-heif-photograph-is-refused-before-the-model", () => {
       keptUnder(volume).some((kept) => kept.equals(Buffer.from(heic))),
       "a photograph that passed the door was not kept",
     ).toBe(true)
+  })
+
+  it("refuses every brand of the container, not only an iPhone still's", async () => {
+    // The check reads the container, not the brand after it. Held with brands
+    // other than `heic`, so a check narrowed to the one brand the case above
+    // uses cannot pass here.
+    const { reads } = await instance()
+    for (const brand of ["heix", "mif1", "msf1", "avif"]) {
+      const res = await submit(isoBody(brand), "image/jpeg")
+      expect(res.status, `only some brands were refused: ${brand} passed`).toBe(415)
+    }
+    expect(reads(), "a HEIF-family body was handed to capture").toBe(0)
+  })
+
+  it("tells a type that is not a photograph only what this instance accepts", async () => {
+    // The HEIF sentence is advice for a HEIF photograph; a PDF gets the list.
+    await instance()
+    const res = await submit(captureBody("Synthetic Loaf as a PDF"), "application/pdf")
+    expect(res.status).toBe(415)
+    expect(await res.json()).toEqual({
+      error: "unsupported_media_type",
+      message: `this instance accepts ${ACCEPTED_CAPTURE_TYPES.join(", ")}`,
+    })
   })
 
   it("reads the container's own marker, not the word wherever it appears", async () => {
