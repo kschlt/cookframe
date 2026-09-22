@@ -27,9 +27,10 @@
  * It is not decidable when a name is composed: a template with a substitution,
  * or anything registered through `.each` / `.for`, whose names come from a
  * table. Those are counted as {@link Composed} and left to the instrument's own
- * refusal at run time. The caller pins how many there are, so a regression that
- * reclassifies literal names as composed turns red instead of quietly shrinking
- * the set this checks.
+ * refusal at run time. The caller pins how many there are in each file, so a
+ * regression that reclassifies literal names as composed turns red instead of
+ * quietly shrinking the set this checks, and so does a new registration whose
+ * name the guard cannot see.
  *
  * The path is taken from where a registration is WRITTEN. A helper function that
  * registers tests from outside the `describe` that calls it would be read with
