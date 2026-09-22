@@ -16,7 +16,7 @@ import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import ts from "typescript"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { programOverTree, programsBuiltIn } from "./src-program.js"
+import { programOverDir, programOverTree, programsBuiltIn } from "./src-program.js"
 import { filesUnder, SOURCE_EXTENSIONS } from "./tree.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
@@ -60,7 +60,7 @@ describe("support/the-program-over-src-reads-what-the-compiler-compiles", () => 
   afterAll(() => rmSync(root, { recursive: true, force: true }))
 
   it("reads one file of every source extension, and nothing else", () => {
-    expect(toRepo(programOverTree(root).getRootFileNames(), root)).toEqual([
+    expect(toRepo(programOverDir(root).getRootFileNames(), root)).toEqual([
       "a.ts",
       "b.mts",
       "c.cts",

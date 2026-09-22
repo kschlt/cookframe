@@ -43,6 +43,14 @@
  * suite builds a type-checked program is also named there, with how many
  * programs it builds, so the next program arrives as a decision rather than as
  * another copy.
+ *
+ * The compiler holds the fourth. The guards assert empty sets, so a guard that
+ * read less of the tree would only make its own assertion easier to satisfy,
+ * and nothing downstream would notice. So the function the guards call takes
+ * no directory, and a guard that narrows its reading does not compile.
+ * Measured: `programOverTree(join(repoRoot, "src", "pipeline"))` in the seam
+ * guard is `error TS2554: Expected 0 arguments, but got 1`. While the function
+ * still took a directory, the same call left all three suites green.
  */
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -51,7 +59,12 @@ import { filesUnder, SOURCE_EXTENSIONS } from "./tree.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
-/** The options `tsc` type-checks the repository with, read from its `tsconfig.json`. */
+/**
+ * The options `tsc` type-checks the repository with, read from its
+ * `tsconfig.json`. Read again on every call rather than held in a constant: a
+ * held copy would be a second copy of the options, which is what this module
+ * exists to remove.
+ */
 export function repositoryCompilerOptions(): ts.CompilerOptions {
   const config = ts.readConfigFile(join(repoRoot, "tsconfig.json"), ts.sys.readFile)
   return ts.parseJsonConfigFileContent(config.config, ts.sys, repoRoot).options
@@ -59,14 +72,23 @@ export function repositoryCompilerOptions(): ts.CompilerOptions {
 
 /**
  * A program over every source file under `dir`, typed the way `tsc` types the
- * repository. `dir` is `src/` except in the proof of this function's own
- * breadth.
+ * repository. Only the proof of the walk's breadth calls it with a directory of
+ * its own; the guards call {@link programOverTree}.
  */
-export function programOverTree(dir: string = join(repoRoot, "src")): ts.Program {
+export function programOverDir(dir: string): ts.Program {
   return ts.createProgram(
     filesUnder(dir, { match: SOURCE_EXTENSIONS }),
     repositoryCompilerOptions(),
   )
+}
+
+/**
+ * The program over `src/` the guards read. It takes no directory, so a guard
+ * cannot read less of the tree than the others: a call that passes one does
+ * not compile.
+ */
+export function programOverTree(): ts.Program {
+  return programOverDir(join(repoRoot, "src"))
 }
 
 /** The compiler API calls that build a program, each of which type-checks what it is handed. */
