@@ -38,6 +38,7 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { parse as parseYaml } from "yaml"
 import {
+  BEFORE_ROUND_FOUR,
   findClaims,
   PLATFORM_SETTINGS,
   parseRecord,
@@ -193,6 +194,106 @@ describe("protections/no-unbacked-claim-about-a-setting", () => {
     // And a sentence about none of these subjects is not a claim about them,
     // however assertively it is phrased.
     expect(claims("The url-fetch-security job is enabled on every pull request.")).toBe(0)
+  })
+
+  it("tells a claim apart from a question, a condition and a wish", () => {
+    // ROUND FOUR. The three shapes above — requirement, denial, wrong subject —
+    // are the ones `CFV1-PROT` measured. These three fired through all of them:
+    // each carries the verb, mentions a setting, denies nothing and asserts
+    // nothing about today, so the record was required to back a question, a
+    // hypothetical and a wish. Measured through the shipped detector before the
+    // filters existed; the reference below re-measures it on every run rather
+    // than leaving that in this comment.
+    const claims = (s: string): number => findClaims(s).length
+
+    // A QUESTION asks; it does not state.
+    expect(claims("Is branch protection enabled on this repository?")).toBe(0)
+    expect(claims("## Is secret scanning enabled?")).toBe(0)
+
+    // ...and a question mark that is not the END of the unit does not make one.
+    // This pair is the fixture that should have existed before the anchor on
+    // `ASKS` was deleted for want of it: the sentence splitter is
+    // `(?<=[.!?;])\s+`, so a `?` with no whitespace after it — inside a command,
+    // a query string, a filename — never ends a unit, and an unanchored filter
+    // swallows the whole claim around it. Measured in review on the head that
+    // had no anchor: spared, while `main` caught it.
+    expect(
+      claims(
+        "Secret scanning with push protection is enabled on this repository (`gh api repos/:o/:r?foo=1`).",
+      ),
+    ).toBe(1)
+    expect(claims("Branch protection is enabled; see the settings page (`?tab=security`).")).toBe(1)
+
+    // A CONDITION describes what would follow, not what is.
+    expect(claims("If secret scanning is enabled, the job fails on a detected credential.")).toBe(0)
+    expect(claims("This test fails unless push protection is enabled.")).toBe(0)
+    expect(claims("Whether branch protection is enabled is recorded in the record.")).toBe(0)
+
+    // A WISH says what the project wants, which is what the backlog is for.
+    expect(claims("We want branch protection enabled before the first external contributor.")).toBe(
+      0,
+    )
+
+    // AND THE OTHER SIDE, which is the half that decides whether these filters
+    // can ship. Narrowing a guard risks a miss, and a miss here is a false
+    // statement about this repository's security posture that nobody has to
+    // back. Each of these sits one word from a case above.
+    //
+    // The marker has to precede the verb: a claim with an aside is still a
+    // claim, and a filter that only asked whether the word appears anywhere
+    // would silence this one.
+    //
+    // NO COMMA in this one, and that is the point rather than style: with a
+    // comma the clause split hands back "Secret scanning is enabled" on its own,
+    // which is a claim whatever the marker rule says — so a comma version stayed
+    // green with the ordering requirement deleted. The planted violation has to
+    // fail at the condition it is named for.
+    expect(claims("Secret scanning is enabled if you check the settings page.")).toBe(1)
+
+    // `when` and `once` are deliberately not markers — they read as conditional
+    // in isolation and as narration in a real sentence. Both sit BEFORE the verb
+    // here, because after it they are spared by the ordering rule instead and
+    // adding them to the marker list changes nothing.
+    expect(claims("When we launched branch protection was enabled.")).toBe(1)
+    expect(claims("Once set up secret scanning is enabled for every push.")).toBe(1)
+  })
+
+  it("the narrower reference this replaces treats all three as claims", () => {
+    // The breadth, executed. `BEFORE_ROUND_FOUR` is this same detector with the
+    // three filters dropped and nothing else changed, so what separates it from
+    // the shipped one is the widening itself.
+    //
+    // A COUNT rather than a spot check: deleting a fixture above to make some
+    // later change pass shows up on this line instead of passing quietly.
+    const spared = [
+      "Is branch protection enabled on this repository?",
+      "## Is secret scanning enabled?",
+      "If secret scanning is enabled, the job fails on a detected credential.",
+      "This test fails unless push protection is enabled.",
+      "Whether branch protection is enabled is recorded in the record.",
+      "We want branch protection enabled before the first external contributor.",
+    ]
+    for (const s of spared) {
+      expect(findClaims(s), s).toEqual([])
+      expect(findClaims(s, BEFORE_ROUND_FOUR).length, s).toBeGreaterThan(0)
+    }
+    expect(spared).toHaveLength(6)
+
+    // And the narrowing is not blunt: every claim the old reference caught that
+    // is genuinely a claim is still caught. This is the direction that matters,
+    // because a miss here is a false security statement nobody has to back.
+    const stillClaims = [
+      "Secret scanning is enabled on this repository.",
+      "Branch protection is currently enabled.",
+      "| Secret scanning | enabled | 2026-09-22 |",
+      "We have enabled secret scanning with push protection.",
+      "Branch protection remains enabled.",
+      "Secret scanning is enabled, if you want to check the settings page.",
+    ]
+    for (const s of stillClaims) {
+      expect(findClaims(s).length, s).toBe(findClaims(s, BEFORE_ROUND_FOUR).length)
+      expect(findClaims(s).length, s).toBeGreaterThan(0)
+    }
   })
 
   it("the record itself carries a state, a person and a date for every setting", () => {

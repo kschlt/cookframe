@@ -1,10 +1,10 @@
 # Development and CI container for Cookframe (CFV1-SL0, ADR-0001).
 #
 # It is the same shape an operator runs (PDR-0002: self-hosted, single-user):
-# Node 22 with the project's dependencies installed, running the documented
+# Node 26 with the project's dependencies installed, running the documented
 # commands a contributor runs locally. It carries no secrets — configuration
 # arrives through the environment at run time (see .env.example, SECURITY.md).
-FROM node:22-slim
+FROM node:26-slim
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ WORKDIR /app
 # both incidents CFV1-BASE exists to catch were pairs of changes whose spelling
 # was impeccable; nothing short of performing a merge distinguishes them.
 #
-# `node:22-slim` carries no git, so without this the container job fails with
+# `node:26-slim` carries no git, so without this the container job fails with
 # `spawnSync git ENOENT` — which is the correct signal and how this line came
 # to be here. Do not answer that failure by skipping those proofs when git is
 # missing: a skipped proof reports success, and the container job would then

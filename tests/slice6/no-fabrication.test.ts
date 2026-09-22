@@ -26,7 +26,18 @@ import {
   resolvesInCanonical,
 } from "./fixtures.js"
 
-/** Every key the plan contract declares, anywhere in its tree. */
+/**
+ * Every key the plan contract declares, anywhere in its tree.
+ *
+ * The keys this reaches through are Zod v4's, and the difference from v3 is
+ * exactly why the bound in the first `it` below is load-bearing rather than
+ * decorative: under v4 an object's `shape` is a plain object where it used to
+ * be a function, and an array's element moved from `type` to `element`. Read
+ * with v3's keys against a v4 schema this walk throws nothing and finds
+ * NOTHING — every assertion about what the contract must not declare then
+ * passes over an empty set. It was measured in that state, and only the size
+ * bound turned it red.
+ */
 const contractKeys = (): ReadonlySet<string> => {
   const keys = new Set<string>()
   const walk = (schema: unknown, depth: number): void => {
@@ -34,13 +45,17 @@ const contractKeys = (): ReadonlySet<string> => {
     const def = (schema as { _def?: Record<string, unknown> })._def
     if (def === undefined) return
     const shape = def.shape
-    if (typeof shape === "function") {
-      for (const [key, value] of Object.entries(shape() as Record<string, unknown>)) {
+    if (shape !== null && typeof shape === "object") {
+      for (const [key, value] of Object.entries(shape as Record<string, unknown>)) {
         keys.add(key)
         walk(value, depth + 1)
       }
     }
-    for (const nested of ["innerType", "type", "schema"]) {
+    // The single-child wrappers, by the names v4 gives them: `optional`,
+    // `nullable`, `default` and `readonly` hold `innerType`, an array holds
+    // `element`, a record holds `valueType`, and a `.transform` is a pipe with
+    // `in` and `out`.
+    for (const nested of ["innerType", "element", "valueType", "in", "out"]) {
       if (def[nested] !== undefined) walk(def[nested], depth + 1)
     }
     if (Array.isArray(def.options)) for (const option of def.options) walk(option, depth + 1)
@@ -56,10 +71,18 @@ describe("slice6/no-amount-changes", () => {
     for (const forbidden of ["value", "minValue", "maxValue"]) {
       expect([...keys], `the plan contract exposes ${forbidden}`).not.toContain(forbidden)
     }
-    // The walk must be able to see a key it should reject, or the loop above is
-    // satisfied by a walk that sees nothing.
-    expect([...keys]).toContain("sourceRefs")
-    expect([...keys]).toContain("measurable")
+    // Two floors, and a measurement that says which one does the work. The size
+    // bound above catches a walk that recognises NOTHING; it does not catch one
+    // that recognises most of it. Planted: reading the wrapper keys as v3 named
+    // them leaves the walk finding nineteen keys — past `> 15` — having stopped
+    // descending into arrays. `measurable` is a field of `PlanAmount`, and a
+    // unit's amounts are an array, so it is the key that turns that partial
+    // walk red. `sourceRefs` is reachable without one, and stays as the coarser
+    // of the two.
+    expect([...keys], "the walk no longer reaches a key behind a plain object").toContain(
+      "sourceRefs",
+    )
+    expect([...keys], "the walk no longer descends into arrays").toContain("measurable")
   })
 
   it("carries only wordings the canonical itself states", () => {
