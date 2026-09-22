@@ -54,13 +54,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # The Python the scorer's self-test runs under is PINNED. An unpinned
+      # runtime turns a future interpreter change into a mystery failure on an
+      # unrelated pull request — the scorer would start passing or failing for a
+      # reason no diff explains.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: npm ci
       - run: npm run test:unit
       # The S1 scorer's discrimination proof. It is Python and lives under
       # `spikes/`, so no other job in this workflow would ever run it — and
       # `spikes/s1-photo-gate/VERDICT.md` names `--selftest` as one of the four
       # committed things that decide what the gate's rates mean. A proof the
-      # gate never runs is a proof nobody is checking.
+      # gate never runs is a proof nobody is checking. A non-zero exit fails the
+      # job (no continue-on-error), so a scorer whose self-test stops
+      # discriminating breaks the build here.
       - run: python3 spikes/s1-capture-quality/score.py --selftest
 
   schema-contract:

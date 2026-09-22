@@ -5,7 +5,17 @@
  * protection, Dependabot, branch protection) and this instance's `commands.*`
  * seams are CFV1-PROT and are deliberately not asserted here.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
@@ -110,6 +120,111 @@ describe("CI workflow (ci.yml)", () => {
       .filter((r): r is string => typeof r === "string")
       .join("\n")
     expect(runs, "no CI job runs the S1 scorer's self-test").toMatch(/score\.py --selftest/)
+  })
+
+  it("ci/scorer-selftest-job-exists — a CI step runs the scorer's self-test and fails on non-zero exit", () => {
+    // CFV1-CIPY. The self-test is the scorer's discrimination proof, and it is
+    // Python under `spikes/`, so no npm script reaches it. A step must run it,
+    // and a non-zero exit must fail the build — a job that skips when Python is
+    // absent is worse than none, because it reports success.
+    const step = Object.values(workflow.jobs)
+      .flatMap((j) => j.steps ?? [])
+      .find((s) => typeof s.run === "string" && /score\.py --selftest/.test(s.run))
+    expect(step, "no CI step runs `score.py --selftest`").toBeTruthy()
+    expect(
+      (step as { "continue-on-error"?: boolean })["continue-on-error"] ?? false,
+      "the self-test step is allowed to fail without failing the build",
+    ).toBe(false)
+    // The Python it runs under is pinned, so a future interpreter change cannot
+    // silently move what the scorer reports (a CFV1-CIPY constraint).
+    const pythonPin = Object.values(workflow.jobs)
+      .flatMap((j) => j.steps ?? [])
+      .find((s) => typeof s.uses === "string" && s.uses.startsWith("actions/setup-python"))
+    expect(pythonPin, "the Python running the self-test is not pinned").toBeTruthy()
+    expect(
+      (pythonPin as { with?: Record<string, unknown> }).with?.["python-version"],
+      "setup-python names no version",
+    ).toBeTruthy()
+  })
+
+  it("ci/scorer-selftest-discriminates — a broken scorer fails the self-test rather than passing it", () => {
+    // "The self-test passes" means nothing unless a broken scorer makes it fail,
+    // and that is exactly the property the scorer's own review found unproven for
+    // the rule that had changed. So this runs the self-test twice: once on the
+    // shipped file, and once on a COPY with the exact narrowing the extraction
+    // commit exists to catch re-applied — the time selection filtered down to
+    // ("prep", "cook", "total"), which drops keys from an `all(...)` and can only
+    // turn misses into hits. The copy must fail; the original must pass. A copy
+    // is mutated, never the shipped file.
+    const scorer = join(repoRoot, "spikes", "s1-capture-quality", "score.py")
+    const source = readFileSync(scorer, "utf8")
+    const marker = 'return {k: v for k, v in (truth.get("times") or {}).items() if v}'
+    expect(source, "the self-test's discriminating line moved; update this proof").toContain(marker)
+
+    const runSelftest = (file: string) =>
+      spawnSync("python3", [file, "--selftest"], { encoding: "utf8" })
+    const pristine = runSelftest(scorer)
+    expect(pristine.error, "python3 is unavailable to the discrimination proof").toBeFalsy()
+    expect(pristine.status, "the shipped scorer's self-test does not pass").toBe(0)
+
+    const dir = mkdtempSync(join(tmpdir(), "cipy-mut-"))
+    try {
+      const broken = join(dir, "score.py")
+      writeFileSync(
+        broken,
+        source.replace(
+          marker,
+          'return {k: (truth.get("times") or {}).get(k) for k in ("prep", "cook", "total") if (truth.get("times") or {}).get(k)}',
+        ),
+      )
+      const mutated = runSelftest(broken)
+      expect(
+        mutated.status,
+        "the narrowing the self-test exists to catch did NOT make it fail",
+      ).not.toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("ci/scorer-rules-unchanged — the scorer's pre-registered bars are byte-identical to THRESHOLD.md's", () => {
+    // CFV1-CIPY makes the scorer RUN; it must not change what the scorer
+    // MEASURES. The bars are pre-registered, so a silent edit to one is the same
+    // failure shape as relaxing a threshold after seeing a score. Pinning the
+    // exact numbers here makes any such edit a red test with a diff, rather than
+    // a number that drifts unnoticed.
+    const source = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "score.py"), "utf8")
+    const barsOf = (name: string): Record<string, number> => {
+      const body = source.match(new RegExp(`${name} = \\{([^}]*)\\}`, "s"))?.[1]
+      expect(body, `${name} not found in the scorer`).toBeTruthy()
+      const bars: Record<string, number> = {}
+      for (const [, key, value] of (body as string).matchAll(/"([^"]+)":\s*([0-9.]+)/g)) {
+        if (key !== undefined) bars[key] = Number(value)
+      }
+      return bars
+    }
+    expect(barsOf("FIELD_BARS")).toEqual({
+      "ingredient.quantity": 0.98,
+      "ingredient.unit": 0.98,
+      split_reserved: 0.98,
+      temperature: 0.98,
+      multiple_yields: 0.98,
+      "ingredient.name": 0.95,
+      "instruction.text": 0.95,
+      "instruction.order": 0.95,
+      title: 0.95,
+      yield: 0.95,
+      time: 0.95,
+      ingredient_group: 0.9,
+      nutrition: 0.9,
+      classification: 0.9,
+    })
+    expect(barsOf("EDGE_BARS")).toEqual({
+      fractions: 0.98,
+      ranges: 0.98,
+      ambiguous_units: 0.95,
+      multiple_yields: 0.98,
+    })
   })
 
   it("dbq/ci-provides-the-database — the dbq job runs against a real PostgreSQL service", () => {
