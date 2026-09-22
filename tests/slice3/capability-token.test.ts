@@ -199,7 +199,11 @@ describe("grants/the-repository-never-receives-the-token", () => {
       JSON.stringify([digest]),
       JSON.stringify([digest]),
     ])
-    // …and the token itself never did.
+    // …and the token itself never did. The two assertions hold different
+    // negatives, each measured by a plant: handing the repository the token in
+    // place of its digest dies at the list above, and a digest that returns the
+    // token unchanged passes the list — its expected values are computed by the
+    // same function — and dies only at this line.
     for (const call of seen) expect(call).not.toContain(grant.token)
   })
 

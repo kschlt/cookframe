@@ -61,7 +61,8 @@ reads on every request and which the operator's share routes mint and revoke thr
    timestamp, and never expires. ADR-0016 point 5 already decided the substance: revoked secrets are
    retained so that a secret can never be re-minted onto a different recipe. This record decides the
    persistent form, and the kept row is what enforces that point. Its digest stays taken, so minting
-   meets a conflict and mints again. Revocation is also final: there is no un-revoke, because a
+   meets a conflict and mints again; a deleted row would free the digest to be minted onto another
+   recipe. Revocation is also final: there is no un-revoke, because a
    token someone believed exposed must never come back reaching a recipe.
 
 4. **A held digest is never overwritten.** Storing a grant is an insert that does nothing on
@@ -89,14 +90,16 @@ reads on every request and which the operator's share routes mint and revoke thr
 
 8. **The contract suite carries the operations, and the restart is proved outside it.** The three
    operations are proven in the shared suite that runs against every store (ADR-0025 point 7),
-   including the refusal of a revoked digest. That suite cannot see this record's point. A store
-   that kept grants in a map on the store object passes every contract proof, and this was measured.
+   including the refusal of a revoked digest. That suite cannot see this record's point, and this
+   was measured: a PostgreSQL store that keeps all three grant operations in a map on the store
+   object passes every contract proof, 53 of 53, and fails only the two restart proofs below. The
+   contract proves that a store answers correctly; it does not prove that it remembers.
    Durability is therefore proved twice outside the contract:
    - at the store, by a second store object built from the connection string alone;
-   - at the process an operator starts, by `main.ts` spawned twice on one database. The second
-     process serves the URL and the recipe page alike and still refuses the revoked URL. The first
-     process also mints and revokes mid-run, so an instance that read its grants once at startup
-     fails.
+   - at the process an operator starts, by `main.ts` spawned twice on one database, minting and
+     revoking through the share routes. The second process serves the URL and the recipe page
+     alike and still refuses the revoked URL. In the first, a URL fetched before its revocation
+     must stop answering after it, so an instance that remembered what it had resolved fails.
 
 The widened operation set is therefore:
 - `storeSnapshot`, `loadSnapshot`, `appendCanonicalVersion`, `loadLatestCanonical`;
