@@ -29,10 +29,7 @@ import {
   type RunningInstance,
   startInstance,
 } from "../../src/server/instance.js"
-import {
-  type CapabilityStore,
-  createInMemoryCapabilityStore,
-} from "../../src/shopping/capability-token.js"
+import { type CapabilityStore, createCapabilityStore } from "../../src/shopping/capability-token.js"
 import type { ByteStore } from "../../src/storage/index.js"
 import { unsuppliedByteSource, unsuppliedUrlCapture } from "../security/unsupplied-byte-source.js"
 import { scratchByteStore } from "../support/scratch-byte-store.js"
@@ -225,7 +222,7 @@ export const UNBOUND_PUBLIC_BASE_URL = "https://unbound.invalid"
  */
 export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanceParts {
   const repo = createProvisionalStore()
-  const capabilityStore = options.capabilityStore ?? createInMemoryCapabilityStore()
+  const capabilityStore = options.capabilityStore ?? createCapabilityStore(repo)
   const closed = { count: 0 }
   let n = 0
 

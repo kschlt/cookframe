@@ -22,6 +22,14 @@
  * The token is minted as a base64url string, which is path-safe by construction,
  * and {@link capabilityPath} places it in a path segment.
  *
+ * **Grants are kept by the repository, not by this module (ADR-0032).**
+ * "Permanent" has to survive the machine stopping when idle (ADR-0026), or the
+ * URL Bring kept dies at the first stop while the recipe it names is still
+ * there. So the store here holds nothing of its own: it mints, takes the token's
+ * digest, and hands the digest to {@link RecipeRepository}. The repository never
+ * sees the token, which is what keeps a leaked database from being a list of
+ * working URLs.
+ *
  * Minting is the one non-deterministic act (an unguessable secret needs a
  * CSPRNG); it is behind an injected {@link TokenMinter} so a test can mint
  * predictable tokens through the same path production uses (cf. the S5 seam
@@ -29,7 +37,8 @@
  * primitive, so it sits outside `src/security/`, and declares no contract shape.
  */
 
-import { randomBytes } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
+import type { RecipeRepository } from "../persistence/index.js"
 
 /** Token entropy: 256 bits, emitted as 43 base64url characters (no padding). */
 export const CAPABILITY_TOKEN_BYTES = 32
@@ -82,48 +91,66 @@ export interface CapabilityStoreOptions {
 /** How many times to re-mint on the astronomically-unlikely event of a collision. */
 const MAX_MINT_ATTEMPTS = 8
 
-class InMemoryCapabilityStore implements CapabilityStore {
-  readonly #grants = new Map<string, CapabilityGrant>()
+/**
+ * The digest a grant is kept under (ADR-0032): SHA-256 of the token, as
+ * base64url.
+ *
+ * Unsalted on purpose. A salt defends a low-entropy secret against a table
+ * built in advance, and this secret is 256 bits from a CSPRNG, so there is no
+ * table to build. A salt would also cost the one read the serving route makes,
+ * because a presented token could no longer be looked up by its digest.
+ */
+export function capabilityTokenDigest(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("base64url")
+}
+
+class RepositoryCapabilityStore implements CapabilityStore {
+  readonly #repo: RecipeRepository
   readonly #mint: TokenMinter
 
-  constructor(mint: TokenMinter) {
+  constructor(repo: RecipeRepository, mint: TokenMinter) {
+    this.#repo = repo
     this.#mint = mint
   }
 
   async issue(recipeId: string): Promise<CapabilityGrant> {
-    let token = this.#mint()
-    for (let attempt = 1; this.#grants.has(token); attempt++) {
-      if (attempt >= MAX_MINT_ATTEMPTS) {
-        throw new Error("capability token minter produced repeated collisions")
-      }
-      token = this.#mint()
+    // The store refuses a digest it already holds, active or revoked, and a
+    // refusal is answered by minting again — never by overwriting.
+    for (let attempt = 1; attempt <= MAX_MINT_ATTEMPTS; attempt++) {
+      const token = this.#mint()
+      const stored = await this.#repo.storeCapabilityGrant({
+        tokenDigest: capabilityTokenDigest(token),
+        recipeId,
+      })
+      if (stored) return { token, recipeId, revoked: false }
     }
-    const grant: CapabilityGrant = { token, recipeId, revoked: false }
-    this.#grants.set(token, grant)
-    return grant
+    throw new Error("capability token minter produced repeated collisions")
   }
 
   async resolve(token: string): Promise<string | undefined> {
-    const grant = this.#grants.get(token)
-    if (grant === undefined || grant.revoked) return undefined
-    return grant.recipeId
+    return await this.#repo.resolveCapabilityGrant(capabilityTokenDigest(token))
   }
 
   async revoke(token: string): Promise<boolean> {
-    const grant = this.#grants.get(token)
-    if (grant === undefined || grant.revoked) return false
-    this.#grants.set(token, { ...grant, revoked: true })
-    return true
+    return await this.#repo.revokeCapabilityGrant(capabilityTokenDigest(token))
   }
 }
 
 /**
- * Create an in-memory capability store. Production passes no options and gets the
- * CSPRNG minter; a test may inject a deterministic {@link TokenMinter}. The
- * concrete class is unexported — callers depend on {@link CapabilityStore} only.
+ * Create the capability store over `repo` (ADR-0032). The grants live wherever
+ * the repository keeps things, so a store built on the durable repository keeps
+ * every grant across a restart, and one built on the provisional repository is a
+ * test double that survives nothing.
+ *
+ * Production passes no options and gets the CSPRNG minter; a test may inject a
+ * deterministic {@link TokenMinter}. The concrete class is unexported — callers
+ * depend on {@link CapabilityStore} only.
  */
-export function createInMemoryCapabilityStore(options?: CapabilityStoreOptions): CapabilityStore {
-  return new InMemoryCapabilityStore(options?.mint ?? createCryptoTokenMinter())
+export function createCapabilityStore(
+  repo: RecipeRepository,
+  options?: CapabilityStoreOptions,
+): CapabilityStore {
+  return new RepositoryCapabilityStore(repo, options?.mint ?? createCryptoTokenMinter())
 }
 
 /** The base64url alphabet: exactly the characters that are safe in a URL path segment. */

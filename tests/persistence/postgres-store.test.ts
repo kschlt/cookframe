@@ -26,6 +26,10 @@ import {
   StoreNotMigratedError,
 } from "../../src/persistence/index.js"
 import { createFakeNormalizationProvider } from "../../src/pipeline/fake-providers.js"
+import {
+  capabilityTokenDigest,
+  createCapabilityStore,
+} from "../../src/shopping/capability-token.js"
 import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
 import {
   applyMigration,
@@ -215,6 +219,7 @@ withDatabase("persistence/the-migration-builds-the-store", () => {
     // deployed.
     expect(MIGRATION_SQL).toMatch(/create table recipe_version/)
     expect(MIGRATION_SQL).toMatch(/create table cooking_plan/)
+    expect(MIGRATION_SQL).toMatch(/create table capability_grant/)
     const tables = await inspect(schema, async (client) => {
       const result = await client.query<{ table_name: string }>(
         "select table_name from information_schema.tables where table_schema = $1 order by table_name",
@@ -222,7 +227,13 @@ withDatabase("persistence/the-migration-builds-the-store", () => {
       )
       return result.rows.map((r) => r.table_name)
     })
-    expect(tables).toEqual(["cooking_plan", "ingredient", "recipe_version", "snapshot"])
+    expect(tables).toEqual([
+      "capability_grant",
+      "cooking_plan",
+      "ingredient",
+      "recipe_version",
+      "snapshot",
+    ])
   })
 
   it("builds a store the repository can immediately write to and read back", async () => {
@@ -263,6 +274,7 @@ withDatabase("persistence/the-migration-builds-the-store", () => {
     expect(MIGRATIONS.map((m) => m.path.replace(/^.*\/migrations\//, ""))).toEqual([
       "0001-the-recipe-store.sql",
       "0002-the-cooking-plan.sql",
+      "0003-the-capability-grant.sql",
     ])
     for (const migration of MIGRATIONS) {
       const name = migration.path.replace(/^.*\/migrations\//, "")
@@ -318,6 +330,50 @@ withDatabase("persistence/a-restart-keeps-the-library", () => {
     const loaded = await restarted.repository.loadLatestCanonical(appended.recipeId)
     expect(loaded?.version).toBe(1)
     expect(loaded?.recipe.provenance.runId).toBe("run-1")
+  })
+})
+
+withDatabase("persistence/a-restart-keeps-every-grant", () => {
+  it("a grant minted through one store object resolves through the next, and a revoked one stays revoked", async () => {
+    // The durability ADR-0032 exists for, at the store: a grant is kept where
+    // the library is, so a pool closed and a new one built from the URL alone
+    // — which is all an instance restarting has — still reaches it.
+    const { handle, schema } = await freshStore()
+    const minting = createCapabilityStore(handle.repository)
+    const kept = await minting.issue("recipe-kept")
+    const revoked = await minting.issue("recipe-revoked")
+    expect(await minting.revoke(revoked.token)).toBe(true)
+    await handle.close()
+    opened.splice(opened.indexOf(handle), 1)
+
+    const restarted = createPostgresStore(schema.url)
+    opened.push(restarted)
+    const serving = createCapabilityStore(restarted.repository)
+    expect(await serving.resolve(kept.token)).toBe("recipe-kept")
+    expect(await serving.resolve(revoked.token)).toBeUndefined()
+    // Revocation survived as well as the grant, and did so as a kept row: the
+    // revoked digest is still taken, so it cannot be minted onto another recipe.
+    expect(
+      await restarted.repository.storeCapabilityGrant({
+        tokenDigest: capabilityTokenDigest(revoked.token),
+        recipeId: "recipe-other",
+      }),
+    ).toBe(false)
+  })
+
+  it("keeps the digest in the table and the token nowhere in it", async () => {
+    // Read through the table rather than the store, because the claim is about
+    // what a copy of the database hands whoever holds it.
+    const { handle, schema } = await freshStore()
+    const grant = await createCapabilityStore(handle.repository).issue("recipe-A")
+    const rows = await inspect(schema, async (client) => {
+      const result = await client.query("select * from capability_grant")
+      return result.rows as Record<string, unknown>[]
+    })
+    expect(rows).toEqual([
+      { token_digest: capabilityTokenDigest(grant.token), recipe_id: "recipe-A", revoked: false },
+    ])
+    expect(JSON.stringify(rows)).not.toContain(grant.token)
   })
 })
 
@@ -655,6 +711,9 @@ withDatabase("persistence/an-unmigrated-database-says-so", () => {
       // sends an operator to the wrong migration now that it holds two.
       await expect(handle.repository.loadCookingPlan("nobody", 1)).rejects.toThrow(
         /no `cooking_plan` table/,
+      )
+      await expect(handle.repository.resolveCapabilityGrant("nobody")).rejects.toThrow(
+        /no `capability_grant` table/,
       )
       await expect(handle.repository.listLibrary()).rejects.toThrow(/0001-the-recipe-store\.sql/)
     } finally {
