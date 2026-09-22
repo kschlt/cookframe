@@ -19,11 +19,10 @@
  */
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import ts from "typescript"
 import { describe, expect, it } from "vitest"
-import { filesUnder } from "../support/tree.js"
+import { programOverTree } from "../support/src-program.js"
 import { repoRoot } from "./majors.js"
-import { blindSpotsIn, fakeFilesIn, programFromSources, programOver } from "./seam-fields.js"
+import { blindSpotsIn, fakeFilesIn, programFromSources } from "./seam-fields.js"
 
 /**
  * Each blind spot in the tree, and the proof that answers it by running the
@@ -54,11 +53,7 @@ const CALLERS_PROVED_OVER_THE_SHIPPED_IMPLEMENTATION: Readonly<
 }
 
 const srcRoot = join(repoRoot, "src")
-const tree = (() => {
-  const config = ts.readConfigFile(join(repoRoot, "tsconfig.json"), ts.sys.readFile)
-  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, repoRoot)
-  return programOver(filesUnder(srcRoot, { match: /\.ts$/ }), parsed.options)
-})()
+const tree = programOverTree()
 
 describe("protections/a-fake-cannot-hide-a-missing-field", () => {
   it("counts the fakes the suite runs on", () => {

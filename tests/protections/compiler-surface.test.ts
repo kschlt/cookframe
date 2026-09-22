@@ -41,24 +41,28 @@ const PARSE = [
 
 /** Each file that calls the compiler API, and what it calls. */
 const COMPILER_API_IN_USE: Readonly<Record<string, readonly string[]>> = {
+  "tests/protections/capture-provenance.test.ts": ["ScriptReferenceHost.getCompilerOptions"],
   "tests/protections/capture-provenance.ts": [
-    ...PARSE,
     "CompilerHost.getSourceFile",
     "ModuleResolutionHost.directoryExists",
     "ModuleResolutionHost.fileExists",
     "ModuleResolutionHost.readFile",
+    "Node.getStart",
     "Node.getText",
+    "Program.getRootFileNames",
     "Program.getTypeChecker",
     "ScriptReferenceHost.getSourceFile",
+    "SourceFile.getLineAndCharacterOfPosition",
     "Type.getSymbol",
     "Type.isUnion",
     "TypeChecker.getContextualType",
     "TypeChecker.getSymbolAtLocation",
-    "ts.ModuleKind",
-    "ts.ModuleResolutionKind",
     "ts.SyntaxKind",
     "ts.createCompilerHost",
     "ts.createProgram",
+    "ts.createSourceFile",
+    "ts.forEachChild",
+    "ts.is*",
   ],
   "tests/protections/compiler-surface.test.ts": [
     "System.readFile",
@@ -115,12 +119,6 @@ const COMPILER_API_IN_USE: Readonly<Record<string, readonly string[]>> = {
     "ts.forEachChild",
     "ts.is*",
   ],
-  "tests/protections/seam-fields.test.ts": [
-    "System.readFile",
-    "ts.parseJsonConfigFileContent",
-    "ts.readConfigFile",
-    "ts.sys",
-  ],
   "tests/protections/seam-fields.ts": [
     ...PARSE,
     "CompilerHost.getCurrentDirectory",
@@ -170,6 +168,25 @@ const COMPILER_API_IN_USE: Readonly<Record<string, readonly string[]>> = {
   ],
   "tests/slice2/render.test.ts": ["ts.preProcessFile"],
   "tests/slice6/generation-policy.test.ts": ["ts.preProcessFile"],
+  "tests/support/src-program.test.ts": [
+    "Program.getRootFileNames",
+    "ScriptReferenceHost.getCompilerOptions",
+    "System.readFile",
+    "ts.parseJsonConfigFileContent",
+    "ts.readConfigFile",
+    "ts.sys",
+  ],
+  "tests/support/src-program.ts": [
+    "System.readFile",
+    "ts.ScriptTarget",
+    "ts.createProgram",
+    "ts.createSourceFile",
+    "ts.forEachChild",
+    "ts.is*",
+    "ts.parseJsonConfigFileContent",
+    "ts.readConfigFile",
+    "ts.sys",
+  ],
   "tests/unit/response-header-record.test.ts": [...PARSE, "ts.SyntaxKind"],
 }
 

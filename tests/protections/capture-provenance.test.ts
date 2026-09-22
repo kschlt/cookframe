@@ -16,20 +16,13 @@
  * are held against a source written to contain every way a context can be
  * built, the wrong ones included.
  */
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { filesUnder, SOURCE_EXTENSIONS } from "../support/tree.js"
-import { captureContextsIn, unstated } from "./capture-provenance.js"
+import { programOverTree, repositoryCompilerOptions } from "../support/src-program.js"
+import { captureContextsIn, programOverText, unstated } from "./capture-provenance.js"
 import { repoRoot } from "./majors.js"
 
-const sources = new Map(
-  filesUnder(join(repoRoot, "src"), { match: SOURCE_EXTENSIONS }).map((path) => [
-    path,
-    readFileSync(path, "utf8"),
-  ]),
-)
-const tree = captureContextsIn(sources, repoRoot)
+const tree = captureContextsIn(programOverTree(), repoRoot)
 const bySite = (cs: typeof tree) => cs.map(({ site, provenance }) => ({ site, provenance }))
 
 describe("protections/every-capture-context-states-its-provenance", () => {
@@ -130,7 +123,14 @@ export const checked = { snapshotId: "s", runId: "r", sourceProvenance: "url" } 
 ])
 
 describe("protections/every-capture-context-states-its-provenance", () => {
-  const found = captureContextsIn(FIXTURE, FIXTURE_ROOT)
+  const program = programOverText(FIXTURE)
+  const found = captureContextsIn(program, FIXTURE_ROOT)
+
+  it("types the sources written for it with the options it reads the tree with", () => {
+    // Otherwise the rows below would show the reader works under options the
+    // tree is never read with.
+    expect(program.getCompilerOptions()).toEqual(repositoryCompilerOptions())
+  })
 
   it("reads a capture context through every way one can be built, and says what each states", () => {
     // Every row is a way to build a context, and each is here because a reader
