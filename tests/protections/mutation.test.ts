@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import {
   decideBaseline,
+  decideMarker,
   decideMutant,
   type Mutation,
   plant,
@@ -43,6 +44,7 @@ const reading = (over: Partial<Reading> = {}): Reading => ({
   passed: 10,
   failed: 0,
   failing: [],
+  ran: ["the detector is precise > it misses nothing"],
   reportedATally: true,
   ...over,
 })
@@ -55,9 +57,15 @@ const mutation = (over: Partial<Mutation> = {}): Mutation => ({
   ...over,
 })
 
-/** Vitest's real output shape, as the harness must read it. */
+/**
+ * Vitest's real output shape under the verbose reporter, which is the one the
+ * runner uses. The default reporter prints a per-test line only for the SLOW
+ * tests — measured, 2 of 18 on this file's own suite against 18 of 18 verbose —
+ * so an enumeration built from it would silently be a fraction of the truth.
+ */
 const VITEST_GREEN = `
- ✓ tests/x/y.test.ts (10 tests) 84ms
+ ✓ tests/x/y.test.ts > the detector is precise > it misses nothing 3ms
+ ✓ tests/x/y.test.ts > the detector is precise > it spares a neighbour 1ms
 
  Test Files  1 passed (1)
       Tests  10 passed (10)
@@ -162,6 +170,29 @@ describe("protections/the-instrument-refuses-to-guess", () => {
       expect(outcome.planted === false && outcome.refusal).toContain("has moved")
     })
 
+    it("writes the replacement literally, so a $-pattern is not interpreted", () => {
+      // `String.replace` reads `$&`, `$$` and `$1` in a REPLACEMENT string as
+      // substitution patterns. A mutation carrying one would plant something
+      // other than what it names, while the report named the intended edit —
+      // the harness judging a guard against an edit nobody wrote.
+      const planted = plant('const x = "KEEP"', {
+        name: "a replacement containing a substitution pattern",
+        find: '"KEEP"',
+        replace: 's.replace(/x/, "$& again")',
+        mustFail: "whatever",
+      })
+      expect(planted.planted).toBe(true)
+      expect(planted.planted && planted.source).toBe('const x = s.replace(/x/, "$& again")')
+      // `$$` collapses to `$` under the string form; it must not here.
+      const dollars = plant("const x = A", {
+        name: "a replacement containing $$",
+        find: "A",
+        replace: "`$$${n}`",
+        mustFail: "whatever",
+      })
+      expect(dollars.planted && dollars.source).toBe("const x = `$$${n}`")
+    })
+
     it("refuses when the text occurs twice — the plant would change more than it names", () => {
       const twice = "const WIDE = /a|b/\nconst WIDE = /a|b/"
       const outcome = plant(twice, mutation())
@@ -212,6 +243,79 @@ describe("protections/the-instrument-refuses-to-guess", () => {
       expect(decideMutant(readRun({ exitCode: 0, output: VITEST_GREEN }), m)).toEqual(
         decideMutant(readRun({ exitCode: 1, output: VITEST_GREEN }), m),
       )
+    })
+  })
+
+  /**
+   * Refusal 4 — the marker must name exactly one test the baseline ran.
+   *
+   * Review found this one, and it is the sharpest hole this module has had: an
+   * empty `mustFail` makes refusal 3 a no-op, because `"any test".includes("")`
+   * is true. The incident's own verdict, reachable by one empty string, in the
+   * module written to make it unreachable.
+   *
+   * The rule is `plant`'s, applied to the other half of a mutation — and that is
+   * why it is "exactly one" rather than "not empty": the same condition also
+   * catches a marker matching several tests and one matching none.
+   */
+  describe("refusal 4 — the marker names exactly one test the baseline ran", () => {
+    const baseline = reading({
+      ran: [
+        "a.test.ts > the detector is precise > it misses nothing",
+        "a.test.ts > the detector is precise > it spares a neighbour",
+        "a.test.ts > some other suite > an unrelated case",
+      ],
+    })
+
+    it("accepts a marker that names exactly one of them", () => {
+      const verdict = decideMarker(baseline, mutation({ mustFail: "it misses nothing" }))
+      expect(verdict.usable).toBe(true)
+      expect(verdict.usable && verdict.names).toContain("it misses nothing")
+    })
+
+    it("refuses an empty marker, which matches every name", () => {
+      const verdict = decideMarker(baseline, mutation({ mustFail: "" }))
+      expect(verdict.usable).toBe(false)
+      expect(verdict.usable === false && verdict.refusal).toContain("names no assertion")
+    })
+
+    it("refuses a whitespace-only marker AS empty, not as a typo", () => {
+      // The reason matters, and asserting only `usable === false` did not catch
+      // it: with the trim removed, `"   "` gets past the empty check, matches no
+      // test name, and is refused as a renamed assertion. Still refused, for a
+      // reason that is not true — and a survivor until this asserted the text.
+      const verdict = decideMarker(baseline, mutation({ mustFail: "   " }))
+      expect(verdict.usable).toBe(false)
+      expect(verdict.usable === false && verdict.refusal).toContain("names no assertion")
+    })
+
+    it("refuses an over-generic marker that matches several tests", () => {
+      const verdict = decideMarker(baseline, mutation({ mustFail: "the" }))
+      expect(verdict.usable).toBe(false)
+      expect(verdict.usable === false && verdict.refusal).toContain("could not be attributed")
+    })
+
+    it("refuses a marker no test carries — a typo, or a renamed assertion", () => {
+      const verdict = decideMarker(baseline, mutation({ mustFail: "it mises nothing" }))
+      expect(verdict.usable).toBe(false)
+      expect(verdict.usable === false && verdict.refusal).toContain("survivor forever")
+    })
+
+    it("checks the BASELINE's tests, not the mutant's damaged run", () => {
+      // The mutant's reading is the thing under suspicion. A marker validated
+      // against it would be validated against the damage.
+      const mutantRanNothing = reading({ ran: [], reportedATally: false })
+      expect(
+        decideMarker(mutantRanNothing, mutation({ mustFail: "it misses nothing" })).usable,
+      ).toBe(false)
+      expect(decideMarker(baseline, mutation({ mustFail: "it misses nothing" })).usable).toBe(true)
+    })
+
+    it("the verdict function itself refuses an empty marker, called directly", () => {
+      // `decideMarker` guards the loop, but `decideMutant` is exported and sound
+      // on its own terms: an unrelated failure must not read as a kill.
+      const unrelated = reading({ failed: 1, failing: ["some other suite > an unrelated case"] })
+      expect(decideMutant(unrelated, mutation({ mustFail: "" })).outcome).toBe("inconclusive")
     })
   })
 
@@ -348,6 +452,12 @@ describe("protections/the-instrument-refuses-to-guess", () => {
               replace: "/x/",
               mustFail: "catches both spellings",
             },
+            {
+              name: "a mutation that names no assertion",
+              find: "/alpha|beta/",
+              replace: "/alpha/",
+              mustFail: "",
+            },
           ],
           basename(spec),
           runner,
@@ -363,8 +473,11 @@ describe("protections/the-instrument-refuses-to-guess", () => {
 
         // ...and the mutation describing absent text was REFUSED, never counted
         // as a kill. An exit-code harness reports this one as a pass.
-        expect(report.refusals).toHaveLength(1)
-        expect(report.refusals[0]).toContain("has moved")
+        expect(report.refusals).toHaveLength(2)
+        expect(report.refusals.join(" | ")).toContain("has moved")
+        // The empty marker was refused too, against the REAL baseline's tests —
+        // so refusal 4 bites in the loop and not only as a pure function.
+        expect(report.refusals.join(" | ")).toContain("names no assertion")
 
         // The subject is back exactly as it was. A SIGPIPE once left a mutated
         // file in this repository's tree; the restore is not decoration.

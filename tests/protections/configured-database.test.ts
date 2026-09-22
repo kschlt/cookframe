@@ -5,8 +5,11 @@
  * Why this is a protection and not a style rule: a suite gated on reachability
  * reports a different total on two correctly set-up machines, and the larger
  * total is the dishonest one. Measured on 2026-09-22, with `DATABASE_URL` unset:
- * `vitest run tests/dbq` answered `34 passed | 1 skipped` with a local server up
- * and `27 passed | 8 skipped` with it stopped. Seven proofs ran because
+ * `vitest run tests/dbq` answered `34 passed | 1 skipped` with a local server up at
+ * `DEFAULT_URL` specifically and `27 passed | 8 skipped` with it stopped. On a machine
+ * whose PostgreSQL listens on another port it read 27/8 either way — so the total
+ * depended on which port a correctly set-up machine happened to use, which is the
+ * same defect seen from further away. Seven proofs ran because
  * something was listening, not because anyone had asked for them — and the same
  * substitution put a wrong figure into a pull request description.
  *

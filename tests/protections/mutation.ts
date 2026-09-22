@@ -36,6 +36,17 @@
  *     above, and it is the one that costs nothing to leave out and everything to
  *     have left out.
  *
+ *  4. **The marker must name exactly one test the baseline ran.** The fourth is
+ *     not from `score.py`; review found it here, by asking what a caller can
+ *     hand this instrument that it will accept and should not. The answer was an
+ *     empty `mustFail`: `"any test".includes("")` is true, so refusal 3 became a
+ *     no-op and any failure at all read as a kill — the incident's own verdict,
+ *     reachable by one empty string, in the module written to make it
+ *     unreachable. Refusing merely-empty would have closed the case found;
+ *     requiring exactly one match is `plant`'s rule applied to the other half of
+ *     a mutation, and it also catches a typo and an over-generic marker. A
+ *     mutation is a pair, and both halves are now refused on the same terms.
+ *
  * The decisions are pure functions over a reading, so the refusals themselves
  * are provable by fixture without starting a subprocess — a harness whose own
  * correctness rested on running it would have the problem it exists to solve.
@@ -71,6 +82,17 @@ export interface Reading {
   readonly failed: number
   /** The names of the failing tests, as reported. */
   readonly failing: readonly string[]
+  /**
+   * The names of EVERY test the run reported, passing and failing.
+   *
+   * Needed so a mutation's marker can be checked against the tests that
+   * actually exist, rather than only against the ones that happened to fail.
+   * Populated from the verbose reporter — the default one prints a per-test
+   * line only for the slow ones (measured: 2 of 18 on this module's own suite,
+   * 18 of 18 under `--reporter=verbose`), so an enumeration built from the
+   * default output would silently be a fraction of the truth.
+   */
+  readonly ran: readonly string[]
   /**
    * Did the run get far enough to report a test tally at all?
    *
@@ -116,23 +138,27 @@ export function readRun(report: RunReport): Reading {
   const output = withoutColour(report.output)
   const tally = /^\s*Tests\s+(.+?)\s*$/m.exec(output)
   if (tally === null || tally[1] === undefined) {
-    return { passed: 0, failed: 0, failing: [], reportedATally: false }
+    return { passed: 0, failed: 0, failing: [], ran: [], reportedATally: false }
   }
   const count = (label: string): number => {
     const m = new RegExp(`(\\d+)\\s+${label}`).exec(tally[1] as string)
     return m?.[1] === undefined ? 0 : Number.parseInt(m[1], 10)
   }
-  // Vitest marks each failing test with `×` in its per-test listing.
-  const failing = output
-    .split("\n")
-    .filter((line) => line.includes("×"))
-    .map((line) => line.slice(line.indexOf("×") + 1).trim())
-    .map((line) => line.replace(/\s+\d+ms$/, "").trim())
-    .filter((line) => line.length > 0)
+  // Vitest marks each test in its per-test listing: `×` failing, `✓` passing.
+  const named = (mark: string): string[] =>
+    output
+      .split("\n")
+      .filter((line) => line.includes(mark))
+      .map((line) => line.slice(line.indexOf(mark) + 1).trim())
+      .map((line) => line.replace(/\s+\d+ms$/, "").trim())
+      .filter((line) => line.length > 0 && line.includes(" > "))
+
+  const failing = named("×")
   return {
     passed: count("passed"),
     failed: count("failed"),
     failing,
+    ran: [...named("✓"), ...failing],
     reportedATally: true,
   }
 }
@@ -197,7 +223,13 @@ export function plant(source: string, mutation: Mutation): PlantOutcome {
           : `"${mutation.name}": the text to replace occurs ${occurrences} times — the plant would change more than it names`,
     }
   }
-  return { planted: true, source: source.replace(mutation.find, mutation.replace) }
+  // A REPLACER FUNCTION, not the string: `String.replace` reads `$&`, `$$` and
+  // `$1` in a replacement as substitution patterns, so a mutation whose
+  // replacement contains them would plant something other than what it names
+  // while the report named the intended edit. Measured: `s.replace(/x/, "$& again")`
+  // is written with the found text substituted in. A replacer disables the
+  // whole grammar rather than escaping the cases someone thought of.
+  return { planted: true, source: source.replace(mutation.find, () => mutation.replace) }
 }
 
 /** What a mutant proved, if anything. */
@@ -228,6 +260,18 @@ export function decideMutant(reading: Reading, mutation: Mutation): MutantVerdic
       why: `"${mutation.name}": the mutant reported no test tally — it died before the rule was ever reached. A non-zero exit here proves nothing about the rule.`,
     }
   }
+  // A marker that names nothing matches EVERYTHING: `"any test".includes("")`
+  // is true, so an empty `mustFail` would count any failure at all as a kill —
+  // the exact verdict the incident produced, reachable again by one empty
+  // string, in the module written to make it unreachable. `plant` already
+  // refuses the analogous mistake on `find`; this is the same doctrine applied
+  // to the other half of a mutation.
+  if (mutation.mustFail.trim() === "") {
+    return {
+      outcome: "inconclusive",
+      why: `"${mutation.name}": the mutation names no assertion, so no failure can be attributed to it. An empty marker matches every test name, which would make any failure whatsoever read as a kill.`,
+    }
+  }
   if (reading.failed === 0) return { outcome: "survived" }
   const hit = reading.failing.some((name) => name.includes(mutation.mustFail))
   if (!hit) {
@@ -239,6 +283,56 @@ export function decideMutant(reading: Reading, mutation: Mutation): MutantVerdic
     }
   }
   return { outcome: "killed" }
+}
+
+/** Whether a mutation's marker can carry a verdict at all. */
+export type MarkerVerdict =
+  | { readonly usable: true; readonly names: string }
+  | { readonly usable: false; readonly refusal: string }
+
+/**
+ * Refusal 4. The marker must name EXACTLY ONE test the baseline actually ran.
+ *
+ * This is `plant`'s rule applied to the other half of a mutation, and the
+ * symmetry is the argument for it: a mutation is a pair — text to replace, and
+ * the assertion that must object — and the module already refuses text it
+ * cannot locate unambiguously. It accepted a marker it could not locate at all.
+ *
+ * The three ways a marker fails to carry a verdict, all caught by one rule:
+ *
+ * - **It matches every test.** An empty string is `includes`-true against any
+ *   name, so any failure reads as a kill. This is the original incident's
+ *   verdict, reachable by one empty string.
+ * - **It matches several.** An over-generic marker (`"the"`) attributes a
+ *   failure to an assertion that may not be the one the mutation is about, so
+ *   the kill is not evidence for the rule being measured.
+ * - **It matches none.** A typo, or an assertion that has been renamed or
+ *   deleted. The mutation would report a survivor forever — exactly what
+ *   `plant` refuses on the `find` side.
+ *
+ * Checked against the BASELINE's reading, because that is the run known to have
+ * been healthy: the mutant's own reading is the thing under suspicion, and a
+ * marker validated against it would be validated against the damage.
+ */
+export function decideMarker(baseline: Reading, mutation: Mutation): MarkerVerdict {
+  const marker = mutation.mustFail.trim()
+  if (marker === "") {
+    return {
+      usable: false,
+      refusal: `"${mutation.name}": the mutation names no assertion. An empty marker matches every test name, so any failure at all would read as a kill.`,
+    }
+  }
+  const matches = baseline.ran.filter((name) => name.includes(marker))
+  if (matches.length !== 1) {
+    return {
+      usable: false,
+      refusal:
+        matches.length === 0
+          ? `"${mutation.name}": no test the baseline ran is named ${JSON.stringify(marker)} — a renamed, deleted or mistyped assertion, which would report a survivor forever`
+          : `"${mutation.name}": ${matches.length} tests the baseline ran match ${JSON.stringify(marker)}, so a failure could not be attributed to the assertion this mutation is about. Matching: ${matches.join(" | ")}`,
+    }
+  }
+  return { usable: true, names: matches[0] as string }
 }
 
 /** One line of the report, per mutation. */
@@ -282,7 +376,7 @@ export type Runner = (target: string) => RunReport
 export const vitestRunner =
   (cwd: string, extraArgs: readonly string[] = []): Runner =>
   (target: string): RunReport => {
-    const result = spawnSync("npx", ["vitest", "run", ...extraArgs, target], {
+    const result = spawnSync("npx", ["vitest", "run", "--reporter=verbose", ...extraArgs, target], {
       cwd,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
@@ -316,13 +410,21 @@ export function runMutations(
   runner: Runner,
 ): HarnessReport {
   const original = readFileSync(subjectPath, "utf8")
-  const baseline = decideBaseline(readRun(runner(target)))
+  const baselineReading = readRun(runner(target))
+  const baseline = decideBaseline(baselineReading)
   if (!baseline.usable) return { baseline, results: [], refusals: [] }
 
   const results: MutationResult[] = []
   const refusals: string[] = []
   try {
     for (const mutation of mutations) {
+      // Both halves of the mutation are checked before anything is written: the
+      // marker against the baseline's tests, the text against the subject.
+      const marker = decideMarker(baselineReading, mutation)
+      if (!marker.usable) {
+        refusals.push(marker.refusal)
+        continue
+      }
       const outcome = plant(original, mutation)
       if (!outcome.planted) {
         refusals.push(outcome.refusal)

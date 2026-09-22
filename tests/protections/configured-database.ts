@@ -8,7 +8,9 @@
  * was decided by what happened to be listening on the machine: with
  * `DATABASE_URL` unset, `vitest run tests/dbq` answered `34 passed | 1 skipped`
  * with a local server up and `27 passed | 8 skipped` with it stopped (measured
- * 2026-09-22). Two correctly set-up machines, one command, seven proofs of
+ * 2026-09-22, with a server answering at `DEFAULT_URL` specifically — on a machine
+ * whose PostgreSQL listens on another port the old suite read 27/8 either way, so the
+ * total depended on which port a correctly set-up machine happened to use). Two correctly set-up machines, one command, seven proofs of
  * difference — and the bigger number is the dishonest one, because nobody had
  * asked for those seven to run. The same substitution wrote a wrong figure into
  * a pull request description, which is how it surfaced.
