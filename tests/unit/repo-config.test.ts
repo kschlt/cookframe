@@ -847,6 +847,15 @@ describe("slice0/container-builds-and-runs", () => {
     // so the divergence is exactly the silent kind, which is the kind that needs
     // a guard rather than a comment. Its major is read off the caret range in
     // devDependencies below and fails closed if the declaration is gone.
+    //
+    // WHAT THIS STILL DOES NOT SEE. `^26.6.2` is a caret range, and this guard
+    // reads the DECLARATION, not the installation: `node_modules` may resolve
+    // `@types/node` to any 26.x, and were a lockfile or an install to carry it
+    // past 26 while the range still read `^26`, the declared major would agree
+    // with the pins and this would stay green. Guarding the installed major
+    // would mean reading a resolved tree the repository does not commit, so the
+    // honest scope here is the declared major — the number a reviewer sees in
+    // the diff — and the drift above the caret is named rather than caught.
     const majors = new Map<string, string>()
 
     const fromImage = (file: string): string => {
