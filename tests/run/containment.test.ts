@@ -153,3 +153,105 @@ describe("run/the-runtime-image-runs-the-process", () => {
     expect(workflow).toContain("Dockerfile.runtime")
   })
 })
+
+/**
+ * A line that reads the environment, ignoring the ones that only talk about it.
+ *
+ * Crude on purpose: a line whose first non-space characters are `//` or `*` is
+ * prose, and three of the five mentions of `process.env` under `src/` are
+ * exactly that — comments explaining why the seam below them takes a parameter.
+ * A stripper that understood TypeScript would be a second parser to keep
+ * correct; this one is wrong only in ways that make the check STRICTER (a real
+ * read hidden at the end of a comment line would still be reported).
+ */
+const readsTheEnvironment = (text: string): boolean =>
+  text.split("\n").some((line) => /process\.env\b/.test(line) && !/^\s*(?:\/\/|\*|\/\*)/.test(line))
+
+describe("run/configuration-arrives-only-through-declared-seams", () => {
+  // ADR-0026's cut, declared as an inventory rather than described in prose,
+  // because a record that lists the seams goes stale the first time someone
+  // adds one and the build says nothing.
+  //
+  // The shape each seam must keep: the environment arrives as a PARAMETER —
+  // defaulted from `process.env` at one point in the signature, or supplied by
+  // the composition root at the call site. Never a read inside a function body,
+  // never a module-level constant. That is what lets every proof in this
+  // repository build an environment from nothing instead of mutating the one it
+  // runs in.
+  const SEAMS: readonly { readonly file: string; readonly shape: RegExp }[] = [
+    // Defaulted parameter: every caller may inject, and the default is the
+    // process's own environment.
+    {
+      file: "src/cooking/policy.ts",
+      shape: /env: Readonly<Record<string, string \| undefined>> = process\.env,/,
+    },
+    {
+      file: "src/persistence/configuration.ts",
+      shape:
+        /export function resolveDatabaseUrl\(\s*env: Record<string, string \| undefined> = process\.env,?\s*\)/,
+    },
+    // The strictest of the three, and the shape the others should move toward:
+    // `readConfiguration` takes the environment as a REQUIRED parameter and
+    // names no default, so the composition root is the only place the real one
+    // enters the program.
+    { file: "src/server/main.ts", shape: /readConfiguration\(process\.env\)/ },
+  ]
+
+  it("no module under src/ reads the environment except the declared seams", () => {
+    const readers = sourcesUnder("src").filter((file) => readsTheEnvironment(read(file)))
+    expect(readers).toEqual(SEAMS.map((s) => s.file))
+  })
+
+  it("each declared seam still has the shape it was declared with", () => {
+    // Listing a file is not enough: a seam that keeps its name and moves the
+    // read into its body is exactly the drift the inventory exists to catch,
+    // and it would pass the test above unchanged.
+    for (const seam of SEAMS) {
+      expect(read(seam.file), `${seam.file} no longer matches its declared seam shape`).toMatch(
+        seam.shape,
+      )
+    }
+  })
+})
+
+describe("run/no-module-names-a-platform", () => {
+  /** The package specifier of an import line, or undefined. */
+  const importedPackage = (line: string): string | undefined => {
+    const found = /^\s*(?:import\b.*|export\b.*|\})\s*from "([^"]+)"/.exec(line)
+    const specifier = found?.[1]
+    if (specifier === undefined) return undefined
+    if (specifier.startsWith(".") || specifier.startsWith("node:")) return undefined
+    // `hono/html` and `hono` are one dependency; a scoped name keeps two parts.
+    const parts = specifier.split("/")
+    return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]
+  }
+
+  it("the third-party packages src/ imports are exactly the declared five", () => {
+    // An ALLOWLIST, which is the whole point. A deny list of platform SDKs is a
+    // list of the ones someone thought of; this fails on the first arrival of
+    // anything — a platform client, a second database driver, an HTTP-over-
+    // `fetch` transport that speaks to one provider's database and nobody
+    // else's. ADR-0026's portability rests on that being a build failure rather
+    // than a review catch.
+    const packages = new Set<string>()
+    for (const file of sourcesUnder("src")) {
+      for (const line of read(file).split("\n")) {
+        const name = importedPackage(line)
+        if (name !== undefined) packages.add(name)
+      }
+    }
+    expect([...packages].sort()).toEqual(["@hono/node-server", "hono", "ipaddr.js", "pg", "undici"])
+  })
+
+  it("no module names a hosting platform", () => {
+    // A deny list here, and it is sound where the one above would not be: this
+    // catches a platform NAMED without a package — an environment variable only
+    // one host sets, a hostname only one host serves. The allowlist above is
+    // what catches a platform's SDK, so the two together do not rest on anyone
+    // having thought of every provider.
+    const platformish =
+      /\b(?:FLY_[A-Z_]+|RENDER_[A-Z_]+|VERCEL_[A-Z_]+|RAILWAY_[A-Z_]+|DYNO|HEROKU_[A-Z_]+)\b|\.fly\.dev|fly\.io|\.onrender\.com|\.vercel\.app/
+    const naming = sourcesUnder("src").filter((file) => platformish.test(read(file)))
+    expect(naming).toEqual([])
+  })
+})
