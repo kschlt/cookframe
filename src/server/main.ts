@@ -131,6 +131,10 @@ async function main(): Promise<void> {
   const instance = await startInstance(
     {
       repo,
+      // IN MEMORY, and that is a known gap rather than a choice: every grant this
+      // process mints is gone when it stops, and ADR-0026 stops it when idle.
+      // Bring keeps the URL and fetches it again later, so that fetch fails
+      // silently. Registered as OQ-48; the fix is a unit of its own.
       capabilityStore: createInMemoryCapabilityStore(),
       ingestCredential: createInstanceCredential(config.ingestCredential, "ingest credential"),
       libraryCredential: createInstanceCredential(config.libraryCredential, "library credential"),
