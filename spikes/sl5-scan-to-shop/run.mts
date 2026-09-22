@@ -28,6 +28,7 @@
  * `--fake` runs the identical path with deterministic providers and no network,
  * which is how the harness is got right before a run that costs real money.
  */
+import { randomBytes } from "node:crypto"
 import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -65,8 +66,14 @@ if (!fake && (API_KEY === undefined || MODEL === undefined)) {
   throw new Error("OPENAI_API_KEY and OPENAI_MODEL are required unless --fake is given")
 }
 
-/** The credential the run configures its own instance with. Never a real one. */
-const CREDENTIAL = "sl5-scan-to-shop-measurement-run-credential"
+/**
+ * The credential this run configures its own throwaway instance with.
+ *
+ * Minted here, never written down: the instance lives for the length of the
+ * run, and a credential-shaped literal committed to a public repository is one
+ * a scanner cannot tell from a real secret.
+ */
+const CREDENTIAL = randomBytes(24).toString("base64url")
 
 const MEDIA_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",

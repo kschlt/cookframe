@@ -526,6 +526,32 @@ describe("CI workflow (ci.yml)", () => {
     ).toBe(true)
   })
 
+  it("slice0/secret-scan-accepts-only-pinned-findings", () => {
+    // `.gitleaksignore` is where an accepted finding is recorded, and it is one
+    // edit away from becoming an allowlist. A fingerprint names ONE finding in
+    // ONE commit: the same string on another line, in another file or in a later
+    // commit has a different fingerprint and still fails. A bare path or a
+    // regex would silently cover everything that comes after it, which is how a
+    // secret scan stops being one.
+    //
+    // Checked by measurement, not by reading: both shapes were planted against
+    // the real gitleaks with this file in place — the same string moved to
+    // another file, and the same string back in its own file on a new line —
+    // and both were still refused.
+    if (!existsSync(join(repoRoot, ".gitleaksignore"))) return
+    const lines = read(".gitleaksignore")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l !== "" && !l.startsWith("#"))
+    expect(lines.length, "the file exists and pins nothing").toBeGreaterThan(0)
+    for (const line of lines) {
+      expect(
+        line,
+        `\`${line}\` is not a pinned finding — a fingerprint is <sha>:<path>:<rule>:<line>`,
+      ).toMatch(/^[0-9a-f]{40}:[^:]+:[^:]+:\d+$/)
+    }
+  })
+
   it("slice0/secret-scan-fails-build — a secret scan runs and blocks on a finding", () => {
     const scanJob = workflow.jobs["secret-scan"]
     expect(scanJob).toBeTruthy()

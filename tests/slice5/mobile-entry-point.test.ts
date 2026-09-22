@@ -22,6 +22,7 @@
  *    rather than asking about the routes it knows exist. A read route added
  *    later is caught by a proof written before it.
  */
+import { randomBytes } from "node:crypto"
 import { describe, expect, it } from "vitest"
 import { SourceSnapshot } from "../../schema/index.js"
 import { createCapabilityApp } from "../../src/http/capability-app.js"
@@ -40,8 +41,21 @@ import {
 } from "../../src/pipeline/recipe-inventory.js"
 import { createInMemoryCapabilityStore } from "../../src/shopping/capability-token.js"
 
-const CREDENTIAL = "qF7nQ2pLd8sV1yH4jR6tB0zXcM3wE5uA"
-const WRONG = "wrongwrongwrongwrongwrongwrongwr"
+/**
+ * Minted per run rather than written down.
+ *
+ * A credential-shaped literal in a test file is a real secret to every scanner
+ * that reads the repository, and `secret-scan` refused this file over exactly
+ * that — correctly, because a string that cannot be told apart from a secret
+ * IS one as far as a scanner can know. Answering that by teaching the scanner
+ * an exception would have made the repository's first gitleaks rule an excuse.
+ *
+ * Minting also makes the proofs below stronger: nothing they assert can depend
+ * on one particular string, and a hard-coded secret in a test is the kind of
+ * line people copy into something that matters.
+ */
+const CREDENTIAL = randomBytes(24).toString("base64url")
+const WRONG = randomBytes(24).toString("base64url")
 
 const policy = createContentDerivedBlockIdPolicy()
 
