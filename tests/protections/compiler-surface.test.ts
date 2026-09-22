@@ -104,6 +104,13 @@ const COMPILER_API_IN_USE: Readonly<Record<string, readonly string[]>> = {
     "ts.NodeFlags",
     "ts.createProgram",
   ],
+  "tests/protections/readme.ts": [
+    "ts.ScriptTarget",
+    "ts.SyntaxKind",
+    "ts.createSourceFile",
+    "ts.forEachChild",
+    "ts.is*",
+  ],
   "tests/protections/scan-retention-wiring.ts": [
     "Node.getStart",
     "Node.getText",

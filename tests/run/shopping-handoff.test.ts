@@ -155,6 +155,9 @@ function operationsCalledIn(source: string, operations: ReadonlySet<string>): Se
   return found
 }
 
+/** What the interface declares today, spelled out once for both halves of the guard. */
+const DECLARED_OPERATIONS: readonly string[] = ["issue", "resolve", "revoke"]
+
 describe("shop/every-capability-operation-is-called-from-the-http-layer", () => {
   it("names the operations the interface declares", () => {
     // Spelled out, because this is the half of the guard a narrowing would pass:
@@ -162,15 +165,22 @@ describe("shop/every-capability-operation-is-called-from-the-http-layer", () => 
     // `resolve`, which the serving route has always called. A fourth operation
     // added to the store turns this red too, which is correct — it is a fourth
     // thing an instance has to be able to reach, and somebody has to say how.
-    expect(declaredOperations(readFileSync(capabilityTokenFile, "utf8"))).toEqual([
-      "issue",
-      "resolve",
-      "revoke",
-    ])
+    expect(declaredOperations(readFileSync(capabilityTokenFile, "utf8"))).toEqual(
+      DECLARED_OPERATIONS,
+    )
   })
 
   it("finds a call to every one of them under src/http/", () => {
     const declared = new Set(declaredOperations(readFileSync(capabilityTokenFile, "utf8")))
+    // The two halves are held together here, not only each on its own. Found
+    // in the review of #94: with this set replaced by a literal naming only
+    // `resolve`, the file stayed green, because nothing required this case to
+    // read the interface the first one names. A fourth operation would then
+    // redden the first case, get added to its list, and never be required to
+    // have a caller.
+    expect([...declared], "the operations this case requires callers for").toEqual(
+      DECLARED_OPERATIONS,
+    )
     const files = filesUnder(httpDir, { match: SOURCE_EXTENSIONS })
     expect(files.length, "the walk read nothing under src/http/").toBeGreaterThan(0)
 
