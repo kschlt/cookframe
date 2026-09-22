@@ -22,6 +22,42 @@
  * integration`. `docs/repository-protections.md` carries the full measurement.
  */
 
+/**
+ * WHAT THIS CANNOT SEE.
+ *
+ * Read this before trusting the name of the proof below. A judgement about
+ * English cannot be made exhaustive, and a guard that documents every bound it
+ * has while naming no gap invites a reader to take its id at face value — which
+ * is the same defect as a proof named for a class it only partly covers, one
+ * level up. So the gaps are listed here, deliberately, and they are not bugs.
+ *
+ * **A claim can be made without a configuring word at all.** These pass, and
+ * are meant to:
+ *
+ *     This repository has secret scanning with push protection.
+ *     Secret scanning protects this repository today.
+ *
+ * Catching them needs a rule about possession and about the present tense of
+ * arbitrary verbs, and such a rule fires on honest prose — on the very
+ * sentences elsewhere in this repository that describe what a protection would
+ * do, or what the project intends. A guard that cries wolf gets weakened until
+ * it matches nothing, so the bound is chosen and kept rather than discovered
+ * later.
+ *
+ * **Other things not established in either direction**, and worth measuring
+ * before anyone relies on them: whether a claim inside a fenced code block is
+ * scanned at all (`blockOpener` treats a fence as a block opener, which is not
+ * the same question); a claim spread across a markdown table's header and body
+ * rows rather than within one row; and any phrasing not in English.
+ *
+ * **What this file is for, stated plainly:** it stops the accident this
+ * repository already had — a stale or copied sentence asserting a setting is on
+ * — not a determined author. Nothing here is a guarantee that the repository
+ * makes no false claim about its protections; it is a guarantee about the
+ * shapes enumerated above, and the record in `docs/repository-protections.md`
+ * is what a reader is ultimately relying on.
+ */
+
 /** The dated entry every claim must stand on. */
 export const RECORD_PATH = "docs/repository-protections.md"
 
@@ -75,23 +111,44 @@ export const PLATFORM_SETTINGS: readonly PlatformSetting[] = [
  * a guard that cries wolf on honest prose gets weakened until it matches
  * nothing.
  */
-const PREDICATES = "enabled|configured|turned on|switched on|set up|active|in place"
+/**
+ * The words that say a setting was put into its configured state.
+ *
+ * All of them are past participles, which is what lets the shape below be a
+ * bare participle rather than a sentence pattern: "we enabled it", "— enabled",
+ * "(enabled)" and "is enabled" are the same claim wearing four costumes, and
+ * enumerating the costumes is how the first two versions of this file went
+ * wrong.
+ */
+const CONFIGURED = "enabled|configured|turned on|switched on|set up"
 
 /**
- * Bare `on` is accepted only at the end of a clause — "secret scanning is on",
- * never "Dependabot is on the roadmap". Unbounded it reads every mention of a
- * setting being on *something* as a claim that it is switched on, which is how
- * this predicate got dropped from the list the first time.
+ * Bare `on` and `active` are accepted only where they cannot mean something
+ * else: `on` at a clause end ("secret scanning is on", never "Dependabot is on
+ * the roadmap"), and either after a label separator. Unbounded, `on` reads every
+ * mention of a setting being on *something* as a claim that it is switched on.
  */
+const LABEL_SEPARATOR = "[:|—–]"
+
 const CLAIM_VERBS = new RegExp(
   [
-    // "is enabled", "remains configured", "is currently in place"
-    `\\b(?:is|are|be|been|was|were|remains?|stays?)\\b[^.;:!?]{0,40}?\\b(?:${PREDICATES})\\b`,
+    // The participle alone, wherever it stands. This one shape replaces the
+    // copula pattern, the active-voice pattern and the table-cell pattern that
+    // stood here before, all three of which were spellings of it. `NOT_A_CLAIM`
+    // and `NEGATED` below are what make it safe: a requirement and a denial are
+    // filtered whatever grammar carries them, so the verb shape does not also
+    // have to know grammar.
+    `\\b(?:${CONFIGURED})\\b`,
+    // "is active", "remains in place" — the states that are not participles.
+    `\\b(?:is|are|be|been|was|were|remains?|stays?)\\b[^.;:!?]{0,40}?\\b(?:active|in place)\\b`,
     `\\b(?:is|are|remains?|stays?)\\b[^.;:!?]{0,20}?\\bon(?=\\s*(?:[.,;:!?)\\]|]|$))`,
-    // "we have enabled it", "GitHub has secret scanning enabled"
-    `\\b(?:have|has|had)\\b[^.;:!?]{0,40}?\\b(?:${PREDICATES})\\b`,
-    // a table cell or a label: "| Secret scanning | enabled |", "Push protection: enabled"
-    `[:|]\\s*(?:enabled|configured|active|on)\\b`,
+    // "Secret scanning — active", "| Push protection | on |"
+    `${LABEL_SEPARATOR}\\s*(?:active|on)\\b`,
+    // A ticked checklist item or a check mark, which is how a security README
+    // says it without a verb at all. The UNticked form must not match, so the
+    // box is anchored to the start of the line.
+    `^\\s*(?:[-*+]\\s*)?\\[[xX]\\]`,
+    `[✅✔]`,
   ].join("|"),
   "i",
 )

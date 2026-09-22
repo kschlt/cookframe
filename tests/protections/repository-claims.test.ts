@@ -153,6 +153,38 @@ describe("protections/no-unbacked-claim-about-a-setting", () => {
     // see it.
     expect(claims("Secret scanning is\nenabled.")).toBe(1)
 
+    // A SECOND review round measured five more spellings through, four of them
+    // a character or a tense from shapes that were already implemented. The
+    // lesson was not "add four more patterns" — it was that enumerating the
+    // grammar was the wrong axis. All of these are one claim in different
+    // costumes, and the detector now recognises the costume they share: a past
+    // participle, wherever it stands.
+    expect(claims("Secret scanning — enabled.")).toBe(1) // em dash, not a colon
+    expect(claims("We enabled secret scanning last week.")).toBe(1) // simple past
+    expect(claims("Secret scanning (enabled)")).toBe(1) // parenthesised
+
+    // And the two spellings with no verb at all, which is how a security README
+    // actually writes it.
+    expect(claims("- [x] Secret scanning with push protection")).toBe(1)
+    expect(claims("Secret scanning ✅")).toBe(1)
+    // The unticked box is the thing an open checklist is made of, and must not
+    // read as done.
+    expect(claims("- [ ] Secret scanning with push protection")).toBe(0)
+
+    // States that are not participles still need the copula, because bare
+    // "active" and bare "on" mean too many other things.
+    expect(claims("Branch protection is active.")).toBe(1)
+    expect(claims("| Push protection | on |")).toBe(1)
+
+    // DELIBERATELY OUT OF REACH, and pinned here so that the paragraph in
+    // `claims.ts` saying so is not quietly contradicted. Catching these needs a
+    // rule about possession and about the present tense of arbitrary verbs, and
+    // that rule fires on the honest prose elsewhere in this repository. If a
+    // later change catches them ON PURPOSE, this case and that paragraph change
+    // together.
+    expect(claims("This repository has secret scanning with push protection.")).toBe(0)
+    expect(claims("Secret scanning protects this repository today.")).toBe(0)
+
     // And a sentence about none of these subjects is not a claim about them,
     // however assertively it is phrased.
     expect(claims("The url-fetch-security job is enabled on every pull request.")).toBe(0)
@@ -331,6 +363,33 @@ describe("protections/dependency-automation-is-in-the-tree", () => {
         update.schedule?.interval,
         `${update["package-ecosystem"]} has no schedule interval`,
       ).toBeTruthy()
+    }
+  })
+
+  it("declares what it cannot see, so its name is not read as a guarantee", () => {
+    // The durable half of the second review round. A judgement about English
+    // cannot be made exhaustive; a guard that documents every bound it HAS while
+    // naming no gap invites a reader to take the proof id at face value. That is
+    // the reviewed defect one level up.
+    //
+    // This asserts the declaration exists and still names the spellings that are
+    // out of reach — not the wording around them. Delete the paragraph and this
+    // goes red; rewrite it and it does not.
+    const detector = readFileSync(join(repoRoot, "tests", "protections", "claims.ts"), "utf8")
+    expect(detector, "the detector no longer declares what it cannot see").toMatch(
+      /WHAT THIS CANNOT SEE/,
+    )
+    for (const unreachable of [
+      "This repository has secret scanning with push protection",
+      "Secret scanning protects this repository today",
+    ]) {
+      expect(
+        detector,
+        `the declared gap no longer names "${unreachable}", which findClaims still lets through`,
+      ).toContain(unreachable)
+      // And it is still true that they pass. A gap paragraph naming a spelling
+      // the detector meanwhile catches is a different kind of false claim.
+      expect(findClaims(unreachable).length, `"${unreachable}" is now caught`).toBe(0)
     }
   })
 
