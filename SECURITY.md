@@ -34,4 +34,11 @@ invariant as the fetch layer is built.
 
 The repository is public and open to contribution. Dependencies are kept minimal, pinned
 through the lockfile, and installed with `npm ci` in CI and in the container. Dependency
-update automation and branch protection are configured on the repository itself.
+update automation is `.github/dependabot.yml`, in the tree rather than a setting, so it is
+versioned and reviewable.
+
+The protections that live on GitHub itself — branch protection, secret scanning — cannot be
+read back by anything in this repository, so they are not claimed here. What is known about
+each one, who checked it and when, is recorded in
+[`docs/repository-protections.md`](docs/repository-protections.md), including the ones that
+are still off.

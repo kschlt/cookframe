@@ -22,6 +22,7 @@
     "test:model-egress": "vitest run tests/security",
     "test:dbq": "vitest run tests/dbq",
     "test:persistence": "vitest run tests/persistence",
+    "test:protections": "vitest run tests/protections",
     "test:slice1": "vitest run tests/slice1",
     "test:slice3": "vitest run tests/slice3",
     "test:slice4": "vitest run tests/slice4",
