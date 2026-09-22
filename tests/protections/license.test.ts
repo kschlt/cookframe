@@ -29,6 +29,48 @@
  * reading that finds nothing. Written out, a licence change costs two lines
  * here, on purpose — it is the one moment the full list of places is worth a
  * person's eyes.
+ *
+ * ## MEASURED, through `./mutation.ts`, on 2026-09-22 at `9c52919`
+ *
+ * Thirteen plants, each judged from the failure it was required to produce and
+ * not from an exit code. Every one killed; nothing survived, nothing
+ * inconclusive, nothing refused.
+ *
+ * | planted in | the violation | verdict |
+ * | --- | --- | --- |
+ * | `LICENSE` | the licence text's heading becomes the AGPL's | killed |
+ * | `package.json` | the field becomes `AGPL-3.0-or-later` | killed |
+ * | `package-lock.json` | the root entry becomes `AGPL-3.0-or-later` | killed |
+ * | `package-lock.json` | the root entry loses its `license` field | killed |
+ * | `README.md` | the link's text names the AGPL | killed |
+ * | `license.ts` | `STRUCTURED_SITES` drops `package-lock.json` | killed |
+ * | `license.ts` | `STRUCTURED_SITES` drops `LICENSE` | killed |
+ * | `license.ts` | `STRUCTURED_SITES` drops `package.json` | killed |
+ * | `license.ts` | the markdown rule stops recognising `.md` | killed |
+ * | `license.ts` | the lock rule reads a dependency instead of `packages[""]` | killed |
+ * | `license.test.ts` | the markdown walk is narrowed to one file | killed |
+ * | `license.test.ts` | the census walk is narrowed to markdown | killed |
+ * | `license.test.ts` | the census walk is told to skip `docs/` | killed |
+ *
+ * The third row is the drift the item was cut for, and the last three are what
+ * ADR-0029 asks for by name: a guard whose target is pinned and whose BREADTH
+ * is not passes every one of its own proofs while reading less and less.
+ *
+ * ### And three plants that MUST survive, measured the same way
+ *
+ * A limit is worth what a measurement of it is worth, so the limits this file
+ * declares are planted too, and are required to come back green:
+ *
+ * | planted in | the violation | verdict |
+ * | --- | --- | --- |
+ * | `docs/open-source-self-hosting-principles.md` | its prose declaration drifts | survived |
+ * | `docs/validation-and-evaluation.md` | its prose declaration drifts | survived |
+ * | `package-lock.json` | `ipaddr.js` changes licence | survived |
+ *
+ * The first two are the gap `MENTIONS_ONLY` marks `NOT COVERED`, and they close
+ * the moment those two sentences link to `LICENSE`. The third is not a gap: a
+ * dependency's licence is not this project's, and a rule that went red on it
+ * would go red on every `npm update`.
  */
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
