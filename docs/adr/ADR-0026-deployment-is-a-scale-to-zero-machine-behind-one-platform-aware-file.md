@@ -1,7 +1,7 @@
 ---
 id: "ADR-0026"
 title: "Deployment: a scale-to-zero machine and a sleeping managed Postgres, behind one platform-aware file"
-status: proposed
+status: accepted
 date: 2026-09-22
 tags: ["hosting", "deployment", "persistence", "portability"]
 constrained_by: ["PDR-0002"]
@@ -215,9 +215,10 @@ target and their constraints; it did not design them, and it does not revise the
   the credentials — not an account on a platform that holds them"). The resolution taken here is that
   `PDR-0002` governs **what the product documents as self-hosting**, which cuts 1 and 2 keep
   provider-neutral, while this record governs **what the maintainer's instance happens to run on**.
-  That reading is defensible and is stated rather than assumed — but if the maintainer means
-  `PDR-0002` to bind the instance too, this record is the wrong one and a product decision, not an
-  architectural one, has to come first.
+  That reading was put to the maintainer rather than assumed, and answered on 2026-09-22: `PDR-0002`
+  binds what is shipped and documented, not the instance he runs himself. This record is accepted on
+  that answer. The cost it names does not go away with the answer — part of the data does sit with a
+  provider — and cuts 1 and 2 are what keep the documented path free of that provider.
 - **A cold start is now on the path of a third party's fetch.** Bring fetches the capability URL
   server-side and its timeout is unknown to us. If a cold start exceeds it, a shopping handoff fails
   in a way no code change can see. Registered as `OQ-45`.
@@ -288,5 +289,6 @@ a later move at the cost of a URL.
 - **The byte volume outgrowing one disk, or a second instance becoming necessary**, either of which
   triggers the object-storage move `ADR-0009` anticipates and makes the serverless alternative above
   worth re-reading.
-- **The maintainer deciding that `PDR-0002` binds the instance and not only the documentation.** That
-  would reverse the managed-database half of this record on product grounds, and correctly.
+- **The maintainer reversing his 2026-09-22 answer, so that `PDR-0002` binds the instance and not
+  only the documentation.** That would reverse the managed-database half of this record on product
+  grounds, and correctly. It is the one falsifier here that no measurement can settle.

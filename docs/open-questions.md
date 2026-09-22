@@ -16,7 +16,7 @@ discovery-era wording is kept in [`archive/`](archive/).
 | OQ-02 | TypeScript vs. another implementation language if real constraints justify a change | closed by ADR-0002 |
 | OQ-03 | database technology | closed by ADR-0015 (PostgreSQL) |
 | OQ-04 | JSON vs. relational physical persistence | closed by ADR-0015 (JSONB documents, extracted projections where measured) |
-| OQ-05 | hosting platform/reference deployment | closed by ADR-0011 (rented single-tenant cloud server). **ADR-0026 is proposed to supersede it** — a scale-to-zero machine, a sleeping managed Postgres, a persistent volume — and is not accepted, because whether `PDR-0002` binds the maintainer's own instance or only what the product documents as self-hosting is a product question that has to be answered first. Until it is, ADR-0011 stands |
+| OQ-05 | hosting platform/reference deployment | **closed by ADR-0026** (a scale-to-zero machine, a sleeping managed Postgres, a persistent volume), which supersedes ADR-0011 (rented single-tenant cloud server). The product question it rested on — whether `PDR-0002` binds the maintainer's own instance or only what the product documents as self-hosting — was answered by the maintainer on 2026-09-22: it binds what is shipped and documented. ADR-0011 now carries `superseded_by` |
 | OQ-06 | object/blob storage implementation | closed by ADR-0009 |
 | OQ-07 | model provider | open — configuration, not a record (ADR-0004) |
 | OQ-08 | model SDK/library | open — configuration, not a record (ADR-0004) |
