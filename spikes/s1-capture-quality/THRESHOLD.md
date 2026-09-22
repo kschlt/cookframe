@@ -18,32 +18,47 @@ Accuracy is reported **per field**, as the fraction of fixtures where the captur
 ground truth under the normalization named below. No whole-document or string-distance measure
 stands in for any field (proof: `capture-quality/per-field-scoring`).
 
-| # | Critical field | Why it is critical | Pass bar |
+The two tables below are **generated from [`bars.json`](bars.json)** — the single declaration the
+scorer also reads — so the document and the scorer cannot disagree (CFV1-THR, proof:
+`thresholds/single-declaration`). Do not edit a table or `bars.json` by hand, and there is no
+reseal command: change a bar with
+`python3 thresholds.py register --bar <b> --kind <field|edge> --value <v> --registered <YYYY-MM-DD> --reasoning <why>`,
+which appends a new dated entry and regenerates these tables in one step. Each bar carries the date
+it was registered; the superseded entry stays in `bars.json`. An in-place edit is refused
+(`thresholds/in-place-edit-refused`): a raw hand-edit leaves the entry's stored hash stale, which
+`thresholds.py verify` catches, and `thresholds.py append-only-check` refuses any change to a
+committed entry against the git baseline even if its hash was re-forged.
+
+<!-- BEGIN GENERATED FIELD BARS -->
+| Critical field | Registered | Why it is critical | Pass bar |
 |---|---|---|---|
-| 1 | `ingredient.quantity` | wrong amount ruins the dish; silent after deletion | **≥ 98%** |
-| 2 | `ingredient.unit` | 1 tsp vs 1 tbsp salt is a safety/edibility failure | **≥ 98%** |
-| 3 | `split_reserved` | losing "reserve 150 g" makes a later step impossible | **≥ 98%** |
-| 4 | `temperature` | under/over-temp is a food-safety failure | **≥ 98%** |
-| 5 | `multiple_yields` | picking the wrong yield mis-scales everything | **≥ 98%** |
-| 6 | `ingredient.name` | wrong ingredient identity | ≥ 95% |
-| 7 | `instruction.text` | the action itself | ≥ 95% |
-| 8 | `instruction.order` | reordered steps break the recipe | ≥ 95% |
-| 9 | `title` | recipe identity | ≥ 95% |
-| 10 | `yield` (single) | scaling / shopping base | ≥ 95% |
-| 11 | `time` (prep/cook/total) | planning + readiness | ≥ 95% |
-| 12 | `ingredient_group` | grouping structure when the source has it | ≥ 90% |
-| 13 | `nutrition` (per source-provided field) | preserved-not-acted-on canonical fact | ≥ 90% |
-| 14 | `classification` (cuisine/diet/difficulty) | preserved source fact | ≥ 90% |
+| `ingredient.quantity` | 2026-09-20 | wrong amount ruins the dish; silent after deletion | **≥ 98%** |
+| `ingredient.unit` | 2026-09-20 | 1 tsp vs 1 tbsp salt is a safety/edibility failure | **≥ 98%** |
+| `split_reserved` | 2026-09-20 | losing "reserve 150 g" makes a later step impossible | **≥ 98%** |
+| `temperature` | 2026-09-20 | under/over-temp is a food-safety failure | **≥ 98%** |
+| `multiple_yields` | 2026-09-20 | picking the wrong yield mis-scales everything | **≥ 98%** |
+| `ingredient.name` | 2026-09-20 | wrong ingredient identity | ≥ 95% |
+| `instruction.text` | 2026-09-20 | the action itself | ≥ 95% |
+| `instruction.order` | 2026-09-20 | reordered steps break the recipe | ≥ 95% |
+| `title` | 2026-09-20 | recipe identity | ≥ 95% |
+| `yield` | 2026-09-20 | scaling / shopping base | ≥ 95% |
+| `time` | 2026-09-20 | planning + readiness | ≥ 95% |
+| `ingredient_group` | 2026-09-20 | grouping structure when the source has it | ≥ 90% |
+| `nutrition` | 2026-09-20 | preserved-not-acted-on canonical fact | ≥ 90% |
+| `classification` | 2026-09-20 | preserved source fact | ≥ 90% |
+<!-- END GENERATED FIELD BARS -->
 
 The four **quantity edge classes** are reported as their **own separate figures**, not folded into
 `ingredient.quantity` (proof: `capture-quality/quantity-edge-classes`):
 
-| Edge class | Pass bar |
-|---|---|
-| `fractions` (½, ¾, 1 1/2) | **≥ 98%** |
-| `ranges` (2–3, 180-200 °C) | **≥ 98%** |
-| `ambiguous_units` (1 can, 1 clove, a pinch, 1 stick) | ≥ 95% |
-| `multiple_yields` (makes 12 / serves 4) | **≥ 98%** |
+<!-- BEGIN GENERATED EDGE BARS -->
+| Edge class | Registered | Why it is critical | Pass bar |
+|---|---|---|---|
+| `fractions` | 2026-09-20 | ½, ¾, 1 1/2 — a misread fraction is a silently wrong amount | **≥ 98%** |
+| `ranges` | 2026-09-20 | 2–3, 180-200 °C — a range matches only if both bounds survive | **≥ 98%** |
+| `multiple_yields` | 2026-09-20 | makes 12 / serves 4 — the kept base yield mis-scales everything if wrong | **≥ 98%** |
+| `ambiguous_units` | 2026-09-20 | 1 can, 1 clove, a pinch, 1 stick — unit-shaped words carrying the quantity | ≥ 95% |
+<!-- END GENERATED EDGE BARS -->
 
 ## Verdict rule
 
