@@ -37,6 +37,7 @@ import {
   checkSubject,
   checkTitle,
   describeViolations,
+  isStandardMerge,
   listCommits,
   listRangeShas,
   MAX_SUBJECT_LENGTH,
@@ -221,6 +222,81 @@ function buildFixture(): Fixture {
 
   return { dir, base: sha.c1, staleBase: sha.c0, head: sha.m3, sha }
 }
+
+describe("commits/merge-exemption-is-exact", () => {
+  // The exception is where a guard like this goes quietly green, so its breadth
+  // is held by a table of its own. A two-parent commit is exempt only with one
+  // of git's or GitHub's own texts, spelled exactly; anything a person wrote is
+  // judged like any other commit. The first refused row is a real subject from
+  // #91, which a merge step written by hand put on a branch twice.
+  const two = ["a".repeat(40), "b".repeat(40)]
+  const EXEMPT = [
+    "Merge branch 'main' into claude/foo",
+    "Merge branch 'main'",
+    "Merge remote-tracking branch 'origin/main' into claude/foo",
+    "Merge branch 'main' of https://github.com/kschlt/cookframe into claude/foo",
+    "Merge pull request #95 from kschlt/claude/foo",
+  ]
+  const NOT_EXEMPT = [
+    "Merge main into claude/foo",
+    "Merge the other branch, which I wrote by hand",
+    "merge branch 'main' into claude/foo",
+    "Merge branch 'main' into claude/foo and fix the tests",
+    "Merge pull request #95: the title somebody typed",
+  ]
+  const merge = (subject: string, parents = two): Commit => ({
+    sha: "c".repeat(40),
+    parents,
+    subject,
+  })
+
+  it("exempts only the standard texts, and only on a commit with two parents", () => {
+    for (const subject of EXEMPT) {
+      expect(isStandardMerge(merge(subject)), `"${subject}" on a merge is git's own text`).toBe(
+        true,
+      )
+      expect(
+        isStandardMerge(merge(subject, ["a".repeat(40)])),
+        `"${subject}" on a single-parent commit was exempted`,
+      ).toBe(false)
+    }
+    for (const subject of NOT_EXEMPT) {
+      expect(
+        isStandardMerge(merge(subject)),
+        `"${subject}" was written by a person and exempted`,
+      ).toBe(false)
+    }
+  })
+
+  it("commits/merge-table-discriminates — the table tells the exemption apart from each looser one", () => {
+    const agrees = (rule: (c: Commit) => boolean) =>
+      EXEMPT.every((s) => rule(merge(s)) && !rule(merge(s, ["a".repeat(40)]))) &&
+      NOT_EXEMPT.every((s) => !rule(merge(s)))
+    expect(agrees(isStandardMerge), "the table does not agree with the real exemption").toBe(true)
+    const candidates: ReadonlyArray<readonly [string, (c: Commit) => boolean]> = [
+      ["an exemption by parent count alone", (c) => c.parents.length >= 2],
+      ["an exemption by subject text alone", (c) => isStandardMerge({ ...c, parents: two })],
+      [
+        "any subject starting with `Merge `",
+        (c) => c.parents.length >= 2 && /^Merge /.test(c.subject),
+      ],
+      [
+        "any subject starting with `Merge` in any case",
+        (c) => c.parents.length >= 2 && /^merge /i.test(c.subject),
+      ],
+      [
+        "a text match that ignores what follows",
+        (c) => c.parents.length >= 2 && /^Merge (branch|pull request) /.test(c.subject),
+      ],
+    ]
+    for (const [name, candidate] of candidates) {
+      expect(
+        agrees(candidate),
+        `the merge table cannot tell the exemption apart from ${name}`,
+      ).toBe(false)
+    }
+  })
+})
 
 describe("commits/range-check", () => {
   const fixture = buildFixture()

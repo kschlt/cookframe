@@ -57,10 +57,11 @@ Both are true at once. Either way, whether the rule applied depended on how a se
   commits reachable only through a merge's second parent. The proofs compare it with `git rev-list`
   of the same range, and name the second-parent commit a narrower walk would miss. Three narrowings
   are measured red: first parent only, skipping merges, and the last commit only.
-- **The title is checked, which answers the question left open by the merge commits.** A
-  pull-request merge commit never appears in a pull request's range, because it does not exist
-  until the merge. So the only way to guard its subject before it exists is to guard the text it
-  would be made from.
+- **The title is checked, because it becomes a subject on `main`.** Since #91 the merge step
+  passes the pull request's title as the merge commit's subject on every merge. A pull-request
+  merge commit never appears in a pull request's range, because it does not exist until the
+  merge, so this check on the title is the only place in the repository that guards that
+  subject before it exists. The title gets no merge exception: it has no parents to qualify it.
 
 ## Consequences
 
@@ -76,17 +77,17 @@ Both are true at once. Either way, whether the rule applied depended on how a se
 
 ### Negative
 
-- **The pull-request merge commits on `main` are not changed by this record.** They are a declared
-  limit, not part of the decision. Making them conventional takes one of two steps outside this
-  repository's files: the repository setting that makes GitHub use the pull-request title as the
-  merge-commit subject, which only the maintainer can change, or the merge step passing the title
-  explicitly. Either one works now that the title is guarded.
+- **Whether the title becomes the merge subject is decided outside this repository.** The merge
+  step passes it today, and the repository setting that makes GitHub use the title by default
+  would do the same without it. Nothing in the repository can check that the step keeps doing so.
+  A merge made without it writes GitHub's `Merge pull request #N from …` onto `main`, and no
+  check here sees that commit.
 - **Base merges written by git keep git's subject on `main`**, because they are exempt. Writing
   them by hand as `chore: merge main into <branch>` is recommended in `CONTRIBUTING.md` but not
   required, since requiring it would turn every use of GitHub's "Update branch" button red.
 - **An edited title is not re-checked until the next push.** The workflow's `pull_request` trigger
   does not list `edited`, and adding it would re-run every job in the workflow on every edit of a
-  title or a description. The merge step reads the title last, and so it is the last check.
+  title or a description. A title edited after the last push reaches `main` unchecked.
 - **History is not rewritten.** The subjects already on `main` stay as they are, and nothing checks
   them.
 - **The private tooling's own table is narrower** — six types, without `build`, `ci`, `perf`,
