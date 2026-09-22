@@ -24,6 +24,7 @@
     "test:slice1": "vitest run tests/slice1",
     "test:slice3": "vitest run tests/slice3",
     "test:slice4": "vitest run tests/slice4",
+    "test:cooking-ux": "vitest run tests/cooking-ux",
     "test:watch": "vitest",
     "eval": "tsx evals/harness.ts",
     "quality": "npm run typecheck && biome ci . && vitest run"
