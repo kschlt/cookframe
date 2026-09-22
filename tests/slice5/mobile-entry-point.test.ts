@@ -47,6 +47,7 @@ import {
   UnknownRecipeCountError,
 } from "../../src/pipeline/recipe-inventory.js"
 import { createInMemoryCapabilityStore } from "../../src/shopping/capability-token.js"
+import { unsuppliedByteSource } from "../security/unsupplied-byte-source.js"
 import { dictionaryKeysRead, parsePlist } from "./plist.js"
 
 /**
@@ -150,6 +151,9 @@ function harness(capture?: CaptureProvider): Harness {
     targetOntologyVersion: "1.0.0",
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
+    byteSource: unsuppliedByteSource(),
+    urlSourceAdapter: "url-import",
+    urlAdapterVersion: "1.0.0",
   })
   return { app, repo, seen }
 }
@@ -436,18 +440,28 @@ describe("slice5/ingest-requires-instance-credential", () => {
 })
 
 describe("slice5/ingest-credential-is-submission-only", () => {
-  it("offers exactly one route, and it is a submission", () => {
+  it("offers submissions and nothing else, at exactly the addresses named here", () => {
     // The route table is read OFF the app, so a read route added later fails a
-    // proof written before it existed.
+    // proof written before it existed — which is what happened: CFV1-URLR added
+    // `POST /capture/url` and this line went red, correctly. The criterion is
+    // PDR-0003's "grants no access to the library beyond submission", and a
+    // second SUBMISSION does not breach it; so the list grows and the property
+    // is stated separately below rather than the list being widened and the
+    // guard left meaning less than it did.
     //
-    // Deduplicated, because Hono lists one entry per HANDLER and this address
-    // carries a `bodyLimit` middleware in front of its handler. What the
-    // criterion is about is the set of addresses this app answers on, and that
-    // set is what is compared: a second path, or a second method on this path,
-    // still fails.
+    // Deduplicated, because Hono lists one entry per HANDLER and both addresses
+    // carry a `bodyLimit` middleware in front of theirs. What the criterion is
+    // about is the set of addresses this app answers on, and that set is what is
+    // compared: a third path, or a second method on either path, still fails.
     const h = harness()
     const routes = [...new Set(h.app.routes.map((r) => `${r.method} ${r.path}`))].sort()
-    expect(routes).toEqual(["POST /capture"])
+    expect(routes).toEqual(["POST /capture", "POST /capture/url"])
+
+    // The property the list is a proxy for, asserted as itself. Without this,
+    // the next author to add an address can keep the proof green by editing one
+    // string, and a `GET` would slip through on the edit that was meant to admit
+    // a `POST`.
+    expect(routes.every((route) => route.startsWith("POST "))).toBe(true)
   })
 
   it("reaches no library content, even with a valid credential", async () => {

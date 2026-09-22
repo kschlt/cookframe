@@ -32,6 +32,7 @@ import {
   createModelNormalizationProvider,
 } from "../pipeline/model-providers.js"
 import { createOpenAITransport } from "../pipeline/openai-transport.js"
+import { createSafeUrlByteSource } from "../security/url-byte-source.js"
 import { createInMemoryCapabilityStore } from "../shopping/capability-token.js"
 import { readConfiguration } from "./config.js"
 import { startInstance } from "./instance.js"
@@ -128,6 +129,12 @@ async function main(): Promise<void> {
     )
   }
 
+  // No options, deliberately: the loopback and resolver seams the connector
+  // accepts are test-only, and passing none is what gets the fail-closed
+  // defaults ADR-0010 specifies. A production instance that could be talked into
+  // fetching 127.0.0.1 is the whole reason that guard exists.
+  const byteSource = createSafeUrlByteSource()
+
   const instance = await startInstance(
     {
       repo,
@@ -153,6 +160,11 @@ async function main(): Promise<void> {
       targetOntologyVersion: TARGET_ONTOLOGY_VERSION,
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
+      byteSource,
+      // The URL entry names itself apart from the phone's, because a snapshot's
+      // provenance is meant to say which way the recipe came in.
+      urlSourceAdapter: "url-import",
+      urlAdapterVersion: "1.0.0",
       // Released after the server has stopped accepting and drained, never
       // before: a pool closed while a request is still in flight turns a clean
       // stop into a half-written one. `run/a-stop-leaves-nothing-half-written`
@@ -162,6 +174,8 @@ async function main(): Promise<void> {
       // guards THIS line is a text assertion in `run/only-the-entry-point-binds`,
       // and it says as much rather than reading like a behavioural one.
       closeStore: () => store.close(),
+      // The connector's pool, released on the same drained boundary as the store.
+      closeByteSource: () => byteSource.close(),
     },
     config.port,
   )

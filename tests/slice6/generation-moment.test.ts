@@ -29,6 +29,7 @@ import { createProvisionalStore } from "../../src/persistence/index.js"
 import { createContentDerivedBlockIdPolicy } from "../../src/pipeline/block-id-policy.js"
 import { createFakeNormalizationProvider } from "../../src/pipeline/fake-providers.js"
 import type { CaptureProvider, CaptureResult } from "../../src/pipeline/providers.js"
+import { unsuppliedByteSource } from "../security/unsupplied-byte-source.js"
 import { bellPepper } from "./fixtures.js"
 import { getPage, pagesApp } from "./pages.js"
 
@@ -78,6 +79,9 @@ function harness(
     targetOntologyVersion: "1.0.0",
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
+    byteSource: unsuppliedByteSource(),
+    urlSourceAdapter: "url-import",
+    urlAdapterVersion: "1.0.0",
     afterImport: createAfterImport({
       repo,
       policy,
@@ -130,6 +134,9 @@ describe("slice6/background-does-not-delay-response", () => {
       targetOntologyVersion: "1.0.0",
       sourceAdapter: "ios-shortcut",
       adapterVersion: "1.0.0",
+      byteSource: unsuppliedByteSource(),
+      urlSourceAdapter: "url-import",
+      urlAdapterVersion: "1.0.0",
       afterImport: () => void never,
     })
     expect((await submit(app)).status).toBe(201)

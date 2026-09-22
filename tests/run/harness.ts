@@ -22,6 +22,7 @@ import {
   createFakeNormalizationProvider,
 } from "../../src/pipeline/fake-providers.js"
 import type { CaptureProvider } from "../../src/pipeline/providers.js"
+import type { UrlByteSource } from "../../src/security/url-byte-source.js"
 import {
   type InstanceDeps,
   type RunningInstance,
@@ -31,6 +32,7 @@ import {
   type CapabilityStore,
   createInMemoryCapabilityStore,
 } from "../../src/shopping/capability-token.js"
+import { unsuppliedByteSource } from "../security/unsupplied-byte-source.js"
 
 /**
  * Two DIFFERENT secrets, because PDR-0003 says the phone's does not open the
@@ -128,6 +130,13 @@ export interface TestInstance extends RunningInstance {
 export interface TestInstanceOptions {
   /** Replaces the deterministic fake — a slow one, for the stop proof. */
   readonly capture?: CaptureProvider
+  /**
+   * The egress seam the URL route fetches through. A proof that imports a link
+   * passes the REAL safe-fetch-backed source with `allowLoopback`, so it goes
+   * through the same code a production instance runs; the default below is for
+   * the proofs that never touch the URL address.
+   */
+  readonly byteSource?: UrlByteSource
 }
 
 /**
@@ -182,8 +191,16 @@ export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanc
     targetOntologyVersion: "1.0.0",
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
+    byteSource: options.byteSource ?? unsuppliedByteSource(),
+    urlSourceAdapter: "url-import",
+    urlAdapterVersion: "1.0.0",
     closeStore: async () => {
       closed.count += 1
+    },
+    // The source the proof supplied is the one released. A default source holds
+    // no pool — it refuses rather than fetching — so there is nothing to close.
+    closeByteSource: async () => {
+      await options.byteSource?.close()
     },
   }
 

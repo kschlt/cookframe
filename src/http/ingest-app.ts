@@ -42,7 +42,10 @@ import type { BlockIdPolicy } from "../pipeline/block-id-policy.js"
 import { ingest } from "../pipeline/ingest.js"
 import type { CaptureProvider, NormalizationProvider } from "../pipeline/providers.js"
 import { MultipleRecipesError, UnknownRecipeCountError } from "../pipeline/recipe-inventory.js"
-import { importWording, refusalWording } from "./capture-wording.js"
+import { importFromUrl } from "../pipeline/url-import.js"
+import { SafeFetchError } from "../security/safe-fetch.js"
+import type { UrlByteSource } from "../security/url-byte-source.js"
+import { importWording, refusalWording, urlRefusalWording } from "./capture-wording.js"
 import type { InstanceCredential } from "./instance-credential.js"
 import { bearerCredential } from "./instance-credential.js"
 
@@ -124,6 +127,18 @@ export interface IngestAppDeps {
   readonly normalization: NormalizationProvider
   readonly policy: BlockIdPolicy
   readonly identity: IngestIdentity
+  /**
+   * The egress seam a URL import fetches through (`src/security/url-byte-source.ts`).
+   *
+   * Injected, like every other collaborator (ADR-0004), and injected HERE rather
+   * than constructed inside the handler for a reason this unit measured: the
+   * connector behind it holds a connection pool across calls, so a source built
+   * per request would open one per import and close none.
+   */
+  readonly byteSource: UrlByteSource
+  /** How the URL entry names itself in `captureProvenance`; the photo path has its own pair. */
+  readonly urlSourceAdapter: string
+  readonly urlAdapterVersion: string
   /** The ontology version a normalization run targets. */
   readonly targetOntologyVersion: string
   /** How this entry point names itself in `captureProvenance`. */
@@ -141,6 +156,23 @@ export interface IngestAppDeps {
 
 /** The one unauthorized response. Identical for absent and for wrong. */
 const UNAUTHORIZED_BODY = { error: "unauthorized" } as const
+
+/** What a URL submission is: a small JSON object carrying one link. */
+const URL_SUBMISSION_TYPE = "application/json"
+
+/**
+ * The largest URL submission accepted. Three orders of magnitude below the photo
+ * bound, because the two bound different things: this one bounds a link, while
+ * {@link MAX_CAPTURE_BYTES} bounds an image. The page the link points at is
+ * bounded by the safe-fetch guard instead, which owns that bound fail-closed.
+ */
+export const MAX_URL_SUBMISSION_BYTES = 8 * 1024
+
+/** A submission that carried no usable link, named as the caller's mistake. */
+const MISSING_URL_BODY = {
+  error: "missing_url",
+  message: 'this address expects a JSON object with a "url" string',
+} as const
 
 /**
  * Build the mobile ingest app. `POST /capture` takes the image bytes as the
@@ -251,6 +283,142 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
         // Everything else is this instance's fault and says nothing further: a
         // stack or a message from inside would be the one place this endpoint
         // leaks what it knows to an unauthenticated-adjacent caller.
+        return c.json({ error: "capture_failed" }, 500)
+      }
+    },
+  )
+
+  /**
+   * `POST /capture/url` — import the recipe at a link, through the same spine.
+   *
+   * **Why this route exists at all, and it is not a feature request.** The URL
+   * import was built, guarded and proved by CFV1-SL4, and then nothing in `src/`
+   * ever called it: `importFromUrl` had no caller outside the test tree, so a
+   * running instance had no address that could import a link. Every proof of the
+   * import was true and none of them was about the instance — the same shape
+   * CFV1-SERVE found when `createCookingApp` was built and never mounted. The
+   * structural half of this unit, `serve/every-ingest-entry-point-is-reachable`,
+   * is what makes that gap red instead of invisible.
+   *
+   * It sits in THIS app rather than an app of its own because the credential
+   * decides the same one thing here as for a photograph — whether this
+   * submission is the instance's to accept — and a second app would be a second
+   * place that answer is given.
+   *
+   * **The guard's verdict is the answer, and nothing more of it than that.** A
+   * refusal arrives as its `reasonCode` and a sentence built from the code
+   * (`urlRefusalWording`). The `SafeFetchError`'s own message and its `url` are
+   * deliberately NOT relayed: on a redirect refusal that URL is the address the
+   * chain resolved to, and the message can name it too, so passing either back
+   * would rebuild out here the resolver oracle ADR-0010 closes inside.
+   */
+  app.post(
+    "/capture/url",
+    // A link is small. This bound is about the SUBMISSION, not the page behind
+    // it — the page's size bound belongs to the safe-fetch guard, which owns it
+    // fail-closed and answers `SIZE_LIMIT`.
+    bodyLimit({ maxSize: MAX_URL_SUBMISSION_BYTES, onError: (c) => c.json(TOO_LARGE_BODY, 413) }),
+    async (c) => {
+      if (!deps.credential.accepts(bearerCredential(c.req.header("authorization")))) {
+        return c.json(UNAUTHORIZED_BODY, 401)
+      }
+
+      const mediaType =
+        (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? ""
+      if (mediaType !== URL_SUBMISSION_TYPE) {
+        return c.json(
+          {
+            error: "unsupported_media_type",
+            message: `this address accepts ${URL_SUBMISSION_TYPE}`,
+          },
+          415,
+        )
+      }
+
+      // Parsed defensively: a body that is not an object, or carries no string
+      // `url`, is the caller's mistake and is named as one. Handing an undefined
+      // through to the guard would get a refusal with a reason about the URL,
+      // which would be a true sentence about the wrong problem.
+      let url: string
+      try {
+        const body: unknown = await c.req.json()
+        const candidate =
+          typeof body === "object" && body !== null && "url" in body
+            ? (body as { url: unknown }).url
+            : undefined
+        if (typeof candidate !== "string" || candidate.trim() === "") {
+          return c.json(MISSING_URL_BODY, 400)
+        }
+        url = candidate.trim()
+      } catch {
+        return c.json(MISSING_URL_BODY, 400)
+      }
+
+      try {
+        const result = await importFromUrl(
+          {
+            byteSource: deps.byteSource,
+            repo: deps.repo,
+            capture: deps.capture,
+            normalization: deps.normalization,
+            policy: deps.policy,
+          },
+          url,
+          {
+            snapshotId: deps.identity.newSnapshotId(),
+            snapshotVersion: 0,
+            sourceAdapter: deps.urlSourceAdapter,
+            adapterVersion: deps.urlAdapterVersion,
+            runId: deps.identity.newCaptureRunId(),
+            // Someone else's words, so the model-backed provider verifies
+            // against them rather than taking the vision exemption a
+            // photographed page earns (ADR-0019). Stated here because the
+            // default is to fail closed on an ABSENT provenance, which would be
+            // the same behaviour for the wrong reason — and because a URL that
+            // happens to serve `image/*` is still not a page the user held.
+            sourceProvenance: "url",
+          },
+          {
+            runId: deps.identity.newNormalizationRunId(),
+            targetOntologyVersion: deps.targetOntologyVersion,
+          },
+        )
+        const title = result.canonical.recipe.title
+        const response = c.json(
+          {
+            snapshotId: result.snapshot.id,
+            recipeId: result.canonical.recipeId,
+            version: result.canonical.version,
+            title,
+            message: importWording(title),
+          },
+          201,
+        )
+        deps.afterImport?.(result.canonical)
+        return response
+      } catch (error) {
+        if (error instanceof SafeFetchError) {
+          return c.json(
+            { reasonCode: error.reasonCode, message: urlRefusalWording(error.reasonCode) },
+            422,
+          )
+        }
+        // The two refusals a person has to see reach this route too: a linked
+        // page can hold several recipes exactly as a photographed page can.
+        if (error instanceof MultipleRecipesError) {
+          return c.json(
+            {
+              reasonCode: error.reasonCode,
+              recipeCount: error.recipeCount,
+              recipeTitles: error.recipeTitles,
+              message: refusalWording(error),
+            },
+            422,
+          )
+        }
+        if (error instanceof UnknownRecipeCountError) {
+          return c.json({ reasonCode: error.reasonCode, message: refusalWording(error) }, 422)
+        }
         return c.json({ error: "capture_failed" }, 500)
       }
     },
