@@ -70,3 +70,37 @@ describe("fixtures/every-fixture-is-labelled", () => {
     }
   }
 })
+
+describe("fixtures/no-fixture-names-a-real-source", () => {
+  // The README states the guarantee in two halves — every fixture carries the
+  // "Cookframe Fixtures" source name, and any URL it records sits on the
+  // reserved `example.invalid` domain — while the labelling check above only
+  // enforces that a file is listed. A fixture derived from a real page can
+  // therefore be added, labelled, and still name the page it came from; that
+  // happened while the Slice 6 fixtures were written. This closes it.
+  const DECLARED_SOURCE_NAME = "Cookframe Fixtures"
+  const url = /https?:\/\/([^/"\s]+)/g
+
+  for (const dir of ["source-snapshot", "canonical"]) {
+    for (const file of jsonFilesIn(dir)) {
+      it(`${dir}/${file} names the fixture source and no real host`, () => {
+        const raw = readFileSync(join(publicDir, dir, file), "utf8")
+        const fixture = JSON.parse(raw) as { sourceName?: unknown }
+        if (fixture.sourceName !== undefined) {
+          expect(fixture.sourceName, `${file} names its own source`).toBe(DECLARED_SOURCE_NAME)
+        }
+        for (const [, host] of raw.matchAll(url)) {
+          expect(host, `${file} records ${host}`).toMatch(/(^|\.)example\.invalid$/)
+        }
+      })
+    }
+  }
+
+  it("rejects a fixture that names a real host", () => {
+    // Without this the sweep could pass because the pattern finds no URL at all.
+    const planted = '{"sourceUrl": "https://www.example.com/a-real-recipe/"}'
+    const hosts = [...planted.matchAll(url)].map(([, host]) => host)
+    expect(hosts).toEqual(["www.example.com"])
+    expect(hosts[0]).not.toMatch(/(^|\.)example\.invalid$/)
+  })
+})
