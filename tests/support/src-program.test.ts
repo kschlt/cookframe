@@ -84,6 +84,10 @@ describe("support/every-type-checked-program-in-the-suite-is-named", () => {
     expect(census).toEqual({
       // Sources written for the provenance reader, typed as the tree is.
       "tests/protections/capture-provenance.ts": 1,
+      // One test file at a time, bound with nothing resolved and no library,
+      // to tell a name imported from vitest from one declared in the file
+      // (#109). It never reads `src/`.
+      "tests/protections/proof-names.ts": 1,
       // Seams planted in memory, one per condition of the scan.
       "tests/protections/seam-fields.ts": 1,
       // The tree itself, for every guard that reads `src/` with a checker.

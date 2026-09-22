@@ -41,7 +41,7 @@
  * source extension from a planted tree. It reads exactly what `tsc` compiles
  * under `src/`, and it is typed with the options `tsc` uses. Every place the
  * suite builds a type-checked program is also named there, with how many
- * programs it builds, so a fourth program arrives as a decision rather than as
+ * programs it builds, so the next program arrives as a decision rather than as
  * another copy.
  */
 import { dirname, join } from "node:path"
