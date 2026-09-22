@@ -436,6 +436,31 @@ describe("CI workflow (ci.yml)", () => {
     ).toMatch(/tests\/dbq/)
   })
 
+  it("ci/every-declared-test-script-runs-in-a-named-job", () => {
+    // Read the list off `package.json` rather than writing it here. A suite that
+    // gets an npm script and no job is not unrun — `quality` runs every test —
+    // but it reaches CI only inside the `container` job, so its failure reports
+    // as a container failure, and a check with no name of its own cannot be
+    // listed under branch protection. Both are how a suite stops being looked at.
+    //
+    // This guard found two gaps older than itself when it was added for
+    // `slice5`: `slice3` and `slice4` had scripts and no job.
+    const scripts = JSON.parse(read("package.json")).scripts as Record<string, string>
+    const declared = Object.keys(scripts).filter((n) => n.startsWith("test:") && n !== "test:watch")
+    expect(declared.length, "no test script is declared at all").toBeGreaterThan(0)
+
+    const runsAnywhere = Object.values(workflow.jobs)
+      .flatMap((j) => j.steps ?? [])
+      .map((st) => st.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    for (const script of declared) {
+      expect(runsAnywhere, `\`${script}\` is declared and no CI job runs it`).toContain(
+        `npm run ${script}`,
+      )
+    }
+  })
+
   it("ci/merge-gate-job-cannot-be-silently-skipped — the merge check runs, and only where it can", () => {
     // CFV1-BASE. What the merge gate DOES is proved by running it against real
     // repositories in `tests/base/merge-gate.test.ts`, including both measured
