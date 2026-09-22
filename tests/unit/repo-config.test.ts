@@ -436,6 +436,59 @@ describe("CI workflow (ci.yml)", () => {
     ).toMatch(/tests\/dbq/)
   })
 
+  it("pg/ci-provides-the-database — the persistence job runs the durable store's proofs against a real PostgreSQL service", () => {
+    // CFV1-PG. The store is PostgreSQL (ADR-0015), so its proofs need a server.
+    // `tests/persistence/postgres-harness.ts` FAILS rather than skips once
+    // DATABASE_URL is set — but that rule only bites where the variable is set,
+    // so this job is the other half of it: with no job setting it, every proof
+    // would skip and the build would be green with the durable store untested.
+    const job = workflow.jobs["persistence"] as
+      | { services?: Record<string, { image?: string }>; env?: Record<string, string> }
+      | undefined
+    expect(job, "no `persistence` job in CI").toBeTruthy()
+    expect(job?.services?.postgres?.image, "the persistence job has no postgres service").toMatch(
+      /^postgres:/,
+    )
+    expect(
+      job?.env?.DATABASE_URL,
+      "the persistence job does not point the tests at the service, so they would skip",
+    ).toContain("postgres://")
+    const runs = (workflow.jobs["persistence"]?.steps ?? [])
+      .map((s) => s.run)
+      .filter((r): r is string => typeof r === "string")
+      .join("\n")
+    expect(runs).toMatch(/npm run test:persistence/)
+
+    // ...and the script still runs the persistence tests. Asserting the
+    // invocation alone leaves the same hole the dbq assertion above closed: a
+    // script redefined to point elsewhere keeps this green while nothing runs.
+    const scripts = (
+      JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
+        scripts?: Record<string, string>
+      }
+    ).scripts
+    expect(
+      scripts?.["test:persistence"],
+      "no `test:persistence` script for the CI job",
+    ).toBeTruthy()
+    expect(
+      scripts?.["test:persistence"],
+      "`test:persistence` does not run the persistence tests, so the CI job proves nothing",
+    ).toMatch(/tests\/persistence/)
+  })
+
+  it("pg/the-driver-is-a-runtime-dependency — `pg` is not a devDependency the instance would not get", () => {
+    // It was a devDependency while it belonged to the DBQ spike, which was
+    // right. It is now the store's driver, and `npm ci --omit=dev` on a
+    // deployment would leave the instance unable to reach its own library.
+    const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+    }
+    expect(pkg.dependencies?.["pg"], "`pg` is not a runtime dependency").toBeTruthy()
+    expect(pkg.devDependencies?.["pg"], "`pg` is still a devDependency").toBeUndefined()
+  })
+
   it("ci/merge-gate-job-cannot-be-silently-skipped — the merge check runs, and only where it can", () => {
     // CFV1-BASE. What the merge gate DOES is proved by running it against real
     // repositories in `tests/base/merge-gate.test.ts`, including both measured

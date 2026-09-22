@@ -165,6 +165,39 @@ jobs:
       - run: npm ci
       - run: npm run test:dbq
 
+  # CFV1-PG. The durable store is PostgreSQL (ADR-0015), so its proofs run
+  # against PostgreSQL — a stand-in would be measuring the stand-in. Unlike the
+  # `dbq` job's suites, these do NOT skip when the server is missing: this job
+  # sets DATABASE_URL, and `tests/persistence/postgres-harness.ts` fails rather
+  # than skips once a database has been asked for. A skipped proof reports
+  # success, and that has already cost this project a gate once.
+  # `tests/unit/repo-config.test.ts` asserts this job, its service and its
+  # DATABASE_URL exist, which is what stops "skipped everywhere" from passing.
+  persistence:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:persistence
+
   slice1:
     runs-on: ubuntu-latest
     steps:
