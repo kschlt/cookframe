@@ -22,8 +22,17 @@ WORKDIR /app
 # missing: a skipped proof reports success, and the container job would then
 # certify a gate that had silently run eleven checks fewer than the one every
 # other job runs.
+#
+# openssl, for the same kind of reason. `tests/url-fetch/url-security.h2.test.ts`
+# needs a TLS server to make the guard's HTTP/2 path real, and Node cannot
+# author a certificate. That test FAILS when `openssl` is absent rather than
+# skipping, on the argument above. Whether `node:26-slim` happens to ship the
+# binary is not something this repository controls — a base-image bump could
+# drop it, and the failure would then read as a container failure rather than
+# as a missing tool. So it is named here, where the dependency is declared
+# rather than inherited.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git \
+  && apt-get install -y --no-install-recommends git openssl \
   && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies from the lockfile first so this layer caches across

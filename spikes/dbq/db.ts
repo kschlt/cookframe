@@ -51,13 +51,37 @@ export function assertShape(name: string): Shape {
   return shape
 }
 
+/**
+ * The URL this SPIKE connects to, substituting the local default when nothing
+ * was configured.
+ *
+ * The substitution is a convenience for the hand-run spike, where "just connect
+ * to the usual local server" is what the operator means. It is NOT a thing a
+ * test may ask, and that distinction is the whole point of the split below:
+ * a suite that decides what to run from this value decides it from what happens
+ * to be listening, so two correctly set-up machines running the same command
+ * report different totals. Measured 2026-09-22: `vitest run tests/dbq` with
+ * `DATABASE_URL` unset answered `34 passed | 1 skipped` with a local server up
+ * and `27 passed | 8 skipped` with it stopped — seven proofs that reported
+ * nothing either way about whether anyone had asked for them.
+ *
+ * `tests/protections/configured-not-reachable.test.ts` is what keeps the test
+ * tree away from it.
+ */
 export function databaseUrl(): string {
   return process.env.DATABASE_URL ?? DEFAULT_URL
 }
 
-/** Connect, or return `undefined` when no server answers. */
-export async function connect(): Promise<Client | undefined> {
-  const client = new Client({ connectionString: databaseUrl() })
+/**
+ * Connect to `url`, or return `undefined` when no server answers.
+ *
+ * Takes the URL rather than reading it, so that "which database" and "is it
+ * answering" stay two separate questions. A caller that must not default —
+ * every test — passes the configured value and gets an honest answer about
+ * that value alone.
+ */
+export async function connectTo(url: string): Promise<Client | undefined> {
+  const client = new Client({ connectionString: url })
   try {
     await client.connect()
     return client
@@ -65,6 +89,11 @@ export async function connect(): Promise<Client | undefined> {
     await client.end().catch(() => {})
     return undefined
   }
+}
+
+/** Connect to the spike's URL (defaulting), or `undefined` when none answers. */
+export async function connect(): Promise<Client | undefined> {
+  return connectTo(databaseUrl())
 }
 
 /**
