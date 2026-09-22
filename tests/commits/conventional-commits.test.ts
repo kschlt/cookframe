@@ -65,7 +65,10 @@ describe("commits/subject-rule", () => {
   // its own does not count as proving that reason.
   const MUST_FAIL: ReadonlyArray<readonly [string, RegExp]> = [
     // Real subjects from `main`, 2026-09-22 and earlier.
-    ["Relicense Cookframe under the AGPL-3.0-or-later", /not `type\(scope\): description`/],
+    [
+      "Move to zod 4, and port the walks that read a schema's internals",
+      /not `type\(scope\): description`/,
+    ],
     ["spike(s1): re-score against corrected ground truth", /`spike` is not a commit type/],
     ["probe: remove the measurement workflow, keeping its result", /`probe` is not a commit type/],
     ["review(#22): record the S1 verdict in the repo, price S6 per success", /`review` is not/],
@@ -433,12 +436,25 @@ describe("commits/live-check-runs-on-any-part-of-its-environment", () => {
       ["running only when the base is set", (e) => e.base !== undefined],
       ["running only when the title is set", (e) => e.title !== undefined],
       ["treating an empty value as absent", (e) => Boolean(e.base || e.head || e.title)],
+      ["always running", () => true],
+      ["never running", () => false],
     ]
     for (const [name, candidate] of candidates) {
       expect(
         agrees(candidate),
         `the live-check table cannot tell the rule apart from ${name}`,
       ).toBe(false)
+    }
+    // And the other direction: every row refuses at least one candidate, so no
+    // row is along for the ride. The absent row is the only one that refuses
+    // "always running"; the all-set row, the one CI actually sends, refuses
+    // only "never running"; the two empty-string rows are the only ones that
+    // refuse truthiness.
+    for (const [env, expected] of ROWS) {
+      expect(
+        candidates.some(([, candidate]) => candidate(env) !== expected),
+        `the row ${JSON.stringify(env)} refuses no candidate, so it measures nothing`,
+      ).toBe(true)
     }
   })
 
