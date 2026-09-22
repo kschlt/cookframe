@@ -29,6 +29,7 @@ import {
   decideBaseline,
   decideMarker,
   decideMutant,
+  formatReport,
   type Mutation,
   plant,
   type Reading,
@@ -478,6 +479,23 @@ describe("protections/the-instrument-refuses-to-guess", () => {
         // The empty marker was refused too, against the REAL baseline's tests —
         // so refusal 4 bites in the loop and not only as a pure function.
         expect(report.refusals.join(" | ")).toContain("names no assertion")
+
+        // The verdict says WHICH assertion it is about, in the report a reader
+        // gets, and says it by the test's FULL name rather than by the marker
+        // the caller wrote. A marker is a substring: `"catches both spellings"`
+        // is what was asked for, `"the detector is precise > catches both
+        // spellings"` is what agreed, and only the second tells a reader whether
+        // the marker landed where its author meant. The file is part of what
+        // vitest reports, and it stays: two suites in this repository name a
+        // test the same thing, so the file is what separates them. This is the assertion that
+        // holds it — removing the `measuredAt` line from `formatReport` reddens
+        // here, and only here.
+        expect(report.results[0]?.measuredAt).toBe(
+          "detector.test.mjs > the detector is precise > catches both spellings",
+        )
+        expect(formatReport(report)).toContain(
+          "measured at: detector.test.mjs > the detector is precise > catches both spellings",
+        )
 
         // The subject is back exactly as it was. A SIGPIPE once left a mutated
         // file in this repository's tree; the restore is not decoration.

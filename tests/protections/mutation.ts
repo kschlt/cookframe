@@ -339,6 +339,20 @@ export function decideMarker(baseline: Reading, mutation: Mutation): MarkerVerdi
 export interface MutationResult {
   readonly mutation: Mutation
   readonly verdict: MutantVerdict
+  /**
+   * The full name of the one test the marker resolved to, as the BASELINE ran
+   * it — the assertion this verdict is about.
+   *
+   * `decideMarker` has always computed this and `runMutations` used to throw it
+   * away, so the report named the mutation and never the thing that judged it.
+   * That is a gap in the report rather than in the measurement, and it matters
+   * for the same reason refusal 4 exists: a marker is a SUBSTRING, so "killed"
+   * alone leaves a reader to assume which assertion agreed. Carrying the
+   * resolved name means the report answers that instead of inviting the
+   * assumption, and a marker that drifted onto a neighbouring test is visible in
+   * the output rather than only in a re-reading of the suite.
+   */
+  readonly measuredAt: string
 }
 
 /** How to run the suite. Separated so the proofs can drive it without vitest. */
@@ -431,7 +445,11 @@ export function runMutations(
         continue
       }
       writeFileSync(subjectPath, outcome.source, "utf8")
-      results.push({ mutation, verdict: decideMutant(readRun(runner(target)), mutation) })
+      results.push({
+        mutation,
+        verdict: decideMutant(readRun(runner(target)), mutation),
+        measuredAt: marker.names,
+      })
     }
   } finally {
     writeFileSync(subjectPath, original, "utf8")
@@ -451,7 +469,7 @@ export function formatReport(report: HarnessReport): string {
       : `✗ BASELINE REFUSED — ${report.baseline.refusal}`,
   )
   if (!report.baseline.usable) return lines.join("\n")
-  for (const { mutation, verdict } of report.results) {
+  for (const { mutation, verdict, measuredAt } of report.results) {
     const mark =
       verdict.outcome === "killed"
         ? "✓ killed"
@@ -459,6 +477,10 @@ export function formatReport(report: HarnessReport): string {
           ? "✗ SURVIVED"
           : "? INCONCLUSIVE"
     lines.push(`  ${mark}  ${mutation.name}`)
+    // Which assertion the verdict is about, on every line rather than only on a
+    // bad one: a survivor is read together with the proof that let it live, and
+    // a kill is only evidence once a reader can see WHICH test objected.
+    lines.push(`      measured at: ${measuredAt}`)
     if (verdict.outcome === "inconclusive") lines.push(`      ${verdict.why}`)
   }
   for (const refusal of report.refusals) lines.push(`  ! REFUSED  ${refusal}`)
