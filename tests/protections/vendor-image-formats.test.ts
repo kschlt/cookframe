@@ -10,6 +10,9 @@
  * 2026-09-22. A change to either list is a change to this file, which is where
  * the reason for it has to be written.
  */
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { ACCEPTED_CAPTURE_TYPES } from "../../src/http/ingest-app.js"
 import {
@@ -18,6 +21,34 @@ import {
   UnsupportedImageMediaTypeError,
 } from "../../src/pipeline/openai-transport.js"
 import type { ModelExchange } from "../../src/pipeline/providers.js"
+import { type PlistValue, parsePlist } from "../slice5/plist.js"
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
+
+type Dict = Record<string, PlistValue>
+const dict = (value: PlistValue | undefined): Dict => (value ?? {}) as Dict
+/** A Shortcut text field's literal: `{ Value: { string } }`. */
+const textOf = (field: PlistValue | undefined): unknown => dict(dict(field)["Value"])["string"]
+
+/**
+ * The `Content-Type` every upload in the committed Shortcut declares, read from
+ * the plist's own header table rather than searched for in its text.
+ */
+function shortcutContentTypes(): unknown[] {
+  const root = dict(
+    parsePlist(readFileSync(join(repoRoot, "shortcut", "Capture Recipe.plist"), "utf8")),
+  )
+  const actions = (root["WFWorkflowActions"] ?? []) as Dict[]
+  return actions
+    .filter((a) => a["WFWorkflowActionIdentifier"] === "is.workflow.actions.downloadurl")
+    .flatMap((a) => {
+      const headers = dict(dict(a["WFWorkflowActionParameters"])["WFHTTPHeaders"])
+      const items = (dict(headers["Value"])["WFDictionaryFieldValueItems"] ?? []) as Dict[]
+      return items
+        .filter((i) => textOf(i["WFKey"]) === "Content-Type")
+        .map((i) => textOf(i["WFValue"]))
+    })
+}
 
 /**
  * A transport pointed at a name that resolves nowhere (`.invalid` is reserved
@@ -59,6 +90,21 @@ describe("protections/the-photo-door-is-no-wider-than-the-vendor", () => {
         `${type} is accepted but the provider cannot read it`,
       ).toContain(type)
     }
+  })
+
+  it("accepts what the one client this slice ships declares it sends", () => {
+    // The narrowing makes the Shortcut's declared type load-bearing: a Shortcut
+    // that declared image/heic would have every capture refused at the door,
+    // and nothing else in the tree would notice. This pins the LABEL the
+    // committed Shortcut declares, not the bytes its camera action produces;
+    // whether those are JPEG is a question for a phone, and the byte check in
+    // the route is what answers a HEIC sent under this label.
+    const declared = shortcutContentTypes()
+    expect(declared, "the Shortcut declares no Content-Type on its upload").toHaveLength(1)
+    expect(
+      ACCEPTED_CAPTURE_TYPES,
+      `the one client this slice ships sends ${String(declared[0])}, which the door refuses`,
+    ).toContain(declared[0])
   })
 
   // One named proof per format rather than a table, so each name is one the
