@@ -305,6 +305,11 @@ export function createSafeFetcher(options: SafeFetcherOptions = {}): SafeFetcher
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const allowedContentTypes = options.allowedContentTypes ?? DEFAULT_CONTENT_TYPES
 
+  // `allowH2: false` is not a lever on this Agent. Planted here on undici 8.11.0
+  // (2026-09-22), the server behind `tests/url-fetch/url-security.h2.test.ts`
+  // still reported HTTP/2, so the option did not reach the connection through
+  // this custom connector. Why is not established. The guard's promises are
+  // proven over h2 instead of being kept off it.
   const agent = new Agent({ connect: createGuardedConnector(allowLoopback, resolve) })
 
   async function fetchOnce(url: string, signal: AbortSignal): Promise<Response> {
