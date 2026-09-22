@@ -207,6 +207,9 @@ describe("injection/source-text-crosses-one-boundary", () => {
     const reply = JSON.stringify({
       sourceType: "text",
       capturedText: page,
+      // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
       blocks: [{ id: "m0", order: 0, type: "ingredient", text: "250 g rote Linsen" }],
     })
     const transport = sequence(reply)
@@ -303,6 +306,9 @@ describe("injection/source-text-crosses-one-boundary", () => {
     const badType = JSON.stringify({
       sourceType: "text",
       capturedText: source,
+      // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
       blocks: [{ id: "m0", order: 0, type: payload, text: "250 g rote Linsen" }],
     })
     const transport = sequence(badType)
@@ -796,6 +802,9 @@ describe("injection/unsupported-claim-fails-resolution", () => {
     JSON.stringify({
       sourceType: "text",
       capturedText: page,
+      // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
       blocks: blocks.map((b, i) => ({ id: `m${i}`, order: i, type: b.type, text: b.text })),
     })
 
@@ -899,6 +908,9 @@ describe("injection/unsupported-claim-fails-resolution", () => {
             JSON.stringify({
               sourceType: "image",
               capturedText: "x",
+              // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+              recipeCount: 1,
+              recipeTitles: ["the one recipe on this fixture"],
               blocks: [{ id: "m0", order: 0, type: "ingredient", text: "3 EL Erdnussbutter" }],
             }),
           ),
@@ -1081,6 +1093,9 @@ describe("injection/proofs-need-no-provider", () => {
     const captureReply = JSON.stringify({
       sourceType: "text",
       capturedText: "Linsensuppe",
+      // CFV1-MR1: a capture reply reports what the SOURCE held; one recipe here.
+      recipeCount: 1,
+      recipeTitles: ["the one recipe on this fixture"],
       blocks: [{ id: "x", order: 0, type: "title", text: "Linsensuppe" }],
     })
     const transport = sequence(captureReply)

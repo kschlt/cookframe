@@ -191,14 +191,33 @@ describe("slice4/jsonld-deterministic-path", () => {
     expect(extractRecipeJsonLd(html).kind).toBe("sufficient")
   })
 
-  it("selects the richest Recipe when several are present", () => {
-    const stub = { "@type": "Recipe", name: "Stub only" }
+  it("keeps the richest node when a page emits ONE recipe twice", () => {
+    // The duplicate-emission case, which is ordinary: a page carries the same
+    // recipe inside `@graph` and again standalone, one copy fuller than the
+    // other. That is one recipe, so it must still import — and it must import
+    // the fuller copy, which is what the old richest-node selection bought and
+    // what CFV1-MR1 has to keep while it stops selecting ACROSS recipes.
+    const thin = { "@type": "Recipe", name: "Synthetic Test Loaf" }
     const html = new TextDecoder().decode(
-      page({ "@context": "https://schema.org", "@graph": [stub, completeRecipe] }),
+      page({ "@context": "https://schema.org", "@graph": [thin, completeRecipe] }),
     )
     const extraction = extractRecipeJsonLd(html)
     if (extraction.kind !== "sufficient") throw new Error("expected a sufficient recipe")
     expect(extraction.recipe["name"]).toBe("Synthetic Test Loaf")
+    expect(extraction.recipe["recipeIngredient"]).toBeDefined()
+  })
+
+  it("no longer picks the richest of SEVERAL recipes, which is CFV1-MR1's whole point", () => {
+    // This asserted the opposite until CFV1-MR1: a page carrying a stub recipe
+    // and a complete one yielded the complete one, and reported nothing about
+    // the other. Nothing in that output is wrong, which is exactly why nobody
+    // would have found it. Two differently-named recipes are now two recipes.
+    const other = { "@type": "Recipe", name: "Stub only" }
+    const html = new TextDecoder().decode(
+      page({ "@context": "https://schema.org", "@graph": [other, completeRecipe] }),
+    )
+    const extraction = extractRecipeJsonLd(html)
+    expect(extraction.kind).toBe("multiple")
   })
 })
 
