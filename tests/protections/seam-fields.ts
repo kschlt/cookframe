@@ -28,7 +28,8 @@
  * `implements`. A fake is an implementation in a file whose name starts with
  * `fake-`, which is the convention `src/pipeline/fake-providers.ts` set, and
  * every other implementation is shipped. Which files that covers is decided by
- * the program the scan is handed: the proof builds it over `src/`.
+ * the program the scan is handed: the proof reads `src/` through
+ * `programOverTree` in `src-program.ts`.
  *
  * **What this does not see.** An input handed on through a spread, or to a
  * method of another interface, is not followed, because the program holds no
@@ -66,11 +67,6 @@ interface Reading {
 }
 
 const isFakeFile = (file: string): boolean => basename(file).startsWith("fake-")
-
-/** Build a program over `files`, typed with the repository's own compiler options. */
-export function programOver(files: readonly string[], options: ts.CompilerOptions): ts.Program {
-  return ts.createProgram([...files], { ...options, noEmit: true })
-}
 
 /**
  * Build a program over sources held in memory, for proofs that must plant a
