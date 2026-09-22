@@ -61,7 +61,11 @@ beforeAll(() => {
   // installed by the dev image for this reason rather than inherited from the
   // base image by luck — the same argument the gitleaks scanner pin makes. If
   // it is missing this test FAILS; it never skips, because a skipped proof
-  // reports success and that has cost this project a gate before.
+  // reports success and that has cost this project a gate before. The failure
+  // lands on the file, not on the tests: the run reports `Test Files 1 failed`
+  // and exits 1, but the tally beside it reads as every test skipped, because
+  // vitest counts the tests under a failed `beforeAll` as skipped. Read the
+  // files line.
   const probe = spawnSync("openssl", ["version"], { encoding: "utf8" })
   expect(
     probe.error,
