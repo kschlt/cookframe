@@ -84,6 +84,11 @@ describe("support/every-type-checked-program-in-the-suite-is-named", () => {
     expect(census).toEqual({
       // Sources written for the provenance reader, typed as the tree is.
       "tests/protections/capture-provenance.ts": 1,
+      // The whole repository, not only `src/`: every file the TypeScript pin
+      // hangs on, spikes and config included (ADR-0034, #110). That is a
+      // wider reach than `programOverTree`, with its own skip list. The
+      // second program is its fixtures.
+      "tests/protections/compiler-surface.ts": 2,
       // One test file at a time, bound with nothing resolved and no library,
       // to tell a name imported from vitest from one declared in the file
       // (#109). It never reads `src/`.
