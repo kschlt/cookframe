@@ -1,10 +1,20 @@
 /**
- * Persistence barrel (CFV1-SL1). Exposes only the repository interface, its data
- * shapes and error types, and the provisional-store factory — never a concrete
- * store type (ADR-0003 confinement: no storage type appears outside its
- * implementation).
+ * Persistence barrel (CFV1-SL1, CFV1-PG). Exposes only the repository interface,
+ * its data shapes and error types, the configuration seam, and the two store
+ * factories — never a concrete store type, and no PostgreSQL type at all
+ * (ADR-0003 confinement: no storage type appears outside its implementation).
  */
 
+export {
+  DatabaseConfigurationError,
+  type DatabaseConfigurationProblem,
+  resolveDatabaseUrl,
+} from "./configuration.js"
+export {
+  createPostgresStore,
+  type PostgresStoreHandle,
+  StoreNotMigratedError,
+} from "./postgres-store.js"
 export { createProvisionalStore } from "./provisional-store.js"
 export type { CanonicalVersion, LibraryEntry, RecipeRepository } from "./repository.js"
 export { RecipeVersionNotFoundError, SnapshotNotFoundError } from "./repository.js"
