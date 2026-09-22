@@ -58,13 +58,14 @@ them is a price or platform limit that can change, and nothing in this record's 
 a figure being exact. What the two researches agree on is the shape: an application container that
 stops when idle, a managed Postgres that sleeps when idle, and a persistent volume for the images.
 
-Also relevant to the timing: the Postgres persistence of `ADR-0015` and a real server entry point are
-both in flight. On `main` as this record is written there is still no `listen`, no `serve`, no
-`start` script, and the `Dockerfile` is a CI container — but `CFV1-PG` and `CFV1-RUN` are open
-against exactly those gaps, and `CFV1-RUN` already carries a runtime image, a composition root and a
-start command. This record therefore decides the target those two units aim at, and must not
-pre-empt their internal design; where it describes the entry point it is describing what that unit
-is building, not proposing a second one.
+Also relevant to the timing: the Postgres persistence of `ADR-0015` and a real server entry point
+were both in flight while this record was drafted. `CFV1-PG` merged as `8241ef1` and the library is
+now in PostgreSQL, reached through a `DATABASE_URL` that `resolveDatabaseUrl` refuses to default —
+which is cut 1 already holding in practice. `CFV1-RUN` is still open: on `main` there is no `listen`,
+no `serve` and no `start` script, and the `Dockerfile` is a CI container, but that PR carries a
+runtime image, a composition root and a start command. This record therefore decides the target those
+units aim at, and must not pre-empt their internal design; where it describes the entry point it is
+describing what that unit is building, not proposing a second one.
 
 ## Decision
 
@@ -119,22 +120,25 @@ contains, which a first attempt got wrong. That covers the binding half of cut 4
 
 | cut | what a test must assert over `src/` | state |
 |---|---|---|
-| 1 | the only database package any module imports is `pg` — no provider-specific driver, no HTTP-over-`fetch` transport | owed. Vacuous on the merge result, since no module imports a database package at all; `CFV1-PG` is what first makes it breakable |
+| 1 | the only database package any module imports is `pg` — no provider-specific driver, no HTTP-over-`fetch` transport | owed, and no longer vacuous: `CFV1-PG` landed the store, and `pg` is the only database package under `src/`, imported in exactly one module (`src/persistence/postgres-store.ts`). That is the state the assertion demands, and nothing yet keeps a second module or a provider driver from joining it |
 | 2 | `node:fs`, `node:fs/promises` and `node:path` appear only in the byte store's own file | owed. True on the merge result: only `src/storage/filesystem-byte-store.ts` |
-| 3 + 4 | no module takes its configuration from the environment except through a declared seam: a parameter every caller can inject, pre-filled from `process.env` at exactly one point in the signature — never a read inside a function body, and never a module-level constant. The inventory of such seams is declared with the test | owed. Exactly one exists on the merge result: `readPlanGenerationPolicy` (`src/cooking/policy.ts`). `CFV1-RUN`'s composition root is the second and `CFV1-PG`'s database-URL reader the third, and neither has landed yet. Each is an injection seam rather than a hidden read — which is why the assertion is about the shape, not about the count |
+| 3 + 4 | no module takes its configuration from the environment except through a declared seam: a parameter every caller can inject, pre-filled from `process.env` at exactly one point in the signature — never a read inside a function body, and never a module-level constant. The inventory of such seams is declared with the test | owed. Two exist on the merge result, both in the declared shape: `readPlanGenerationPolicy` (`src/cooking/policy.ts`) and `resolveDatabaseUrl` (`src/persistence/configuration.ts`, landed by `CFV1-PG`). `CFV1-RUN`'s composition root will be the third. Each is an injection seam rather than a hidden read — which is why the assertion is about the shape, not about the count |
 | 4 (binding) | nothing outside the entry point names the server adapter, a socket module, `createServer` or `.listen` | **done**, by `run/only-the-entry-point-binds` (`CFV1-RUN`) |
-| 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on the merge result: the only packages `src/` imports are `hono`, `undici` and `ipaddr.js` |
+| 4 (platform) | no module names a platform — `FLY_*` and its equivalents, a platform hostname, a platform SDK | owed. True on the merge result: no platform name appears under `src/`, and the only third-party packages it imports are `hono`, `undici`, `ipaddr.js` and `pg` |
 
 Every "true" above was measured on the merge result of this branch against `main`, not on the tree
-this record was first drafted on. That distinction cost a round: the cut-3 row first read
+this record was first drafted on. That distinction cost two rounds. The cut-3 row first read
 "`process.env` appears nowhere under `src/`", which was true when it was written and false by the
-time it was read, because `CFV1-SL6` landed a configuration seam in between. The row is now about
-the *shape* a seam must have rather than about there being none, which is the form that survives the
-next unit adding one — and it is the form that makes the sentence below true instead of aspirational.
+time it was read, because `CFV1-SL6` landed a configuration seam in between; then it named two seams
+while only one had landed. Both failures were the same one — a count written in the tense of a tree
+that did not exist yet. The row is now about the *shape* a seam must have rather than about how many
+there are, which is the form that survives the next unit adding one, and the counts beside it are
+re-measured whenever `main` moves. `CFV1-PG` merged as `8241ef1` while this record was open and
+moved three of these rows; they were re-measured rather than left standing.
 
-The owed tests belong with `CFV1-PG` and `CFV1-RUN` rather than after them, because those units are
-what first make three of these rows breakable. Each has to start green on the tree it lands in, so
-the first thing any of them ever catches is a regression.
+The owed tests belong with `CFV1-RUN`, and with a follow-up to `CFV1-PG` now that it has merged
+without them, because those units are what first make three of these rows breakable. Each has to
+start green on the tree it lands in, so the first thing any of them ever catches is a regression.
 
 Two further commitments, because leaving them implicit is how they get lost:
 
@@ -153,7 +157,7 @@ Two further commitments, because leaving them implicit is how they get lost:
 
 The production container definition, the entry point's internal design, the machine size, the
 connection-pool shape and whether a `start` script or a process manager runs it. Those belong to the
-entry-point and `CFV1-PG` units already in flight. This record names their target and their
+entry-point unit, and to `CFV1-PG`, which has since merged. This record names their target and their
 constraints; it does not design them.
 
 ## Consequences
