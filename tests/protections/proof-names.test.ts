@@ -18,13 +18,19 @@ import { join, relative } from "node:path"
 import { describe, expect, it } from "vitest"
 import { filesUnder } from "../support/tree.js"
 import { repoRoot } from "./majors.js"
-import { proofNamesIn, unnameableIn } from "./proof-names.js"
+import { IN_A_HELPER, proofNamesIn, unnameableIn } from "./proof-names.js"
 
-const testFiles = filesUnder(join(repoRoot, "tests"), { match: /\.test\.ts$/ }).map((path) =>
+const tsFiles = filesUnder(join(repoRoot, "tests"), { match: /\.ts$/ }).map((path) =>
   relative(repoRoot, path).split("\\").join("/"),
 )
+const testFiles = tsFiles.filter((file) => file.endsWith(".test.ts"))
+/** Every other file under `tests/`: vitest runs none of them, but a test file may call one. */
+const helperFiles = tsFiles.filter((file) => !file.endsWith(".test.ts"))
 const read = (file: string): string => readFileSync(join(repoRoot, file), "utf8")
-const byFile = testFiles.map((file) => ({ file, ...proofNamesIn(read(file), file) }))
+const byFile = [
+  ...testFiles.map((file) => ({ file, ...proofNamesIn(read(file), file) })),
+  ...helperFiles.map((file) => ({ file, ...proofNamesIn(read(file), file, { helper: true }) })),
+]
 const everyName = byFile.flatMap((f) => f.named)
 
 describe("protections/every-proof-can-be-named", () => {
@@ -44,6 +50,22 @@ describe("protections/every-proof-can-be-named", () => {
     ]) {
       expect(testFiles, file).toContain(file)
     }
+  })
+
+  it("reads the helpers too, and hears a registration by where it comes from", () => {
+    // A helper registers proofs when a test file calls it, and vitest reports
+    // them under that test file. So every other file under `tests/` is read as
+    // well, and a call registers only when its function is bound to vitest's
+    // own. Named rather than counted, both ways: the helper that registers, and
+    // the one that has a function of its own called `describe` and registers
+    // nothing. A scan that went by the name would count that one's three calls.
+    for (const file of ["tests/persistence/repository-contract.ts", "tests/slice5/plist.ts"]) {
+      expect(helperFiles, file).toContain(file)
+    }
+    const registering = byFile
+      .filter((f) => helperFiles.includes(f.file) && f.named.length + f.composed.length > 0)
+      .map((f) => f.file)
+    expect(registering).toEqual(["tests/persistence/repository-contract.ts"])
   })
 
   it("finds, by full name, the proofs that were hidden inside another's name", () => {
@@ -66,6 +88,17 @@ describe("protections/every-proof-can-be-named", () => {
       // bound to the registration function. Read without the binding, these
       // proofs lose their `describe` and the factory call reads as a test.
       "tests/persistence/postgres-store.test.ts > persistence/the-migration-builds-the-store > builds a store the repository can immediately write to and read back",
+      // Registered through `.each`, so these names come from a table. The
+      // reader renders them the way vitest does, and each string below is the
+      // one vitest reported for that test (measured 2026-09-22, vitest 5.0.1).
+      // One per rule the renderer applies: `%s` over an inline table, `%j`,
+      // single-value rows from a `const`, `$key` from a `const` declared inside
+      // a `describe`, and `$key` cut at vitest's 40 characters.
+      "tests/slice5/plist.test.ts > slice5/plist-reader-reads-the-subset > refuses an unclosed element rather than reading past it",
+      'tests/run/configuration.test.ts > run/absent-configuration-refuses-by-name > refuses PUBLIC_BASE_URL "cookframe.test", and says which fault it is',
+      "tests/run/fly-configuration.test.ts > run/the-platform-file-carries-no-secret > rejects OPENAI_API_KEY pasted into the environment table",
+      "tests/protections/scan-retention-wiring.test.ts > serve/a-photograph-is-kept-before-it-is-read > catches: the put removed",
+      "tests/run/fly-configuration.test.ts > run/the-dockerfile-reader-is-precise > rejects: no build table at all — the platform sc…",
     ]) {
       expect(everyName, name).toContain(name)
     }
@@ -81,47 +114,76 @@ describe("protections/every-proof-can-be-named", () => {
     ).toEqual([])
   })
 
-  it("counts the registrations whose names it cannot read, and says how many", () => {
-    // Composed names are left to the instrument's refusal at run time. What
-    // this number holds that the names above do not is the TREE, not the
-    // reader: a new registration whose name the guard cannot see. Measured
-    // four times while this guard waited for review, each time as the only
-    // assertion in the file to fail. #89 added an `it.each` in
-    // `url-capture-wiring.test.ts` and moved the count from 25 to 26. #94 added
-    // nine more in `shopping-handoff.test.ts` and `configuration.test.ts` and
-    // moved it to 35. #97 added a loop in `process.test.ts` whose test names
-    // are templates over its table, and moved it to 36. #98 added an `it.each`
-    // in `fly-configuration.test.ts` and one in `scan-retention-wiring.test.ts`,
-    // both named `$name` from their rows, and moved it to 38. #101 added seven
-    // `it.each` in `readme.test.ts` — five reading tables named `%s` from their
-    // rows, the list census named `$lead`, the placement proof named `$id` —
-    // and moved it to 45. Every new site was
-    // looked at before the number moved: the names come from a table or a
-    // substitution, and no static reader can give them.
+  it("names every registration whose name it cannot read, and why", () => {
+    // What the reader cannot name is left to the instrument's refusal at run
+    // time, and listed here by file and reason. Measured 2026-09-22 against
+    // vitest's own report of all 1233 tests: every name the reader gives is a
+    // name vitest reports, and these are the sites it does not give.
     //
-    // So this number moves with merges, and that is its purpose. When it is
-    // red, do not move it by reflex. Look at the new sites first: a name the
-    // reader should be able to read belongs in the reader, not in this count.
-    // A red that gets waved through without looking guards nothing.
+    // This used to be a total, 38. Rendering `.each` titles named 19 of the 21
+    // table-driven sites, and the list replaced the total because a total is
+    // the weaker form, measured: a registration that moved from one file to
+    // another left it green, where a list goes red and names both files.
     //
-    // A total is the weaker of two forms, measured: a registration that moved
-    // from `schema-org-mapping.test.ts` to `tree.test.ts` left it at 35 and
-    // green, while a per-file table (05add71, reverted in this PR) went red and
-    // named both files. The per-file form waits for the follow-up that teaches
-    // the reader to render `.each` titles, which may make it unnecessary.
+    // Two kinds are left:
+    // - A loop that registers one test per element, with a template name. The
+    //   values come from whatever the loop walks, often a directory listing or
+    //   another module, which a static reader cannot give.
+    // - Two tables the reader does not render: one imported from `src/`, one
+    //   built by `.map` over a table of regular expressions.
+    // - Everything `runRepositoryContract` registers: 7 suites and the 25 proofs
+    //   in them, once per store. vitest reports them under
+    //   `tests/persistence/repository-contract.test.ts`, which calls the helper
+    //   in a loop over its store registry, and every suite name carries the
+    //   store's label. Until the scan read helpers, these were neither named
+    //   nor counted.
     //
-    // Against the reader it is redundant, and kept anyway. Of the thirteen
-    // plants measured against the reader, none dies here alone; each also
-    // reddens a fixture or a named proof above. So the number is not what holds
-    // the reader. It is what makes a proof this guard cannot see arrive as a
-    // visible decision instead of silently.
-    expect(byFile.flatMap((f) => f.composed).length).toBe(45)
+    // When this is red, look at the new site before moving the list. A name the
+    // reader should be able to read belongs in the reader, not in this list.
+    //
+    // An entry holds file, reason and how often, not which registration: one
+    // the reader cannot name has no name to carry. A registration that moves
+    // within one file is therefore invisible here, and cannot be otherwise. The
+    // 32 helper entries are the widest case of it: one file, one reason.
+    const survivors = byFile.flatMap((f) => f.composed.map((c) => `${c.file}: ${c.why}`)).sort()
+    const contract = `tests/persistence/repository-contract.ts: ${IN_A_HELPER}`
+    const contractSuites = 7
+    const contractProofs = 25
+    expect(survivors).toEqual([
+      "tests/cooking-ux/start-now-admission.test.ts: composed name",
+      "tests/dbq/queries.test.ts: composed name",
+      "tests/fixtures/public-fixtures.test.ts: composed name",
+      "tests/fixtures/public-fixtures.test.ts: composed name",
+      "tests/fixtures/public-fixtures.test.ts: composed name",
+      "tests/fixtures/public-fixtures.test.ts: composed name",
+      "tests/multi-recipe/multi-recipe.test.ts: composed name",
+      ...Array.from({ length: contractSuites + contractProofs }, () => contract),
+      "tests/run/process.test.ts: composed name",
+      "tests/schema/finite-number.contract.test.ts: composed name",
+      "tests/schema/finite-number.contract.test.ts: composed name",
+      "tests/schema/finite-number.contract.test.ts: composed name",
+      "tests/schema/finite-number.contract.test.ts: composed name",
+      "tests/schema/finite-number.contract.test.ts: composed name",
+      "tests/slice2/render.test.ts: composed name",
+      "tests/slice2/render.test.ts: composed name",
+      "tests/slice2/render.test.ts: composed name",
+      "tests/slice3/schema-org-mapping.test.ts: composed name",
+      "tests/slice5/mobile-entry-point.test.ts: named from a table the reader cannot render",
+      "tests/slice6/generation-policy.test.ts: named from a table the reader cannot render",
+    ])
   })
 })
 
 // --- the reader and the checker, held against sources written for them -------
 
 const FIXTURE = `
+import { describe, it, suite, test, it as check } from "vitest"
+const OBJECTS = [
+  { name: "short" },
+  { name: "a name longer than forty characters, which vitest cuts" },
+  { name: "abcdefghijklmnopqrstuvwxyzabcdefghijkl\u{1F34B}tail" },
+] satisfies readonly { name: string }[]
+const OBJECTS_TWICE = [{ name: "first" }]
 describe("outer", () => {
   it("plain", () => {})
   test("alias", () => {})
@@ -134,9 +196,28 @@ describe("outer", () => {
     it("in alias", () => {})
   })
   it(\`no substitution\`, () => {})
+  check("through an import under another name", () => {})
+  ;[1].forEach((it) => it("a parameter called it"))
   it(\`composed \${x}\`, () => {})
   it.each([1, 2])("row %s", () => {})
   it.for([1, 2])("for row %s", () => {})
+  it.each([["a", 1], ["b", 2]] as const)("pair %s", () => {})
+  it.each([["x"]])("json %j", () => {})
+  it.each(OBJECTS)("object: $name", () => {})
+  it.each(make())("from a call %s", () => {})
+  it.each([[1]])("a format it does not render %d", () => {})
+  it.each([{ name: "o" }])("an object row read as %s", () => {})
+  it.each([["a"]])("a key on an array row $name", () => {})
+  it.each(OBJECTS_TWICE)("a const declared twice $name", () => {})
+  it.each([["a", "b"]])("100% %s", () => {})
+  it.each([["a"]])("index %#", () => {})
+  it.each([["a"]])("ordinal %$", () => {})
+  it.each([{ "a.b": "flat", a: { b: "nested" } }])("a key path $a.b", () => {})
+  it.each([[1], ...more])("a table with a spread", () => {})
+  it.each([[1], , [2]])("a table with a hole", () => {})
+  describe.each([1])("a describe %s", () => {
+    it("under a table-driven describe", () => {})
+  })
   describe(\`composed \${x}\`, () => {
     it("lost", () => {})
   })
@@ -148,6 +229,9 @@ withDb("bound", () => {
 const pattern = /x/
 pattern.test("not a registration")
 ;(it as typeof it)("behind a cast", () => {})
+{
+  const OBJECTS_TWICE = [{ name: "second" }]
+}
 `
 
 describe("protections/every-proof-can-be-named", () => {
@@ -161,12 +245,38 @@ describe("protections/every-proof-can-be-named", () => {
       "f.test.ts > outer > inner > nested",
       "f.test.ts > outer > aliased suite > in alias",
       "f.test.ts > outer > no substitution",
+      "f.test.ts > outer > through an import under another name",
+      // Rendered from their tables. Each expected string is the name vitest
+      // reported when these same registrations ran (measured 2026-09-22,
+      // vitest 5.0.1), including the two cut at 40 characters, the second of
+      // which is cut one short so as not to split the emoji's surrogate pair.
+      "f.test.ts > outer > row 1",
+      "f.test.ts > outer > row 2",
+      "f.test.ts > outer > for row 1",
+      "f.test.ts > outer > for row 2",
+      "f.test.ts > outer > pair a",
+      "f.test.ts > outer > pair b",
+      'f.test.ts > outer > json "x"',
+      "f.test.ts > outer > object: short",
+      "f.test.ts > outer > object: a name longer than forty characters, wh…",
+      "f.test.ts > outer > object: abcdefghijklmnopqrstuvwxyzabcdefghijkl…",
+      "f.test.ts > outer > 100% a",
       "f.test.ts > bound > inside a bound describe",
     ])
     expect(composed.map((c) => c.why)).toEqual([
       "composed name",
-      "named from a table",
-      "named from a table",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "named from a table the reader cannot render",
+      "a describe named from a table",
+      "inside a describe with a composed name",
       "composed name",
       "inside a describe with a composed name",
     ])
@@ -177,7 +287,48 @@ describe("protections/every-proof-can-be-named", () => {
     // into another left the total unchanged. A reader taught to see through the
     // cast turns this red, and the expectation then changes on purpose.
     expect([...named, ...composed.map((c) => c.why)].join("\n")).not.toContain("behind a cast")
-    expect(named.length + composed.length).toBe(13)
+    expect(named.length + composed.length).toBe(35)
+  })
+
+  it("counts everything a helper registers, and names none of it", () => {
+    // The file a helper's names start with is the caller's, and the helper
+    // does not say which caller, or how many. So a helper's suites and proofs
+    // are counted even where every name in them is written out.
+    const helper = `
+import { describe, it } from "vitest"
+export function runContract(label: string): void {
+  describe(\`contract (\${label})\`, () => {
+    it("a proof", () => {})
+  })
+  describe("a literal suite", () => {
+    it("still reported under its caller", () => {})
+  })
+}
+`
+    expect(proofNamesIn(helper, "h.ts", { helper: true })).toEqual({
+      named: [],
+      composed: [4, 5, 7, 8].map((line) => ({
+        file: "h.ts",
+        line,
+        why: IN_A_HELPER,
+      })),
+    })
+  })
+
+  it("registers nothing through a function that is not vitest's, whatever it is called", () => {
+    // The shape of \`tests/slice5/plist.ts\`: a function of its own called
+    // \`describe\`, and no vitest in sight. And an import of \`test\` from
+    // somewhere that is not vitest. Neither registers anything.
+    const notVitest = `
+import { test } from "./somewhere-else"
+function describe(token: unknown): string {
+  return String(token)
+}
+export const found = \`found \${describe("a token")}\`
+describe("reads like a suite", () => {})
+test("reads like a proof", () => {})
+`
+    expect(proofNamesIn(notVitest, "p.ts", { helper: true })).toEqual({ named: [], composed: [] })
   })
 
   it("accepts names that share a stem but are not inside one another", () => {
