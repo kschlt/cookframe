@@ -5,9 +5,12 @@
  * `null` against `"null"` and `true` against `"true"` all counted as no
  * difference. A review reproduced it against the shipped code. That makes the
  * "445 of 2,079 leaves differ" figure in ADR-0015 a LOWER BOUND: it was
- * measured with the comparator below still blind to type changes, and the
- * record is not rewritten to say otherwise — the correction is disclosed here
- * and in the change that carries it.
+ * measured with the comparator below still blind to type changes, and an
+ * accepted record is not rewritten to say otherwise. The correction therefore
+ * lives in the open-questions register as **OQ-34**, where a reader of ADR-0015
+ * can find it; a docstring here would have been a disclosure only someone
+ * already reading the tests would meet. `tests/dbq/record.test.ts` keeps the
+ * two tied together.
  *
  * No database: the comparison is pure, and the defect was pure too.
  */

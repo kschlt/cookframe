@@ -26,7 +26,13 @@ import type { Client } from "pg"
 import type { SourceSnapshot } from "../../schema/index.js"
 import type { CanonicalVersion } from "../../src/persistence/repository.js"
 import { connect, resetShape, type Shape, SHAPES, useShape } from "./db.js"
-import { QUERY_LABELS, renderPerQueryPerShape, runOutcome, type ShapeReading } from "./report.js"
+import {
+  QUERY_LABELS,
+  renderPerQueryPerShape,
+  runOutcome,
+  type ShapeReading,
+  toReading,
+} from "./report.js"
 import { loadDocument } from "./document-shape.js"
 import { loadHybrid } from "./hybrid-shape.js"
 import { compareRuns, SHOPPING_SQL, shoppingRequirements } from "./queries.js"
@@ -211,21 +217,23 @@ async function main(): Promise<void> {
 
   // Rendered by `report.ts` rather than here, so that the criterion this table
   // IS can be exercised by a test without a database. See that module.
+  // `toReading` rather than eleven `?? 0` defaults here: a shape whose query
+  // never ran used to render a complete row of zeroes, which this table's
+  // reader takes for a measurement. It now stops the run. See `report.ts`.
   const readings: Partial<Record<Shape, ShapeReading>> = {}
   for (const shape of SHAPES) {
-    readings[shape] = {
-      libraryRows: q1[shape]?.rows ?? 0,
-      libraryStatements: q1[shape]?.statements ?? 0,
-      libraryMs: q1[shape]?.ms ?? 0,
-      librarySqlChars: LIBRARY_SQL[shape]?.trim().length ?? 0,
-      shoppingLines: q2[shape]?.rows ?? 0,
-      shoppingStatements: q2[shape]?.statements ?? 0,
-      shoppingMs: q2[shape]?.ms ?? 0,
-      shoppingSqlChars: SHOPPING_SQL[shape]?.trim().length ?? 0,
-      comparisonDifferences: q3[shape]?.differences ?? 0,
-      comparisonStatements: q3[shape]?.statements ?? 0,
-      comparisonMs: q3[shape]?.ms ?? 0,
-    }
+    const l = q1[shape]
+    const s2 = q2[shape]
+    const c = q3[shape]
+    readings[shape] = toReading(shape, {
+      library: l === undefined ? undefined : { count: l.rows, ms: l.ms, statements: l.statements },
+      shopping:
+        s2 === undefined ? undefined : { count: s2.rows, ms: s2.ms, statements: s2.statements },
+      comparison:
+        c === undefined ? undefined : { count: c.differences, ms: c.ms, statements: c.statements },
+      librarySqlChars: LIBRARY_SQL[shape]?.trim().length,
+      shoppingSqlChars: SHOPPING_SQL[shape]?.trim().length,
+    })
   }
   for (const line of renderPerQueryPerShape(SHAPES, readings)) say(line)
   say(`Agreement between the shapes — same data, same question, same answer:`)

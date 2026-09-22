@@ -124,4 +124,33 @@ describe("CFV1-DBQ decision record", () => {
       expect(adr0003, "a superseded record names its successor").toMatch(/^superseded_by:/m)
     }
   })
+
+  it("dbq/lower-bound-correction-reaches-the-register — the corrected figure has a home outside a test", () => {
+    // ADR-0015 reports "445 differed (21%)". That was measured with a
+    // comparator that compared leaves as `String(value)`, so a JSON type change
+    // counted as no change (see `tests/dbq/diff.test.ts`, which proves the fix).
+    // The figure is therefore a lower bound. An accepted record is not
+    // rewritten, so the correction has to live somewhere a reader of ADR-0015
+    // can find — and a docstring in a test file is not that place, which is
+    // exactly the gap a review named.
+    const { text } = decidingRecord()
+    expect(text, "the record no longer carries the figure this correction is about").toMatch(
+      /445 differed/,
+    )
+
+    const register = read("docs", "open-questions.md")
+    const rows = register.split("\n").filter((l) => /^\| OQ-\d+[a-z]? \|/.test(l))
+    const carrying = rows.filter((l) => /445/.test(l) && /lower bound/i.test(l))
+    expect(
+      carrying,
+      "no register row records that ADR-0015's 445/2079 figure is a lower bound",
+    ).toHaveLength(1)
+    const row = carrying[0] as string
+    // It must say WHY it is a bound, or a reader cannot judge how loose it is.
+    expect(row, "the row does not say what made the figure a bound").toMatch(/String\(value\)/)
+    // And it must stay open: the true figure has not been re-measured.
+    expect(row, "the row is marked closed while nothing has re-measured the figure").toMatch(
+      /\|\s*open/,
+    )
+  })
 })

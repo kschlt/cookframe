@@ -17,9 +17,11 @@ import { describe, expect, it } from "vitest"
 import { SHAPES, type Shape } from "../../spikes/dbq/db.js"
 import {
   QUERY_LABELS,
+  type RawMeasurements,
   renderPerQueryPerShape,
   runOutcome,
   type ShapeReading,
+  toReading,
 } from "../../spikes/dbq/report.js"
 
 /** Readings that differ in every field, so nothing can be collapsed unnoticed. */
@@ -175,5 +177,55 @@ describe("dbq/disagreeing-run-does-not-look-successful", () => {
     const out = runOutcome(missing)
     expect(out.exitCode, "an unrecorded query must not pass as agreement").toBe(3)
     expect(out.disagreeing).toEqual([QUERY_LABELS[2]])
+  })
+})
+
+describe("dbq/a-missing-measurement-is-not-rendered-as-zero", () => {
+  // Eleven `?? 0` defaults in `evaluate.ts` turned "this shape was never
+  // measured" into a complete, correctly-labelled row: `0 rows`, `0.00` ms, `0`
+  // SQL chars. This table is quoted into a decision record and `0.00 ms` reads
+  // as the fastest shape, so the default's failure mode is a wrong conclusion
+  // wearing a measurement's clothes, not a visible gap.
+  const full = (): RawMeasurements => ({
+    library: { count: 12, ms: 1.5, statements: 2 },
+    shopping: { count: 34, ms: 2.5, statements: 2 },
+    comparison: { count: 56, ms: 3.5, statements: 4 },
+    librarySqlChars: 111,
+    shoppingSqlChars: 222,
+  })
+
+  it("carries every measurement through to the row it belongs in", () => {
+    expect(toReading("document", full())).toEqual({
+      libraryRows: 12,
+      libraryStatements: 2,
+      libraryMs: 1.5,
+      librarySqlChars: 111,
+      shoppingLines: 34,
+      shoppingStatements: 2,
+      shoppingMs: 2.5,
+      shoppingSqlChars: 222,
+      comparisonDifferences: 56,
+      comparisonStatements: 4,
+      comparisonMs: 3.5,
+    })
+  })
+
+  // The list of parts is not written out here: it is read off the object the
+  // compiler forces to be complete, so a part added to `RawMeasurements` is
+  // covered by this case the moment `full()` typechecks again.
+  it("refuses to build a row when any one part was never recorded", () => {
+    const parts = Object.keys(full()) as (keyof RawMeasurements)[]
+    expect(parts.length, "nothing to drop, so this proves nothing").toBeGreaterThan(0)
+    for (const part of parts) {
+      const m = { ...full(), [part]: undefined } as RawMeasurements
+      expect(() => toReading("document", m), `a missing ${part} was rendered anyway`).toThrow(
+        new RegExp(part),
+      )
+    }
+  })
+
+  it("says which shape and which part, so the run can be repaired", () => {
+    const m = { ...full(), shopping: undefined } as RawMeasurements
+    expect(() => toReading("hybrid", m)).toThrow(/no reading for hybrid/)
   })
 })

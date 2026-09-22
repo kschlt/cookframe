@@ -18,6 +18,7 @@
  *   question, and the reason it is measured rather than written twice.
  */
 import type { Client } from "pg"
+import { assertShape } from "./db.js"
 import type { CanonicalRecipe } from "../../schema/index.js"
 import type { RecipeRepository } from "../../src/persistence/repository.js"
 
@@ -156,9 +157,10 @@ export async function shoppingRequirements(
   client: Client,
   shape: string,
 ): Promise<readonly ShoppingLine[]> {
-  const sql = SHOPPING_SQL[shape]
-  if (sql === undefined) throw new Error(`no shopping query for shape ${shape}`)
-  await client.query(`set search_path to ${shape}`)
+  const known = assertShape(shape)
+  const sql = SHOPPING_SQL[known]
+  if (sql === undefined) throw new Error(`no shopping query for shape ${known}`)
+  await client.query(`set search_path to ${known}`)
   const r = await client.query<ShoppingLine>(sql)
   return r.rows
 }
