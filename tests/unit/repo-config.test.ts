@@ -595,6 +595,24 @@ describe("CI workflow (ci.yml)", () => {
     ).toMatch(/-e DATABASE_URL=/)
   })
 
+  it("protections/the-ci-job-runs-the-claims-proofs — the script it invokes still points at them", () => {
+    // CFV1-PROT. That a `protections` job EXISTS and invokes
+    // `npm run test:protections` is already held by
+    // `ci/every-declared-test-script-runs-in-a-named-job` above, which reads the
+    // script list off `package.json`. What that case cannot see is where the
+    // script points: redefined to any other directory it keeps a green job with
+    // a matching name while the claims proofs stop running, and those proofs
+    // are the only thing standing between this repository and another published
+    // claim nobody checked. Same hole, same shape, as the `test:persistence`
+    // assertion directly above.
+    const scripts = JSON.parse(read("package.json")).scripts as Record<string, string>
+    expect(scripts["test:protections"], "no `test:protections` script for the CI job").toBeTruthy()
+    expect(
+      scripts["test:protections"],
+      "`test:protections` does not run the protections tests, so the CI job proves nothing",
+    ).toMatch(/tests\/protections/)
+  })
+
   it("pg/the-driver-is-a-runtime-dependency — `pg` is not a devDependency the instance would not get", () => {
     // It was a devDependency while it belonged to the DBQ spike, which was
     // right. It is now the store's driver, and `npm ci --omit=dev` on a
