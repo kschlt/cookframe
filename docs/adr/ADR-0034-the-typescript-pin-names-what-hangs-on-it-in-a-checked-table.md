@@ -101,15 +101,21 @@ went red at the fixture proof named for it:
   `import x = require()`, import types, and `import()`.
 
 Against the walk, narrowing it to `.ts`, skipping `spikes/`, entering `node_modules`, and reading
-every file are each red at the walk's own proof. Against the table, dropping an entry and claiming
-a use nothing makes are both red.
+every file are each red at the walk's own proof. Against its root, pointing the scan at `tests/`
+alone, at `src/` and `tests/`, or leaving out `spikes/` is each red at the proof that names the
+trees the scan reaches. Against the table, dropping an entry and claiming a use nothing makes are
+both red.
 
-Two plants survived the first draft, and neither survives in this one:
+Three plants survived the first draft, and none survives in this one:
 
 - **A separate branch for renamed destructuring.** It was dead, because the checker resolves the
   property name itself, so the branch was removed.
 - **The walk narrowed to `.ts`.** It survived because nothing in the tree that calls the compiler
   is `.mts`, `.cts` or `.tsx`. A proof over a planted directory now holds the walk's breadth.
+- **The scan pointed at `tests/` alone**, found in review. Every entry in the table lives under
+  `tests/`, so the table held the scan's aim and nothing held the tree it was pointed at. A new
+  parser in `src/` would have gone unseen. The walk is now one value shared by the table proof and
+  a proof that names the seven trees it reaches, so narrowing it is red.
 
 One step is inert by design, and the scan says so beside it. Before resolving identifiers, the
 scan finds the files whose imports reach the compiler, which cuts its time from about 4.4 s to

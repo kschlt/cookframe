@@ -165,9 +165,16 @@ const options = (() => {
   return ts.parseJsonConfigFileContent(config.config, ts.sys, repoRoot).options
 })()
 
+/**
+ * The sources the table is measured over. One value, shared by the table proof
+ * and the proof of its reach below: a second, separate walk would pin nothing,
+ * because narrowing this one would leave the other where it was.
+ */
+const scanned = sourcesUnder(repoRoot)
+
 describe("protections/the-typescript-pin-names-what-hangs-on-it", () => {
   it("names every file that calls the compiler API and everything each one calls", () => {
-    const found = compilerSurfaceIn(programOver(sourcesUnder(repoRoot), options), repoRoot)
+    const found = compilerSurfaceIn(programOver(scanned, options), repoRoot)
     const declared = Object.fromEntries(
       Object.entries(COMPILER_API_IN_USE).map(([file, uses]) => [file, [...new Set(uses)].sort()]),
     )
@@ -176,6 +183,22 @@ describe("protections/the-typescript-pin-names-what-hangs-on-it", () => {
       "the compiler API this repository calls, file by file. A new use is a line in the " +
         "table, and a question for the pin: would a stable API cover it too?",
     ).toEqual(declared)
+  })
+
+  it("reads every tree of the repository, not the one the table's entries live in", () => {
+    // Every entry above lives under `tests/`, so a scan pointed at `tests/`
+    // alone would satisfy the table and miss a new parser in `src/` or a spike.
+    // The trees the scan reaches are named instead. A new one is the same
+    // question the table asks: is this in scope?
+    expect([...new Set(scanned.map((f) => relative(repoRoot, f).split("/")[0]))].sort()).toEqual([
+      "evals",
+      "schema",
+      "scripts",
+      "spikes",
+      "src",
+      "tests",
+      "vitest.config.ts",
+    ])
   })
 
   it("reads every TypeScript source the repository holds, and nothing it installs", () => {

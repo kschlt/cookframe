@@ -103,6 +103,9 @@ export function compilerSurfaceIn(program: ts.Program, root: string): Record<str
     if (ts.isInterfaceDeclaration(owner) || ts.isClassDeclaration(owner)) {
       return `${owner.name?.text ?? "?"}.${symbol.name}`
     }
+    // A module block or the source file itself: the top level of the compiler's
+    // `typescript.d.ts` is the `ts` namespace's own declaration, so both name a
+    // namespace member. No fixture can tell them apart in the file as it ships.
     if (/^is[A-Z]/.test(symbol.name)) return "ts.is*"
     return `ts.${symbol.name}`
   }
