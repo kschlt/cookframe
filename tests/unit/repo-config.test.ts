@@ -91,6 +91,110 @@ describe("CI workflow (ci.yml)", () => {
   const SETUP_PYTHON_ACTION = "actions/setup-python"
   const GITLEAKS_ACTION = "gitleaks/gitleaks-action"
 
+  it("ci/uses-action-matches-the-whole-name — the helper's own breadth is pinned, not just its aim", () => {
+    // `usesAction` is this file's only statement about WHICH action a step is,
+    // and four proofs below assert an input on the strength of it. Everything
+    // that plants against the workflow — a look-alike `uses:`, a second gitleaks
+    // step — measures that the helper reads the workflow correctly. None of it
+    // measures that the helper is the SHAPE this file claims: re-narrowing it to
+    // `startsWith(action)`, the exact prefix match those four proofs were
+    // converted away from, leaves every other proof in this file green, and so
+    // does widening it to `includes(action)`. Measured, both of them. That is
+    // the defect `CFV1-BRDTH` names — a guard whose target is pinned and whose
+    // breadth is not — and it applies to a matcher as much as to a detector.
+    //
+    // So the table is held twice: once against `usesAction`, and once against
+    // each wrong implementation it has to be distinguishable from. The second
+    // half is what stops the table from shrinking to rows every candidate
+    // agrees on, which is how a fixture table comes to measure nothing.
+    //
+    // WHICH ROWS ARE LOAD-BEARING, measured by deleting each one and re-running
+    // rather than argued: `actions/checkout/sub@v7` is the only row that kills
+    // the slash-split candidate, the commit-sha row the only one that kills the
+    // `@vN`-only candidate, and `myorg/actions/checkout@v7` the only one that
+    // kills the path-suffix candidate. Deleting `actions/checkout-fast@v7` or
+    // `notactions/checkout@v7` leaves the suite green, because `-fork@v1` and
+    // `myorg/…` already refuse the same two candidates. Those two are kept as
+    // stated redundancy rather than removed: they are the spellings a reader
+    // will actually meet, and a table whose every row is load-bearing exactly
+    // once stops discriminating the moment one more candidate is added.
+    const MUST_MATCH = [
+      "actions/checkout@v7",
+      "actions/checkout@v8",
+      // A commit sha is the durable spelling, so it belongs here rather than
+      // being tolerated by accident: pinning the workflow's checkouts that way
+      // leaves the rest of this file green, and a table listing only `@v7`
+      // would quietly make the better spelling look wrong.
+      "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+    ]
+    const MUST_NOT_MATCH = [
+      // What a prefix match swallows.
+      "actions/checkout-fast@v7",
+      "actions/checkout-fork@v1",
+      // A different action that happens to live under a path with this name.
+      // This is what separates the helper from one that reads `owner/repo` by
+      // splitting on slashes.
+      "actions/checkout/sub@v7",
+      // What a substring match swallows. `notactions/` is the obvious one;
+      // `myorg/actions/checkout` is the one a prefix match already refuses, so
+      // it is the row that tells the two wrong implementations apart from each
+      // other rather than only from the right one.
+      "notactions/checkout@v7",
+      "myorg/actions/checkout@v7",
+    ]
+
+    for (const uses of MUST_MATCH) {
+      expect(usesAction({ uses }, CHECKOUT_ACTION), `\`${uses}\` is \`${CHECKOUT_ACTION}\``).toBe(
+        true,
+      )
+    }
+    for (const uses of MUST_NOT_MATCH) {
+      expect(
+        usesAction({ uses }, CHECKOUT_ACTION),
+        `\`${uses}\` is not \`${CHECKOUT_ACTION}\`, so a proof that asserts this step's input would be asserting it about something else`,
+      ).toBe(false)
+    }
+    // A step with no `uses:` at all is a `run:` step, not a nameless action.
+    expect(usesAction({ run: "npm ci" }, CHECKOUT_ACTION), "a `run:` step is not an action").toBe(
+      false,
+    )
+
+    const candidates: Array<[string, (step: Record<string, unknown>, action: string) => boolean]> =
+      [
+        ["a prefix match", (st, a) => typeof st.uses === "string" && st.uses.startsWith(a)],
+        ["a substring match", (st, a) => typeof st.uses === "string" && st.uses.includes(a)],
+        [
+          "an owner/repo match that splits on slashes",
+          (st, a) =>
+            typeof st.uses === "string" &&
+            st.uses.split("@")[0]?.split("/").slice(0, 2).join("/") === a,
+        ],
+        [
+          "a match that also demands a `@vN` tag",
+          (st, a) =>
+            typeof st.uses === "string" &&
+            st.uses.split("@")[0] === a &&
+            /^v\d+$/.test(st.uses.split("@")[1] ?? ""),
+        ],
+        [
+          "a match that accepts the name as a path suffix",
+          (st, a) => {
+            const name = typeof st.uses === "string" ? (st.uses.split("@")[0] ?? "") : ""
+            return name === a || name.endsWith(`/${a}`)
+          },
+        ],
+      ]
+    for (const [name, candidate] of candidates) {
+      const agrees =
+        MUST_MATCH.every((uses) => candidate({ uses }, CHECKOUT_ACTION)) &&
+        MUST_NOT_MATCH.every((uses) => !candidate({ uses }, CHECKOUT_ACTION))
+      expect(
+        agrees,
+        `this table cannot tell \`usesAction\` apart from ${name}, so it pins nothing — a row that separates them has been dropped`,
+      ).toBe(false)
+    }
+  })
+
   it("slice0/ci-job-coverage — all six check jobs are present", () => {
     for (const job of [
       "typecheck",
