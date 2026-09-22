@@ -147,14 +147,51 @@ describe("CI workflow (ci.yml)", () => {
     ).toBeTruthy()
   })
 
-  // Whether a `python3` runtime is present at all. The production container
-  // image ships none — the product is Node, and the scorer is a Python spike —
-  // so this proof does not run in the `container` job. That skip is honest, not
-  // a gap masquerading as a pass: `ci/scorer-selftest-job-exists` above proves,
-  // in every environment, that the `unit` job PINS a Python and runs the
-  // self-test there, so the CI place the scorer actually runs cannot lose its
-  // runtime unnoticed. This proof adds the discrimination check on top, wherever
-  // a Python exists (local `npm run quality`, and the pinned `unit` job).
+  // The discrimination proof runs in TWO independent places, so the Python-less
+  // container image is not a coverage gap. First and authoritatively, it lives
+  // INSIDE `score.py --selftest`: that command copies itself with the one
+  // narrowing this spike exists to catch re-applied, runs the copy, and exits
+  // non-zero unless the mutant fails. `ci/scorer-selftest-job-exists` proves the
+  // pinned `unit` job runs that command and fails the build on non-zero, so the
+  // discrimination is enforced in CI regardless of whether any JS suite runs.
+  // `ci/scorer-selftest-enforces-discrimination` below proves — unskippably, in
+  // every environment including the container — that `--selftest` carries that
+  // machinery. The vitest check that follows re-runs the same mutation from the
+  // JS side wherever a `python3` exists (local `npm run quality`, the `unit`
+  // job); it skips in the container, which is honest because the enforcement it
+  // duplicates already runs, pinned, in the `unit` job.
+  it("ci/scorer-selftest-enforces-discrimination — `--selftest` fails unless a broken scorer fails", () => {
+    // The reason the container may skip the JS mutation without leaving a gap:
+    // `score.py --selftest` enforces the discrimination itself. It must (a) run
+    // the pure checks, (b) re-apply the exact narrowing to a COPY of itself, and
+    // (c) require that copy to fail. This proof reads the source and pins those
+    // three pieces, so the enforcement cannot be quietly gutted down to a bare
+    // "print PASS" — and it runs in EVERY environment, Python present or not,
+    // because it only reads the file the `unit` job runs.
+    const source = readFileSync(join(repoRoot, "spikes", "s1-capture-quality", "score.py"), "utf8")
+    // The narrowing the self-test re-applies must be the exact one the extraction
+    // commit exists to catch, and the marker it replaces must still be present.
+    const marker = 'return {k: v for k, v in (truth.get("times") or {}).items() if v}'
+    expect(source, "the discriminating line moved; update score.py and this proof").toContain(
+      marker,
+    )
+    expect(source, "`--selftest` no longer re-applies the narrowing it exists to catch").toContain(
+      'for k in ("prep", "cook", "total")',
+    )
+    // It must run the copy and REQUIRE a non-zero exit — the enforcement, not a
+    // print. Pin the shape: it subprocesses `--selftest-core` and gates on the
+    // return code.
+    expect(source, "`--selftest` does not run the mutant under --selftest-core").toContain(
+      "--selftest-core",
+    )
+    expect(source, "`--selftest` does not gate on the mutant's exit code").toMatch(
+      /returncode\s*!=\s*0/,
+    )
+    // And `--selftest-core` must be a real, separate entry point, or the mutant
+    // run above is a no-op.
+    expect(source, "score.py exposes no --selftest-core entry point").toMatch(/args\.selftest_core/)
+  })
+
   const python3 = spawnSync("python3", ["--version"], { encoding: "utf8" })
   const hasPython3 = python3.error === undefined && python3.status === 0
 

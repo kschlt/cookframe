@@ -23,7 +23,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -476,7 +478,7 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
     return 0
 
 
-def selftest() -> int:
+def selftest_core() -> int:
     """Discrimination proof: the scorer's field comparators must reject wrong
     captures, so a 100% result means the captures were right, not that the scorer
     passes everything (the S1 analog of S5's permissive-reference check).
@@ -545,13 +547,76 @@ def selftest() -> int:
     return 0 if ok else 1
 
 
+# The exact line the discrimination proof narrows and the narrowing it applies.
+# This is the same mutation `ci/scorer-selftest-discriminates` re-applies in the
+# vitest suite; keeping it here lets `--selftest` enforce the same property in
+# Python, in the one CI job that already runs the self-test, so the vitest skip
+# in the Python-less container image is provably harmless rather than a coverage
+# gap.
+_DISCRIMINATION_MARKER = (
+    'return {k: v for k, v in (truth.get("times") or {}).items() if v}'
+)
+_DISCRIMINATION_NARROWING = (
+    'return {k: (truth.get("times") or {}).get(k) '
+    'for k in ("prep", "cook", "total") if (truth.get("times") or {}).get(k)}'
+)
+
+
+def selftest() -> int:
+    """Run the discrimination checks, then PROVE they discriminate.
+
+    A self-test that only prints PASS on the shipped scorer proves nothing: it
+    has to fail on a broken one. So this runs the pure checks (`--selftest-core`)
+    on the shipped file, then copies the file with the one narrowing this spike's
+    extraction commit exists to catch re-applied, runs the copy with
+    `--selftest-core`, and REQUIRES it to fail. The shipped file must pass and the
+    mutant must fail, or this returns non-zero — the same property the vitest
+    proof checks, enforced here in the `unit` CI job that already runs the
+    self-test, independent of whether any JS suite runs.
+    """
+    core = selftest_core()
+    print()
+    if core != 0:
+        print("discrimination proof: SKIPPED (core checks already fail)")
+        return core
+
+    source = Path(__file__).read_text(encoding="utf8")
+    if _DISCRIMINATION_MARKER not in source:
+        print(
+            "discrimination proof: FAIL "
+            "(the narrowed line moved; update _DISCRIMINATION_MARKER)"
+        )
+        return 1
+
+    mutated = source.replace(_DISCRIMINATION_MARKER, _DISCRIMINATION_NARROWING)
+    with tempfile.TemporaryDirectory(prefix="cipy-selfmut-") as tmp:
+        broken = Path(tmp) / "score.py"
+        broken.write_text(mutated, encoding="utf8")
+        result = subprocess.run(
+            [sys.executable, str(broken), "--selftest-core"],
+            capture_output=True,
+            text=True,
+        )
+    caught = result.returncode != 0
+    print(f"  {'✓' if caught else '✗ FAIL'}  the narrowing makes the self-test fail")
+    print(f"\ndiscrimination proof: {'PASS' if caught else 'FAIL'}")
+    return 0 if caught else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--selftest", action="store_true", help="prove the scorer discriminates")
+    ap.add_argument(
+        "--selftest-core",
+        action="store_true",
+        help="run only the pure discrimination checks (used by --selftest's mutation proof)",
+    )
     ap.add_argument("--fixtures", default=None, help="fixture directory (default: ./fixtures)")
     ap.add_argument("--runs", default=None, help="run directory (default: ./runs)")
     args = ap.parse_args()
+    if args.selftest_core:
+        return selftest_core()
     if args.selftest:
         return selftest()
     return score(
