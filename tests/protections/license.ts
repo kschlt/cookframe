@@ -59,14 +59,20 @@
  *
  * ## What is deliberately out of reach
  *
- * A declaration written in prose with no link to `LICENSE` is invisible here,
- * and two exist on `main` today: `docs/open-source-self-hosting-principles.md`
- * ("Cookframe is released under the **MIT License**.") and
- * `docs/validation-and-evaluation.md` ("MIT license present;"). Both are named
- * in `license.test.ts` as mentions this rule does not cover, so that a reader
- * counting the places finds the gap written down instead of inferring coverage
- * from a green run. They come under the rule the moment their licence name
- * becomes a link, which is what the thread carrying `PDR-0006` was asked for.
+ * A declaration written in prose with no link to `LICENSE` is invisible here.
+ * Two such declarations existed when this rule was written —
+ * `docs/open-source-self-hosting-principles.md` ("Cookframe is released under
+ * the **GNU Affero General Public License, version 3 or later**.") and the
+ * release checklist in `docs/validation-and-evaluation.md` — and rather than
+ * grow a per-document pattern for each, both sentences were given the link they
+ * were describing anyway. They are ordinary declarations now.
+ *
+ * The gap itself has not gone away: a document added tomorrow that names the
+ * licence in a sentence and links nothing is not seen by this rule. What
+ * catches that is the census in `license.test.ts`, which lists every file in
+ * the tree that names any licence at all and requires each to be classified by
+ * name. A new declaration in an unrecognised shape arrives there as a file to
+ * classify, not as silence.
  */
 import { posix } from "node:path"
 

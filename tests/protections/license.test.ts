@@ -30,47 +30,67 @@
  * here, on purpose — it is the one moment the full list of places is worth a
  * person's eyes.
  *
- * ## MEASURED, through `./mutation.ts`, on 2026-09-22 at `9c52919`
+ * ## MEASURED, through `./mutation.ts`, on 2026-09-22 against `287514f`
  *
- * Thirteen plants, each judged from the failure it was required to produce and
+ * Seventeen plants, each judged from the failure it was required to produce and
  * not from an exit code. Every one killed; nothing survived, nothing
  * inconclusive, nothing refused.
  *
  * | planted in | the violation | verdict |
  * | --- | --- | --- |
- * | `LICENSE` | the licence text's heading becomes the AGPL's | killed |
- * | `package.json` | the field becomes `AGPL-3.0-or-later` | killed |
- * | `package-lock.json` | the root entry becomes `AGPL-3.0-or-later` | killed |
+ * | `LICENSE` | the licence text's heading goes back to MIT | killed |
+ * | `package.json` | the field goes back to `MIT` | killed |
+ * | `package.json` | the field becomes `AGPL-3.0-only` | killed |
+ * | `package-lock.json` | the root entry goes back to `MIT` | killed |
  * | `package-lock.json` | the root entry loses its `license` field | killed |
- * | `README.md` | the link's text names the AGPL | killed |
+ * | `README.md` | its link's text names MIT | killed |
+ * | `CONTRIBUTING.md` | its link's text names MIT | killed |
+ * | `docs/open-source-self-hosting-principles.md` | its link's text names MIT | killed |
+ * | `docs/validation-and-evaluation.md` | its link's text names MIT | killed |
  * | `license.ts` | `STRUCTURED_SITES` drops `package-lock.json` | killed |
  * | `license.ts` | `STRUCTURED_SITES` drops `LICENSE` | killed |
  * | `license.ts` | `STRUCTURED_SITES` drops `package.json` | killed |
  * | `license.ts` | the markdown rule stops recognising `.md` | killed |
  * | `license.ts` | the lock rule reads a dependency instead of `packages[""]` | killed |
- * | `license.test.ts` | the markdown walk is narrowed to one file | killed |
+ * | `license.test.ts` | the markdown walk is narrowed to one declaring file | killed |
+ * | `license.test.ts` | the markdown walk is told to skip `docs/` | killed |
  * | `license.test.ts` | the census walk is narrowed to markdown | killed |
- * | `license.test.ts` | the census walk is told to skip `docs/` | killed |
  *
- * The third row is the drift the item was cut for, and the last three are what
- * ADR-0029 asks for by name: a guard whose target is pinned and whose BREADTH
- * is not passes every one of its own proofs while reading less and less.
+ * The first nine are the drift, one per place that states the licence. The
+ * fourth is the one the item was cut for: the lock file's root entry is a copy
+ * of the manifest's field that only `npm install` rewrites, and it was the one
+ * place the first commit of the licence change left behind.
+ *
+ * The last eight are what ADR-0029 asks for by name. A guard whose target is
+ * pinned and whose BREADTH is not passes every one of its own proofs while
+ * reading less and less, so each way this guard could read less is planted:
+ * three names dropped from `STRUCTURED_SITES`, the markdown rule blinded, the
+ * lock rule pointed at a dependency, and each of the two walks narrowed.
+ *
+ * The third row is worth its own sentence. `AGPL-3.0-or-later` drifting to
+ * `AGPL-3.0-only` is a real change of grant that the licence FAMILY cannot see
+ * — both are `AGPL-3.0` — and it is caught only because a declaration also
+ * carries the exact identifier where the place can state one.
  *
  * ### And three plants that MUST survive, measured the same way
  *
- * A limit is worth what a measurement of it is worth, so the limits this file
- * declares are planted too, and are required to come back green:
+ * A limit is worth what a measurement of it is worth, so the limits this guard
+ * declares are planted too and are required to come back green:
  *
  * | planted in | the violation | verdict |
  * | --- | --- | --- |
- * | `docs/open-source-self-hosting-principles.md` | its prose declaration drifts | survived |
- * | `docs/validation-and-evaluation.md` | its prose declaration drifts | survived |
+ * | `PDR-0006` | its quotation of the licence it supersedes changes | survived |
+ * | `docs/adr/ADR-0010` | the licence it gives for `ipaddr.js` changes | survived |
  * | `package-lock.json` | `ipaddr.js` changes licence | survived |
  *
- * The first two are the gap `MENTIONS_ONLY` marks `NOT COVERED`, and they close
- * the moment those two sentences link to `LICENSE`. The third is not a gap: a
- * dependency's licence is not this project's, and a rule that went red on it
- * would go red on every `npm update`.
+ * None of the three is a gap. A record is never rewritten, so the record that
+ * made this change has to be free to quote what it replaced; and a dependency's
+ * licence is not this project's, so a rule that went red on one would go red on
+ * every `npm update`. The first version of this file did carry a gap — the two
+ * documents in the list above declared the licence in prose with no link, and
+ * were marked `NOT COVERED` rather than left to be inferred from a green run.
+ * Both sentences now link to `LICENSE`, so the gap is closed rather than
+ * documented.
  */
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
@@ -82,10 +102,10 @@ import { type Declaration, declarationsIn, mentionsALicense, STRUCTURED_SITES } 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 
 /** The licence this repository is under, at the granularity every place can state. */
-const DECLARED_FAMILY = "MIT"
+const DECLARED_FAMILY = "AGPL-3.0"
 
 /** The exact identifier, which only the two JSON fields can state. */
-const DECLARED_SPDX = "MIT"
+const DECLARED_SPDX = "AGPL-3.0-or-later"
 
 /** Directories that are not this repository's own text. */
 const SKIP = new Set(["node_modules", ".git", ".aos", "dist", "coverage", "private"])
@@ -392,8 +412,15 @@ describe("protections/the-licence-is-stated-in-one-voice", () => {
     // one place the first commit of the licence change forgot, four minutes
     // after the record was written saying nothing would catch that.
     expect(declarationsInTree()).toEqual([
+      { path: "CONTRIBUTING.md", declared: DECLARED_FAMILY, spdx: null },
       { path: "LICENSE", declared: DECLARED_FAMILY, spdx: null },
       { path: "README.md", declared: DECLARED_FAMILY, spdx: null },
+      {
+        path: "docs/open-source-self-hosting-principles.md",
+        declared: DECLARED_FAMILY,
+        spdx: null,
+      },
+      { path: "docs/validation-and-evaluation.md", declared: DECLARED_FAMILY, spdx: null },
       { path: "package-lock.json", declared: DECLARED_FAMILY, spdx: DECLARED_SPDX },
       { path: "package.json", declared: DECLARED_FAMILY, spdx: DECLARED_SPDX },
     ])
@@ -408,20 +435,25 @@ describe("protections/the-licence-is-stated-in-one-voice", () => {
  * The files whose licence names are NOT this project declaring its own, and why
  * each one is allowed to say what it says.
  *
- * Two of these are declarations in prose that the rule cannot see, and they are
- * written down as such rather than left to be inferred from a green run. They
- * come under the rule as soon as their licence name becomes a link to
- * `LICENSE`, and then they move into the list above instead.
+ * Every entry here names a licence for a reason other than declaring this
+ * project's: two describe `ipaddr.js`, one is an archived record, one is the
+ * record that made the change and quotes what it supersedes, and two are this
+ * rule and its proofs, which have to write out every name they know.
+ *
+ * There is no `NOT COVERED` entry any more. The first version of this file had
+ * two — `docs/open-source-self-hosting-principles.md` and
+ * `docs/validation-and-evaluation.md` declared the licence in prose with no
+ * link, so the rule could not see them and said so here rather than letting a
+ * green run imply otherwise. Both sentences now link to `LICENSE`, which is a
+ * true sentence either way, and they moved into the list above.
  */
 const MENTIONS_ONLY: Readonly<Record<string, string>> = {
   "docs/adr/ADR-0010-safe-url-fetch-is-guarded-at-the-connector.md":
     "names the licence of `ipaddr.js`, not this project's",
   "docs/archive/discovery-decision-log.md":
     "the archived founding decision; a record is never rewritten",
-  "docs/open-source-self-hosting-principles.md":
-    "NOT COVERED — states the project's licence in prose, with no link to `LICENSE`",
-  "docs/validation-and-evaluation.md":
-    "NOT COVERED — states the project's licence in prose, with no link to `LICENSE`",
+  "docs/product-decisions/PDR-0006-the-project-is-licensed-under-the-agpl.md":
+    "the record that made the change, quoting the licence it supersedes at length",
   "src/security/address-policy.ts": "names the licence of `ipaddr.js`, not this project's",
   "tests/protections/license.ts": "the rule itself, which has to name every licence it knows",
   "tests/protections/license.test.ts": "this file",
