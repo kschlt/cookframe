@@ -496,7 +496,14 @@ def score(model: str, fixtures_dir: Path | None = None, runs_dir: Path | None = 
         rate = r["rate"]
         flag = "" if rate is None else ("  ✓" if rate >= bar else "  ✗ FAIL")
         shown = "n/a" if rate is None else f"{rate:.0%} ({r['hit']}/{r['total']})"
-        print(f"  {k:22s} bar {bar:.0%}   {shown}{flag}")
+        # When a truth-format defect excludes a fixture from this field, its rate
+        # is over a REDUCED denominator (the `hit/total` above already reflects
+        # it). Say so at the field line, so a partial number cannot be read as a
+        # full one — the exact misread the reviewer flagged: a format error must
+        # not shrink the denominator and silently lift the rate.
+        excl = len(format_errors.get(k, []))
+        note = f"  [{excl} excluded as malformed — rate is over the reduced set]" if excl else ""
+        print(f"  {k:22s} bar {bar:.0%}   {shown}{flag}{note}")
     print("\nquantity edge classes (bar):")
     for k, bar in EDGE_BARS.items():
         r = edge_rates[k]
