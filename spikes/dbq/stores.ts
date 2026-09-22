@@ -14,6 +14,7 @@
  * interface needs.
  */
 import type { Client } from "pg"
+import { assertShape } from "./db.js"
 import type { CanonicalRecipe, SourceSnapshot } from "../../schema/index.js"
 import {
   type CanonicalVersion,
@@ -39,7 +40,8 @@ function store(
   write: (recipe: CanonicalRecipe, version: number) => Promise<void>,
   read: Reader,
 ): RecipeRepository {
-  const use = (): Promise<unknown> => client.query(`set search_path to ${schema}`)
+  const known = assertShape(schema)
+  const use = (): Promise<unknown> => client.query(`set search_path to ${known}`)
   return {
     async storeSnapshot(snapshot: SourceSnapshot): Promise<void> {
       const valid = validateSnapshot(snapshot)
@@ -186,15 +188,16 @@ export const LIBRARY_SQL: Record<string, string> = {
 }
 
 export async function listLibrary(client: Client, schema: string): Promise<readonly LibraryEntry[]> {
-  const sql = LIBRARY_SQL[schema]
-  if (sql === undefined) throw new Error(`no library query for shape ${schema}`)
+  const known = assertShape(schema)
+  const sql = LIBRARY_SQL[known]
+  if (sql === undefined) throw new Error(`no library query for shape ${known}`)
   // Apply the schema rather than only selecting SQL by it. Without this the
   // query read whatever the session's `search_path` happened to point at, so
   // the parameter promised a scoping it did not perform — every caller set the
   // path first, which is why nothing failed, and a caller that trusted the
   // name would have got another shape's rows. `shoppingRequirements` already
   // did this; the two now behave the same way.
-  await client.query(`set search_path to ${schema}`)
+  await client.query(`set search_path to ${known}`)
   const r = await client.query<LibraryEntry>(sql)
   return r.rows
 }
