@@ -26,7 +26,18 @@ import {
   resolvesInCanonical,
 } from "./fixtures.js"
 
-/** Every key the plan contract declares, anywhere in its tree. */
+/**
+ * Every key the plan contract declares, anywhere in its tree.
+ *
+ * The keys this reaches through are Zod v4's, and the difference from v3 is
+ * exactly why the bound in the first `it` below is load-bearing rather than
+ * decorative: under v4 an object's `shape` is a plain object where it used to
+ * be a function, and an array's element moved from `type` to `element`. Read
+ * with v3's keys against a v4 schema this walk throws nothing and finds
+ * NOTHING — every assertion about what the contract must not declare then
+ * passes over an empty set. It was measured in that state, and only the size
+ * bound turned it red.
+ */
 const contractKeys = (): ReadonlySet<string> => {
   const keys = new Set<string>()
   const walk = (schema: unknown, depth: number): void => {
@@ -34,13 +45,17 @@ const contractKeys = (): ReadonlySet<string> => {
     const def = (schema as { _def?: Record<string, unknown> })._def
     if (def === undefined) return
     const shape = def.shape
-    if (typeof shape === "function") {
-      for (const [key, value] of Object.entries(shape() as Record<string, unknown>)) {
+    if (shape !== null && typeof shape === "object") {
+      for (const [key, value] of Object.entries(shape as Record<string, unknown>)) {
         keys.add(key)
         walk(value, depth + 1)
       }
     }
-    for (const nested of ["innerType", "type", "schema"]) {
+    // The single-child wrappers, by the names v4 gives them: `optional`,
+    // `nullable`, `default` and `readonly` hold `innerType`, an array holds
+    // `element`, a record holds `valueType`, and a `.transform` is a pipe with
+    // `in` and `out`.
+    for (const nested of ["innerType", "element", "valueType", "in", "out"]) {
       if (def[nested] !== undefined) walk(def[nested], depth + 1)
     }
     if (Array.isArray(def.options)) for (const option of def.options) walk(option, depth + 1)
