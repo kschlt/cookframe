@@ -321,3 +321,118 @@ describe("run/the-platform-file-carries-no-secret", () => {
     expect(unaccounted).toEqual([])
   })
 })
+
+/**
+ * The three settings that make the machine stop, and the shapes that undo them.
+ *
+ * ## Why this describe was added after the others
+ *
+ * A review planted two violations against an earlier version of this file and
+ * both came back GREEN: deleting `auto_stop_machines` and setting
+ * `min_machines_running = 1`. Either leaves a machine that never stops.
+ *
+ * That is not a small gap, because the stopping IS what `ADR-0026` decided. The
+ * record's whole economic argument is that the idle term becomes the seconds the
+ * machine ran rather than a monthly fee, and `fly.toml`'s own header states it in
+ * the present tense. A machine that never stops serves every request correctly,
+ * passes every health check, and is discovered on a bill weeks later — the same
+ * silent shape as the three failures this file already guards, and the reason it
+ * belongs here rather than in a later unit.
+ *
+ * ## The spare list, and which entry does the work
+ *
+ * `"suspend"` is the entry that matters. It is not a typo and not a near miss —
+ * it is the value a well-meaning edit reaches for, because it sounds like a
+ * cheaper stop. It is the opposite: a suspended machine keeps its memory
+ * resident and is billed for it, which `fly.toml`'s own comment argues against.
+ * A guard written as "the key is present" would spare it, and a guard written as
+ * a search for the word `stop` anywhere in the file would spare it too — the
+ * comment arguing against suspending contains the word. So the spare list
+ * carries that comment sitting above the correct key.
+ */
+const STOPS_WHEN_IDLE: readonly {
+  readonly key: string
+  readonly table: string
+  readonly value: string
+}[] = [
+  { key: "auto_stop_machines", table: "http_service", value: "stop" },
+  { key: "auto_start_machines", table: "http_service", value: "true" },
+  { key: "min_machines_running", table: "http_service", value: "0" },
+]
+
+/**
+ * The settings above that a given file does NOT declare as they must be.
+ *
+ * Every case below runs THIS, including the ones that plant a violation, so the
+ * planted cases die when the comparison is narrowed. Written as three separate
+ * `it.each` assertions instead, a reader could weaken the comparison to "the key
+ * is present" and every case would stay green — measured, not supposed: that
+ * exact narrowing survived the first version of this describe.
+ */
+const idleDisagreements = (toml: string): string[] =>
+  STOPS_WHEN_IDLE.filter(({ key, table, value }) => valueIn(toml, table, key) !== value).map(
+    ({ key }) => key,
+  )
+
+describe("run/the-platform-file-stops-the-machine-when-idle", () => {
+  it("the machine stops when idle, starts on a request, and keeps none running", () => {
+    expect(idleDisagreements(FLY_TOML)).toEqual([])
+  })
+
+  it("a deleted auto_stop_machines is reported, and it is the likely edit", () => {
+    // The review that asked for this describe planted exactly this and found it
+    // green. A key nobody reads is a key somebody deletes while tidying.
+    const planted = FLY_TOML.replace(/^\s*auto_stop_machines = "stop"\n/m, "")
+    expect(planted, "the plant matched nothing").not.toBe(FLY_TOML)
+    expect(idleDisagreements(planted)).toEqual(["auto_stop_machines"])
+  })
+
+  it("suspend is reported, which reads like a cheaper stop and is a dearer one", () => {
+    // Not a typo and not a near miss: it is the value a well-meaning edit
+    // reaches for, because it sounds cheaper. A suspended machine keeps its
+    // memory resident and is billed for it, which `fly.toml`'s comment argues.
+    //
+    // The plant is anchored to the KEY line — leading whitespace, the key, no
+    // `#` in front. As a plain string replace it hit the COMMENT above the key,
+    // which quotes the value in order to argue against it; the plant then
+    // changed prose, the key stayed `"stop"`, and this case failed for a reason
+    // that had nothing to do with what it measures. A plant that lands somewhere
+    // other than where it was aimed is a failure shape of its own, and it landed
+    // here first.
+    const planted = FLY_TOML.replace(
+      /^(\s*)auto_stop_machines = "stop"$/m,
+      '$1auto_stop_machines = "suspend"',
+    )
+    expect(planted, "the plant matched nothing").not.toBe(FLY_TOML)
+    expect(idleDisagreements(planted)).toEqual(["auto_stop_machines"])
+  })
+
+  it("a machine kept running is reported", () => {
+    // The second violation the review found green. `min_machines_running = 1`
+    // leaves `auto_stop_machines` in place and reads entirely reasonable; the
+    // machine simply never stops, and the record's whole economic argument is
+    // that it does.
+    const planted = FLY_TOML.replace("min_machines_running = 0", "min_machines_running = 1")
+    expect(planted, "the plant matched nothing").not.toBe(FLY_TOML)
+    expect(idleDisagreements(planted)).toEqual(["min_machines_running"])
+  })
+
+  it("a machine that will not start again is reported", () => {
+    // The opposite mistake, and the worse one: stopping without starting is an
+    // instance that goes down at its first idle period and stays down.
+    const planted = FLY_TOML.replace("auto_start_machines = true", "auto_start_machines = false")
+    expect(planted, "the plant matched nothing").not.toBe(FLY_TOML)
+    expect(idleDisagreements(planted)).toEqual(["auto_start_machines"])
+  })
+
+  it("and the comment arguing against suspend does not itself satisfy the rule", () => {
+    // The spare. Here the keys are gone and only the prose remains, and the
+    // prose contains the word `stop` — so a guard that searched the file for
+    // that word rather than reading the key would call this a machine that
+    // stops. All three settings must be reported missing, not one.
+    const proseOnly = '[http_service]\n  # suspend keeps memory resident, so this stays "stop"\n'
+    expect(idleDisagreements(proseOnly).sort()).toEqual(
+      STOPS_WHEN_IDLE.map(({ key }) => key).sort(),
+    )
+  })
+})
