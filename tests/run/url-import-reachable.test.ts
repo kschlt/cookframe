@@ -19,7 +19,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { createFakeCaptureProvider } from "../../src/pipeline/fake-providers.js"
 import type { CaptureContext, CaptureProvider } from "../../src/pipeline/providers.js"
+import { createUrlCaptureProvider } from "../../src/pipeline/url-capture.js"
 import { createDeterministicUrlCaptureProvider } from "../../src/pipeline/url-jsonld-adapter.js"
 import type { UrlByteSource } from "../../src/security/url-byte-source.js"
 import { createSafeUrlByteSource } from "../../src/security/url-byte-source.js"
@@ -48,17 +50,45 @@ let pagePort: number
 let instance: TestInstance
 
 /**
- * The shipped deterministic adapter, with the context it was handed recorded.
+ * **The URL capture path as `main.ts` composes it**, with two things recorded.
  *
- * `sourceProvenance` is consumed by the capture provider and never stored, so it
- * cannot be read back off the snapshot — which is exactly why it needs a proof
- * of its own rather than a sentence in a comment. A wrapper rather than a
- * replacement: the import still has to succeed through the real adapter, so this
- * cannot turn into a proof about the recorder.
+ * The first version of this proof passed `createDeterministicUrlCaptureProvider()`
+ * in as the instance's `capture`, and that is what the review blocked: the
+ * instance under test had the deterministic reader because the TEST gave it one,
+ * while `main.ts` gave the model provider to both entries, so a fetched page
+ * went to the model whole and the reader was never on the path. A proof that
+ * builds its own subject — the shape this unit was written against, one layer
+ * down.
+ *
+ * What is built here is therefore `createUrlCaptureProvider(...)`, the same
+ * composite the entry point composes, with the deterministic half SHIPPED. The
+ * model half cannot be: a real one calls a model over the network. So the
+ * fallback is a fake, and the consequence is stated rather than glossed —
+ * nothing here shows that `main.ts` composes this pair. What shows that is
+ * `serve/a-url-import-runs-the-url-capture-path`, which reads the composition
+ * root; this file shows what the composed pair DOES.
+ *
+ * Two recorders, each for a claim no stored value can carry:
+ *
+ * - `seen` holds the context the composite was handed. `sourceProvenance` is
+ *   consumed by the provider and never persisted, so no assertion about the
+ *   snapshot could see it.
+ * - `fallbackCalls` holds what reached the model half. That it is NOT called for
+ *   a page carrying usable JSON-LD is the whole point of the composite, and an
+ *   absence is not visible anywhere else.
  */
 const seen: CaptureContext[] = []
+const fallbackCalls: { text: string; ctx: CaptureContext }[] = []
+
+const modelFallback: CaptureProvider = {
+  capture: async (input, ctx) => {
+    fallbackCalls.push({ text: new TextDecoder().decode(input), ctx })
+    return createFakeCaptureProvider().capture(input, ctx)
+  },
+}
+
 const recordingCapture = (): CaptureProvider => {
-  const real = createDeterministicUrlCaptureProvider()
+  const real = createUrlCaptureProvider(createDeterministicUrlCaptureProvider(), modelFallback)
   return {
     capture: async (input, ctx) => {
       seen.push(ctx)
@@ -67,10 +97,21 @@ const recordingCapture = (): CaptureProvider => {
   }
 }
 
-function handle(_req: IncomingMessage, res: ServerResponse): void {
+/**
+ * A page with NO structured data at all — the case the composite's model
+ * fallback exists for. Its prose is distinctive so a proof can tell the text the
+ * model was handed from the markup it was wrapped in.
+ */
+const plainHtml =
+  `<!doctype html><html><head><title>fixture</title></head><body>` +
+  `<h1>Synthetic Plain Loaf</h1>` +
+  `<p>Mix two hundred grams of flour with a teaspoon of salt, then bake.</p>` +
+  `</body></html>`
+
+function handle(req: IncomingMessage, res: ServerResponse): void {
   res.on("error", () => {})
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" })
-  res.end(pageHtml(recipe))
+  res.end(req.url === "/plain" ? plainHtml : pageHtml(recipe))
 }
 
 beforeAll(async () => {
@@ -81,7 +122,7 @@ beforeAll(async () => {
     // The shipped source, with the connector's one test-only seam open so a
     // loopback page is reachable. Everything else is the production connector.
     byteSource: createSafeUrlByteSource({ allowLoopback: true }),
-    capture: recordingCapture(),
+    urlCapture: recordingCapture(),
   })
 })
 
@@ -192,6 +233,47 @@ describe("run/a-link-can-be-imported-from-a-running-instance", () => {
     expect(JSON.stringify(body)).not.toContain("/etc/passwd")
   })
 
+  /**
+   * The composite, from the outside: a page that publishes its recipe
+   * machine-readably is read by the deterministic adapter, and the model half is
+   * NOT reached.
+   *
+   * An absence, asserted as the value it is: `fallbackCalls` is cleared first, so
+   * "empty" means "nothing arrived during this import" rather than "nothing has
+   * ever arrived". The mutation this is written against is the one the review
+   * found — handing the route the photo path's provider — under which every page
+   * goes to the model and this list holds one entry.
+   */
+  it("reads a page's own structured data, and the model is not called at all", async () => {
+    fallbackCalls.length = 0
+    const res = await submit(`http://127.0.0.1:${pagePort}/recipe`)
+    expect(res.status).toBe(201)
+    expect(fallbackCalls).toHaveLength(0)
+  })
+
+  /**
+   * And the other half of the composite: a page carrying no structured data
+   * reaches the model — with the page's TEXT, never its markup (ADR-0019 §4a).
+   *
+   * Both halves are asserted, because "reached the model" alone would pass for a
+   * route that handed over the raw HTML, which is exactly the state this unit was
+   * blocked for. The provenance travels with it, so the model-backed provider
+   * verifies against that text instead of taking the vision exemption.
+   */
+  it("reaches the model with the page's text, not its markup, when there is no structured data", async () => {
+    fallbackCalls.length = 0
+    const res = await submit(`http://127.0.0.1:${pagePort}/plain`)
+    expect(res.status).toBe(201)
+    expect(fallbackCalls).toHaveLength(1)
+
+    const handed = fallbackCalls[0]
+    expect(handed?.text).toContain("Synthetic Plain Loaf")
+    expect(handed?.text).toContain("two hundred grams of flour")
+    expect(handed?.text).not.toContain("<h1")
+    expect(handed?.text).not.toContain("<!doctype")
+    expect(handed?.ctx.sourceProvenance).toBe("url")
+  })
+
   it("refuses a private address as an address, without naming which range", async () => {
     // A private-range literal, refused before a socket is opened. The seam this
     // instance opens is `allowLoopback` and nothing else — measured, not
@@ -253,7 +335,7 @@ describe("run/a-stop-releases-the-fetch-pool", () => {
       },
     }
 
-    const running = await startTestInstance({ byteSource: slow, capture: recordingCapture() })
+    const running = await startTestInstance({ byteSource: slow, urlCapture: recordingCapture() })
     const inFlight = fetch(`${running.origin}/capture/url`, {
       method: "POST",
       headers: {

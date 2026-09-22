@@ -47,7 +47,7 @@ import {
   UnknownRecipeCountError,
 } from "../../src/pipeline/recipe-inventory.js"
 import { createInMemoryCapabilityStore } from "../../src/shopping/capability-token.js"
-import { unsuppliedByteSource } from "../security/unsupplied-byte-source.js"
+import { unsuppliedByteSource, unsuppliedUrlCapture } from "../security/unsupplied-byte-source.js"
 import { dictionaryKeysRead, parsePlist } from "./plist.js"
 
 /**
@@ -152,6 +152,7 @@ function harness(capture?: CaptureProvider): Harness {
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
     byteSource: unsuppliedByteSource(),
+    urlCapture: unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",
     urlAdapterVersion: "1.0.0",
   })

@@ -136,6 +136,23 @@ export interface IngestAppDeps {
    * per request would open one per import and close none.
    */
   readonly byteSource: UrlByteSource
+  /**
+   * The capture provider a URL import runs through, SEPARATE from {@link capture}.
+   *
+   * Two providers rather than one, because the two entries are not the same
+   * capability. A photograph has to be read by a model. A recipe page usually
+   * publishes its recipe as structured data, so `src/pipeline/url-capture.ts`
+   * composes the deterministic reader with a model fallback and hands the model
+   * the EXTRACTED TEXT, never the raw HTML (ADR-0019 §4a).
+   *
+   * This field exists because the first version of this route did not have it:
+   * it passed {@link capture}, so a running instance sent every fetched page
+   * whole to the model and the deterministic reader — built, guarded and proved
+   * across CFV1-SL4 — was never on the path. That is the same defect this unit
+   * was written to close, one layer down, and what holds it now is
+   * `serve/a-url-import-runs-the-url-capture-path`.
+   */
+  readonly urlCapture: CaptureProvider
   /** How the URL entry names itself in `captureProvenance`; the photo path has its own pair. */
   readonly urlSourceAdapter: string
   readonly urlAdapterVersion: string
@@ -359,7 +376,12 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
           {
             byteSource: deps.byteSource,
             repo: deps.repo,
-            capture: deps.capture,
+            // `urlCapture`, not `capture`: the URL path reads a page's own
+            // structured data first and reaches the model only for a page whose
+            // data is missing or unusable. Passing `capture` here is what made
+            // the deterministic reader unreachable, and it is the one line the
+            // structural guard reads.
+            capture: deps.urlCapture,
             normalization: deps.normalization,
             policy: deps.policy,
           },

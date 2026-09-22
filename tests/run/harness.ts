@@ -32,7 +32,7 @@ import {
   type CapabilityStore,
   createInMemoryCapabilityStore,
 } from "../../src/shopping/capability-token.js"
-import { unsuppliedByteSource } from "../security/unsupplied-byte-source.js"
+import { unsuppliedByteSource, unsuppliedUrlCapture } from "../security/unsupplied-byte-source.js"
 
 /**
  * Two DIFFERENT secrets, because PDR-0003 says the phone's does not open the
@@ -137,6 +137,14 @@ export interface TestInstanceOptions {
    * the proofs that never touch the URL address.
    */
   readonly byteSource?: UrlByteSource
+  /**
+   * The capture path the URL route runs through. A proof about the URL route
+   * passes what `main.ts` composes — the deterministic reader with a model
+   * fallback — rather than the deterministic reader alone, because the
+   * composite is what a running instance has and the difference between the two
+   * is exactly what the review's BLOCK was about.
+   */
+  readonly urlCapture?: CaptureProvider
 }
 
 /**
@@ -192,6 +200,7 @@ export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanc
     sourceAdapter: "ios-shortcut",
     adapterVersion: "1.0.0",
     byteSource: options.byteSource ?? unsuppliedByteSource(),
+    urlCapture: options.urlCapture ?? unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",
     urlAdapterVersion: "1.0.0",
     closeStore: async () => {

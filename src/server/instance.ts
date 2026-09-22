@@ -79,6 +79,13 @@ export interface InstanceDeps {
    * through the same route.
    */
   readonly byteSource: UrlByteSource
+  /**
+   * The capture provider the URL route runs through — the composite, not the
+   * photo path's model provider. `main.ts` builds it; what holds that it is the
+   * composite rather than anything else is
+   * `serve/a-url-import-runs-the-url-capture-path`.
+   */
+  readonly urlCapture: IngestAppDeps["urlCapture"]
   readonly urlSourceAdapter: string
   readonly urlAdapterVersion: string
   /**
@@ -129,6 +136,7 @@ export function composeInstance(deps: InstanceDeps): Hono {
       sourceAdapter: deps.sourceAdapter,
       adapterVersion: deps.adapterVersion,
       byteSource: deps.byteSource,
+      urlCapture: deps.urlCapture,
       urlSourceAdapter: deps.urlSourceAdapter,
       urlAdapterVersion: deps.urlAdapterVersion,
     }),
