@@ -20,12 +20,17 @@
  * a shape nobody measured. Nothing in this spike calls them; when the persistent
  * store is built, it implements them for real and the contract suite is what
  * holds it to that.
+ *
+ * The three capability-grant operations (ADR-0032) arrived later still and are
+ * refused here for the same reason, with their own sentence so neither refusal
+ * names the other's record.
  */
 import type { Client } from "pg"
 import { assertShape } from "./db.js"
 import type { CanonicalRecipe, CookingPlan, SourceSnapshot } from "../../schema/index.js"
 import {
   type CanonicalVersion,
+  type CapabilityGrantRecord,
   type LibraryEntry,
   type RecipeRepository,
   RecipeVersionNotFoundError,
@@ -119,12 +124,25 @@ function store(
     async loadCookingPlan(_recipeId: string, _version: number): Promise<CookingPlan | undefined> {
       throw new Error(NOT_MEASURED_HERE)
     },
+    async storeCapabilityGrant(_grant: CapabilityGrantRecord): Promise<boolean> {
+      throw new Error(GRANTS_NOT_MEASURED_HERE)
+    },
+    async resolveCapabilityGrant(_tokenDigest: string): Promise<string | undefined> {
+      throw new Error(GRANTS_NOT_MEASURED_HERE)
+    },
+    async revokeCapabilityGrant(_tokenDigest: string): Promise<boolean> {
+      throw new Error(GRANTS_NOT_MEASURED_HERE)
+    },
   }
 }
 
 /** Why the two Cooking Plan operations refuse here; see this file's header. */
 const NOT_MEASURED_HERE =
   "the Cooking Plan operations (ADR-0025) arrived after CFV1-DBQ measured these shapes, and are not implemented in the spike"
+
+/** Why the three capability-grant operations refuse here; see this file's header. */
+const GRANTS_NOT_MEASURED_HERE =
+  "the capability-grant operations (ADR-0032) arrived after CFV1-DBQ measured these shapes, and are not implemented in the spike"
 
 export function createDocumentStore(client: Client, schema = "document"): RecipeRepository {
   return store(

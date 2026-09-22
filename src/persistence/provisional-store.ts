@@ -32,6 +32,7 @@
 import type { CanonicalRecipe, CookingPlan, SourceSnapshot } from "../../schema/index.js"
 import {
   type CanonicalVersion,
+  type CapabilityGrantRecord,
   type LibraryEntry,
   type RecipeRepository,
   RecipeVersionNotFoundError,
@@ -45,6 +46,8 @@ class ProvisionalStore implements RecipeRepository {
   readonly #versions = new Map<string, CanonicalRecipe[]>()
   /** `recipeId\u0000version` -> the plan derived from exactly that version (ADR-0025). */
   readonly #plans = new Map<string, CookingPlan>()
+  /** token digest -> the grant; a revoked grant stays, marked, and is never deleted. */
+  readonly #grants = new Map<string, { readonly recipeId: string; readonly revoked: boolean }>()
 
   async storeSnapshot(snapshot: SourceSnapshot): Promise<void> {
     // Validate before the store is touched: invalid input never persists. The
@@ -137,6 +140,26 @@ class ProvisionalStore implements RecipeRepository {
     // error (`PDR-0004` ships `lazy`). A copy, like every other read here.
     const stored = this.#plans.get(planKey(recipeId, version))
     return stored === undefined ? undefined : structuredClone(stored)
+  }
+
+  async storeCapabilityGrant(grant: CapabilityGrantRecord): Promise<boolean> {
+    // A digest already held — active or revoked — is refused, never overwritten
+    // (ADR-0032): the caller mints another token.
+    if (this.#grants.has(grant.tokenDigest)) return false
+    this.#grants.set(grant.tokenDigest, { recipeId: grant.recipeId, revoked: false })
+    return true
+  }
+
+  async resolveCapabilityGrant(tokenDigest: string): Promise<string | undefined> {
+    const grant = this.#grants.get(tokenDigest)
+    return grant === undefined || grant.revoked ? undefined : grant.recipeId
+  }
+
+  async revokeCapabilityGrant(tokenDigest: string): Promise<boolean> {
+    const grant = this.#grants.get(tokenDigest)
+    if (grant === undefined || grant.revoked) return false
+    this.#grants.set(tokenDigest, { ...grant, revoked: true })
+    return true
   }
 }
 

@@ -99,6 +99,9 @@ describe("repo-reads/one-suite-every-store", () => {
       "readTwoRuns",
       "storeCookingPlan",
       "loadCookingPlan",
+      "storeCapabilityGrant",
+      "resolveCapabilityGrant",
+      "revokeCapabilityGrant",
     ] as const
     for (const [label, makeStore] of STORES) {
       const store = (await makeStore()) as unknown as Record<string, unknown>
