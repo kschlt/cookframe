@@ -6,15 +6,24 @@
  * the repository interface, explicitly replaceable. This is that store: an
  * in-memory, append-only implementation — dependency-free and deterministic.
  *
- * STILL PROVISIONAL, and now provisional against a decision rather than against
- * an open question. CFV1-DBQ measured the three deciding queries over real
- * Slice 1 data and ADR-0015 closed OQ-03/OQ-04: PostgreSQL, JSONB documents,
- * with an extracted projection where a query is measured to need one. That
- * record CONFIRMS the shape this store persists — a whole validated Canonical
- * Recipe per version, appended, never mutated — and REPLACES its storage, which
- * is in memory and survives nothing. The replacement is its own piece of work;
- * until it lands this store is what runs, and this notice is what stops
- * "provisional" from meaning "nobody decided".
+ * NO LONGER THE STORE AN INSTANCE RUNS ON, and kept deliberately. CFV1-DBQ
+ * measured the three deciding queries over real Slice 1 data, ADR-0015 closed
+ * OQ-03/OQ-04 on that evidence — PostgreSQL, JSONB documents, with an extracted
+ * projection where a query is measured to need one — and CFV1-PG built that
+ * store in `./postgres-store.ts`. An instance keeps its library there.
+ *
+ * What this store is now for is the contract itself. `runRepositoryContract` is
+ * a proof about {@link RecipeRepository} rather than about any one store, and an
+ * interface with a single implementation is not an interface anyone has tested:
+ * the suite cannot tell a promise the interface makes from a habit its only
+ * store happens to have. Two implementations, run from one definition, is what
+ * makes that difference visible. So this one stays, dependency-free and needing
+ * no server, and every proof runs against both.
+ *
+ * It is still in memory and still survives nothing, which is now a property
+ * rather than a shortfall: a test wants a store that starts empty and costs
+ * nothing, and `persistence/a-restart-keeps-the-library` is the proof that
+ * separates the two stores on exactly this point.
  *
  * The concrete class is intentionally NOT exported — callers see only
  * {@link RecipeRepository} and {@link createProvisionalStore}, so no storage

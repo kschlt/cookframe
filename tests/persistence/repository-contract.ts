@@ -47,12 +47,15 @@ const ctx = (runId: string): NormalizationContext => ({ runId, targetOntologyVer
  * Run every interface proof against the store built by `makeStore`. Each `it`
  * name is the RRD acceptance-criterion id it proves.
  */
-export function runRepositoryContract(label: string, makeStore: () => RecipeRepository): void {
+export function runRepositoryContract(
+  label: string,
+  makeStore: () => RecipeRepository | Promise<RecipeRepository>,
+): void {
   const provider = createFakeNormalizationProvider()
 
   describe(`repo-reads/load-latest-by-id (${label})`, () => {
     it("returns the latest Canonical version for a known recipe id", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const canonical = await provider.normalize(snapshot, ctx("run-1"))
       const appended = await repo.appendCanonicalVersion(canonical)
 
@@ -65,7 +68,7 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
     })
 
     it("hands back a copy, so a caller cannot mutate stored state", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const appended = await repo.appendCanonicalVersion(
         await provider.normalize(snapshot, ctx("r")),
       )
@@ -83,14 +86,14 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
 
   describe(`repo-reads/unknown-id-returns-undefined (${label})`, () => {
     it("returns undefined for an unknown id rather than throwing", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       // No catch, no rejection: the value itself says "not here", which is what
       // lets a capability route tell a missing recipe from a revoked token.
       await expect(repo.loadLatestCanonical("no-such-recipe")).resolves.toBeUndefined()
     })
 
     it("still returns undefined once other recipes exist", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("run-1")))
       expect(await repo.loadLatestCanonical("a-different-id")).toBeUndefined()
     })
@@ -98,7 +101,7 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
 
   describe(`repo-reads/load-latest-returns-the-newest-version (${label})`, () => {
     it("returns the newest appended version, not the first", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const c1 = await provider.normalize(snapshot, ctx("run-1"))
       const c2 = await provider.normalize(snapshot, ctx("run-2"))
       // Same recipe (a second normalization run), so the two share an id and
@@ -116,7 +119,7 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
 
   describe(`repo-reads/existing-operations-unchanged (${label})`, () => {
     it("stores and loads a Source Snapshot, and returns undefined for an unknown one", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       expect(await repo.loadSnapshot(snapshot.id)).toBeUndefined()
       await repo.storeSnapshot(snapshot)
       const loaded = await repo.loadSnapshot(snapshot.id)
@@ -124,7 +127,7 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
     })
 
     it("validates before persisting: an invalid document is rejected and nothing is stored", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       await expect(repo.storeSnapshot({ id: "bad" } as unknown as SourceSnapshot)).rejects.toThrow()
       await expect(
         repo.appendCanonicalVersion({ id: "r1" } as unknown as Awaited<
@@ -152,7 +155,7 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
     })
 
     it("appends versions monotonically and never mutates an earlier one", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const v1 = await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("run-1")))
       const v2 = await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("run-2")))
       expect(v1.version).toBe(1)
@@ -164,7 +167,7 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
     })
 
     it("lists the library with one entry per recipe id and the newest version's title", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       const v = await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("run-1")))
       await repo.appendCanonicalVersion(await provider.normalize(snapshot, ctx("run-2")))
       const latest = await repo.loadLatestCanonical(v.recipeId)
@@ -182,12 +185,12 @@ export function runRepositoryContract(label: string, makeStore: () => RecipeRepo
     })
 
     it("readTwoRuns still throws for a missing recipe rather than inventing one", async () => {
-      const repo = makeStore()
+      const repo = await makeStore()
       await expect(repo.readTwoRuns("never-stored", 1, 2)).rejects.toThrow()
     })
 
-    it("exposes no in-place write path", () => {
-      const repo = makeStore() as unknown as Record<string, unknown>
+    it("exposes no in-place write path", async () => {
+      const repo = (await makeStore()) as unknown as Record<string, unknown>
       for (const forbidden of ["update", "save", "put", "overwrite", "replace", "set", "delete"]) {
         expect(repo[forbidden]).toBeUndefined()
       }
