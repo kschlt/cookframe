@@ -87,6 +87,8 @@ interface Step {
   readonly identifier: unknown
   readonly index: number
   readonly format?: unknown
+  readonly quality?: unknown
+  readonly keepsMetadata?: unknown
 }
 
 /**
@@ -113,7 +115,13 @@ function uploadLineage(actions: Dict[]): Step[] {
     steps.unshift({
       identifier,
       index: at,
-      ...(identifier === CONVERT ? { format: parameters["WFImageFormat"] } : {}),
+      ...(identifier === CONVERT
+        ? {
+            format: parameters["WFImageFormat"],
+            quality: parameters["WFImageCompressionQuality"],
+            keepsMetadata: parameters["WFImagePreserveMetadata"],
+          }
+        : {}),
     })
     const key = IMAGE_INPUT[String(identifier)]
     if (key === undefined) return steps
@@ -216,6 +224,23 @@ describe("protections/the-photo-door-is-no-wider-than-the-vendor", () => {
       shortcutContentTypes(actions),
       `the upload declares a type other than the ${String(made)} it sends`,
     ).toEqual([made])
+  })
+
+  it("drops the photograph's metadata in the conversion, so where it was taken is not sent", () => {
+    // The image goes on to a model provider, and a recipe needs no location.
+    // The Shortcut and its README both promise this, so the flag is held here:
+    // a conversion that keeps metadata is red, and so is one that leaves the
+    // flag out and takes whatever Shortcuts defaults to. The quality is pinned
+    // beside it; nothing promises 0.85, but a change to it belongs here.
+    // Dropping metadata drops EXIF Orientation too; whether the rotation is
+    // applied to the pixels first is OQ-49.
+    const conversion = uploadLineage(shortcutActions()).find((step) => step.identifier === CONVERT)
+    expect(conversion, "the upload sends no Convert Image output").toBeDefined()
+    expect(
+      conversion?.keepsMetadata,
+      "Convert Image does not say it drops metadata, so a location can reach the provider",
+    ).toBe(false)
+    expect(conversion?.quality, "the JPEG quality changed without this file saying why").toBe(0.85)
   })
 
   // One named proof per format rather than a table, so each name is one the

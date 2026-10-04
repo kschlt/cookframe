@@ -68,11 +68,13 @@ not a requirement.
 
 The definition parses as a property list and its actions are the documented Shortcuts action
 identifiers, and both are checked by `tests/slice5/shortcut-definition-committed-and-clean`. That the
-upload sends the photograph *through* the JPEG conversion, and declares the type the conversion makes,
-is traced through the definition by `tests/protections/vendor-image-formats.test.ts`.
+upload sends exactly the camera's photograph, converted once to JPEG and passed through nothing else,
+that it declares the type the conversion makes, and that the conversion drops metadata, is traced
+through the definition by `tests/protections/vendor-image-formats.test.ts`.
 
 What that trace cannot show is that Shortcuts, told `JPEG`, writes JPEG bytes. If a HEIC arrives
-anyway, the instance refuses it before any model call and says it has to be sent as JPEG.
+anyway, the instance refuses it before any model call and says it has to be sent as JPEG. Nor can it
+show that a photograph taken sideways arrives upright once its metadata is dropped (`OQ-49`).
 
 **It has not been imported on a device from this repository.** No iOS device is reachable from the
 environment this was built in, so "Shortcuts accepts this file and the flow runs" is an operator
