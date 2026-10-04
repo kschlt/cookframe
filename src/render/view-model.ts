@@ -43,11 +43,24 @@ import { NO_TITLE_IN_SOURCE, wording, wordingWithUnit } from "./source-wording.j
  * Resolves a stored hero image's `storageIdentity` to something an `<img src>`
  * can use. Injected, because how bytes are served is a storage concern and a
  * render module that knew it could no longer claim to be Canonical-only.
+ *
+ * It is told the recipe as well as the identity, because the address a running
+ * instance serves a picture at names the RECIPE (`/recipes/:id/picture`), not
+ * the bytes: an address by identity would serve whatever the store holds under
+ * any identity a caller could name, the kept photographs included.
  */
-export type MediaSrcResolver = (storageIdentity: string) => string
+export type MediaSrcResolver = (storageIdentity: string, recipeId: string) => string
 
 export interface ViewOptions {
   readonly mediaSrc?: MediaSrcResolver
+  /**
+   * Whether this recipe's source is a photographed page. It is a fact about the
+   * Source Snapshot, which the Canonical Recipe does not carry, so the caller
+   * that loaded the snapshot says it. It changes only what the page says when
+   * there is no picture of the dish: a photographed page is kept, and it is
+   * deliberately not one (`docs/recipe-ontology.md` §7).
+   */
+  readonly photographedSource?: boolean
 }
 
 /**
@@ -134,6 +147,30 @@ export interface HeroImageView {
   readonly attribution?: string
 }
 
+/**
+ * Why a recipe page shows no picture of the dish. Each one is a different
+ * sentence on the page, because each is a different fact:
+ *
+ *  - `photographed_page` — the source is a photographed page, which is kept and
+ *    is not a picture of the dish;
+ *  - `none_kept` — the recipe holds no picture of the dish;
+ *  - `not_served` — it holds one, and this rendering was given no way to serve
+ *    it.
+ */
+export type PictureAbsence = "photographed_page" | "none_kept" | "not_served"
+
+/**
+ * The recipe page's picture: shown, or a declared absence with its reason.
+ *
+ * A union rather than `heroImage?`, for the reason {@link TitleView} is one: an
+ * optional field leaves "there is no picture" and "this view forgot to carry
+ * it" as the same value, and a page that renders nothing for both says nothing
+ * where the source's gap should be stated.
+ */
+export type PictureView =
+  | { readonly state: "shown"; readonly src: string; readonly attribution?: string }
+  | { readonly state: "absent"; readonly reason: PictureAbsence }
+
 export interface RecipeView {
   readonly id: string
   readonly title: TitleView
@@ -148,7 +185,7 @@ export interface RecipeView {
   readonly ingredientGroups: readonly IngredientGroupView[]
   readonly sections: readonly SectionView[]
   readonly nutrition: readonly NutritionView[]
-  readonly heroImage?: HeroImageView
+  readonly picture: PictureView
 }
 
 /**
@@ -252,10 +289,20 @@ const classificationsOf = (recipe: CanonicalRecipe): string[] =>
 const heroImageOf = (recipe: CanonicalRecipe, options: ViewOptions): HeroImageView | undefined => {
   const hero = recipe.media?.heroImage
   if (hero === undefined || options.mediaSrc === undefined) return undefined
-  const src = options.mediaSrc(hero.storageIdentity)
+  const src = options.mediaSrc(hero.storageIdentity, recipe.id)
   return {
     src,
     ...(hero.attribution !== undefined ? { attribution: hero.attribution } : {}),
+  }
+}
+
+const pictureOf = (recipe: CanonicalRecipe, options: ViewOptions): PictureView => {
+  const shown = heroImageOf(recipe, options)
+  if (shown !== undefined) return { state: "shown", ...shown }
+  if (recipe.media?.heroImage !== undefined) return { state: "absent", reason: "not_served" }
+  return {
+    state: "absent",
+    reason: options.photographedSource === true ? "photographed_page" : "none_kept",
   }
 }
 
@@ -276,7 +323,6 @@ export function toRecipeView(recipe: CanonicalRecipe, options: ViewOptions = {})
     (recipe.preparedComponents ?? []).map((component) => [component.id, component.label]),
   )
   const attribution = attributionOf(recipe)
-  const hero = heroImageOf(recipe, options)
   return {
     id: recipe.id,
     title: titleView(recipe),
@@ -293,7 +339,7 @@ export function toRecipeView(recipe: CanonicalRecipe, options: ViewOptions = {})
     ingredientGroups: recipe.ingredientGroups.map(groupView),
     sections: recipe.instructionSections.map((section) => sectionView(section, componentLabels)),
     nutrition: (recipe.nutritionStatements ?? []).map(nutritionView),
-    ...(hero !== undefined ? { heroImage: hero } : {}),
+    picture: pictureOf(recipe, options),
   }
 }
 

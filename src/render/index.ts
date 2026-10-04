@@ -26,6 +26,8 @@ export {
   type LibraryCardView,
   type MediaSrcResolver,
   type NutritionView,
+  type PictureAbsence,
+  type PictureView,
   type RecipeView,
   type SectionView,
   type StepView,

@@ -201,7 +201,7 @@ describe("slice2/usable-with-source-unavailable", () => {
 
   it("a stored hero image is omitted rather than guessed when nothing can serve it", () => {
     const withoutResolver = toRecipeView(onions)
-    expect(withoutResolver.heroImage).toBeUndefined()
+    expect(withoutResolver.picture).toEqual({ state: "absent", reason: "not_served" })
     expect(renderRecipePage(onions)).not.toContain("<img")
 
     const withResolver = renderRecipePage(onions, {

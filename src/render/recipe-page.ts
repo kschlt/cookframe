@@ -19,6 +19,8 @@ import type {
   IngredientGroupView,
   IngredientView,
   LabelledTextView,
+  PictureAbsence,
+  PictureView,
   RecipeView,
   SectionView,
   StepView,
@@ -29,6 +31,33 @@ import { titleLine } from "./view-model.js"
 type Fragment = HtmlEscapedString | Promise<HtmlEscapedString> | string
 
 const nothing = ""
+
+/**
+ * What the page says where there is no picture of the dish, one sentence per
+ * reason. A gap is stated, not left blank: a page that showed nothing could not
+ * be told apart from one that lost its picture.
+ *
+ * The photographed page gets its own sentence because the picture it lacks is
+ * not missing. The photograph is kept, as the source; `docs/recipe-ontology.md`
+ * §7 is what says a photographed page is not a picture of the dish, and the
+ * sentence says that rather than "no picture", which would deny a photograph
+ * the instance holds.
+ */
+export const NO_PICTURE_OF_THE_DISH: Readonly<Record<PictureAbsence, string>> = {
+  photographed_page:
+    "No picture of the dish. The photographed page is kept as this recipe's source, and a photographed page is not a picture of the dish.",
+  none_kept: "No picture of the dish: none was kept from the source.",
+  not_served: "This recipe has a picture of the dish that this page cannot show.",
+}
+
+const pictureBlock = (picture: PictureView, title: TitleView): Fragment =>
+  picture.state === "absent"
+    ? html`<p class="meta source-gap">${NO_PICTURE_OF_THE_DISH[picture.reason]}</p>`
+    : html`<img src="${picture.src}" alt="${titleLine(title)}">${
+        picture.attribution === undefined
+          ? nothing
+          : html`<p class="meta">${picture.attribution}</p>`
+      }`
 
 const qualifierSuffix = (qualifiers: readonly string[]): string =>
   qualifiers.length === 0 ? "" : `, ${qualifiers.join(", ")}`
@@ -109,15 +138,7 @@ export function recipeBody(view: RecipeView): HtmlEscapedString | Promise<HtmlEs
   return html`<article>
 ${titleHeading(view.title)}
 ${attributionLine(view)}
-${
-  view.heroImage === undefined
-    ? nothing
-    : html`<img src="${view.heroImage.src}" alt="${titleLine(view.title)}">${
-        view.heroImage.attribution === undefined
-          ? nothing
-          : html`<p class="meta">${view.heroImage.attribution}</p>`
-      }`
-}
+${pictureBlock(view.picture, view.title)}
 ${view.description === undefined ? nothing : html`<p>${view.description}</p>`}
 ${signals(view)}
 ${

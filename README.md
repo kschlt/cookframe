@@ -104,10 +104,10 @@ Not there yet, stated as plainly as the rest:
 - **Capture quality has not passed its own gate.** The threshold run against real photographs
   returned FAIL, and the thresholds themselves turned out to be under-specified for sources a human
   transcribes ([`docs/open-questions.md`](docs/open-questions.md), OQ-14).
-- **A recipe's page has no picture.** Rendering one is built and tested and not wired into the
-  pages, and nothing gives a recipe one to render: a photographed cookbook page is kept, but it is
+- **A recipe's page has no picture.** The pages show one when a recipe has it, and say so when it
+  does not, but nothing gives a recipe one yet: a photographed cookbook page is kept, and it is
   deliberately not treated as a picture of the dish
-  ([`docs/recipe-ontology.md`](docs/recipe-ontology.md)), and nothing else supplies one yet.
+  ([`docs/recipe-ontology.md`](docs/recipe-ontology.md)), and an imported link does not bring one.
 - **Nothing re-converts a recipe you already have.** Re-normalizing a stored source is what keeping
   the source is *for*, and it happens today only as part of an import.
 - **No library search, and no accounts** — an instance has two credentials, not users.

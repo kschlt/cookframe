@@ -378,8 +378,9 @@ const HONO_NODE_SERVER_2: MajorHarness = {
       mutations: [
         {
           name: "a page call site hands c.body the shared two-key record",
-          find: "    return c.body(renderLibraryPage(recipes), 200, pageHeaders())",
-          replace: "    return c.body(renderLibraryPage(recipes), 200, PAGE_HEADERS)",
+          find: "    return c.body(renderLibraryPage(recipes, servedPicture), 200, pageHeaders())",
+          replace:
+            "    return c.body(renderLibraryPage(recipes, servedPicture), 200, PAGE_HEADERS)",
           mustFail: "hands no response builder in src/ a header record shared across responses",
         },
       ],

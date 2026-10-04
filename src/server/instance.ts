@@ -168,6 +168,9 @@ export function composeInstance(deps: InstanceDeps): Hono {
       // Built HERE, from configuration, so the app is handed a way to name a
       // token's address without ever holding the instance's own (ADR-0026, cut 3).
       capabilityUrlFor: (token) => capabilityUrl(deps.publicBaseUrl, token),
+      // The SAME store the photo route keeps photographs in: one volume, one
+      // interface for retained scans and hero media (ADR-0009).
+      mediaStore: deps.scanStore,
     }),
   )
 

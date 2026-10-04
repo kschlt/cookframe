@@ -87,6 +87,8 @@ import type { RecipeRepository } from "../persistence/index.js"
 import { renderCookingPage, renderLibraryPage, renderRecipePage } from "../render/index.js"
 import { bringImportUrl } from "../shopping/bring-handoff.js"
 import { type CapabilityStore, isPathSafeToken } from "../shopping/capability-token.js"
+import { type ByteStore, recordedIdentity } from "../storage/index.js"
+import { servedImageType } from "./image-signature.js"
 import type { InstanceCredential } from "./instance-credential.js"
 import { bearerCredential } from "./instance-credential.js"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "./not-found.js"
@@ -114,6 +116,13 @@ export interface PagesAppDeps {
    * outside the app — so this app never holds an address, it asks for one.
    */
   readonly capabilityUrlFor: (token: string) => string
+  /**
+   * Where a recipe's picture of the dish is kept: the byte store on the volume
+   * (ADR-0009 keeps retained scans and hero media behind one interface). The
+   * picture route reads it by the identity the recipe's own Canonical Recipe
+   * names, and by no other.
+   */
+  readonly mediaStore: ByteStore
   /**
    * Told when the cooking page could not show a plan and served the recipe page
    * instead. Optional, and observation only — nothing about the response depends
@@ -161,6 +170,28 @@ const pageHeaders = (): Record<string, string> => ({ ...PAGE_HEADERS })
  * credential for whoever it serves next. A fresh object per response, for the
  * measured reason `notFoundHeaders` exists.
  */
+/**
+ * Served with a picture of the dish, built per response for the measured reason
+ * `notFoundHeaders` exists.
+ *
+ * The content type is the one {@link servedImageType} read from the bytes, never
+ * a stored or claimed label, and `nosniff` tells the browser to take it at its
+ * word rather than guess past it. `no-store` for the pages' reason: the picture
+ * is part of the operator's private library.
+ */
+const pictureHeaders = (contentType: string): Record<string, string> => ({
+  "content-type": contentType,
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
+})
+
+/** Where a recipe's picture of the dish is served: by the recipe, never by the bytes' identity. */
+export const pictureHref = (recipeId: string): string =>
+  `/recipes/${encodeURIComponent(recipeId)}/picture`
+
+/** How every page this app renders names a picture: by its recipe's picture route. */
+const servedPicture = { mediaSrc: (_identity: string, recipeId: string) => pictureHref(recipeId) }
+
 const handoffHeaders = (): Record<string, string> => ({
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
@@ -168,7 +199,8 @@ const handoffHeaders = (): Record<string, string> => ({
 
 /**
  * Build the pages app. `GET /` is the library, `GET /recipes/:id` is one recipe,
- * and `GET /recipes/:id/cook` is the plan derived from it. All three require the
+ * `GET /recipes/:id/picture` is its picture of the dish, and
+ * `GET /recipes/:id/cook` is the plan derived from it. All of them require the
  * library credential as a bearer token; every other outcome — no credential, a
  * wrong credential, an unknown recipe id, an unknown path — is the one shared
  * not-found answer.
@@ -191,6 +223,23 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
   /** True only for a request carrying this instance's library credential. */
   const admitted = (authorization: string | undefined): boolean =>
     deps.credential.accepts(bearerCredential(authorization))
+
+  /**
+   * The recipe page as this instance serves it, wherever it is served from: its
+   * own address, and the cooking address when that degrades to it.
+   *
+   * The snapshot is read for one sentence only, what the page says when there
+   * is no picture of the dish. A snapshot that cannot be found changes that
+   * sentence and nothing else, so the page still renders from the Canonical
+   * Recipe alone.
+   */
+  const recipePage = async (recipe: CanonicalRecipe): Promise<string> => {
+    const snapshot = await deps.repo.loadSnapshot(recipe.provenance.sourceSnapshotId)
+    return renderRecipePage(recipe, {
+      ...servedPicture,
+      photographedSource: snapshot?.sourceType === "image",
+    })
+  }
 
   app.get("/", async (c) => {
     if (!admitted(c.req.header("authorization"))) return c.notFound()
@@ -215,7 +264,7 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
     for (const version of loaded) {
       if (version !== undefined) recipes.push(version.recipe)
     }
-    return c.body(renderLibraryPage(recipes), 200, pageHeaders())
+    return c.body(renderLibraryPage(recipes, servedPicture), 200, pageHeaders())
   })
 
   app.get("/recipes/:id", async (c) => {
@@ -224,7 +273,40 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
     const version = await deps.repo.loadLatestCanonical(c.req.param("id"))
     if (version === undefined) return c.notFound()
 
-    return c.body(renderRecipePage(version.recipe), 200, pageHeaders())
+    return c.body(await recipePage(version.recipe), 200, pageHeaders())
+  })
+
+  /**
+   * A recipe's picture of the dish.
+   *
+   * **By the recipe, not by the bytes.** The identity read is the one the
+   * recipe's latest Canonical Recipe names, so this address can serve that
+   * picture and nothing else the store holds — the kept photographs above all,
+   * which a route taking an identity from the request would hand to anyone
+   * holding the library credential.
+   *
+   * **The type comes from the bytes.** The picture was somebody else's to begin
+   * with, and a stored file carries no label; bytes that are not one of the
+   * three formats {@link servedImageType} recognises are never served, under any
+   * type. That answer is the shared miss, like every other "nothing to show
+   * you" on this layer.
+   */
+  app.get("/recipes/:id/picture", async (c) => {
+    if (!admitted(c.req.header("authorization"))) return c.notFound()
+
+    const version = await deps.repo.loadLatestCanonical(c.req.param("id"))
+    const hero = version?.recipe.media?.heroImage
+    if (hero === undefined) return c.notFound()
+
+    // The contract holds the identity as a plain string; the store mints the
+    // brand and resolves an identity it could not have issued to nothing.
+    const bytes = await deps.mediaStore.get(recordedIdentity(hero.storageIdentity))
+    if (bytes === undefined) return c.notFound()
+    const contentType = servedImageType(bytes)
+    if (contentType === undefined) return c.notFound()
+
+    // A copy, because a response body has to own a plain ArrayBuffer.
+    return c.body(new Uint8Array(bytes), 200, pictureHeaders(contentType))
   })
 
   /**
@@ -273,7 +355,7 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
       // The recipe is authoritative and the plan is derived; whatever went wrong
       // with the plan, the recipe is still readable, so that is what is served.
       deps.onDegraded?.(recipeId, error)
-      return c.body(renderRecipePage(version.recipe), 200, pageHeaders())
+      return c.body(await recipePage(version.recipe), 200, pageHeaders())
     }
   })
 
