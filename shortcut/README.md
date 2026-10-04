@@ -44,7 +44,10 @@ than promised: see `tests/slice5/`.
    URL and the credential from step 1. An unsigned shortcut needs *Settings → Shortcuts → Allow
    Untrusted Shortcuts* enabled once.
 
-4. **Run it.** It opens the camera, you photograph the page, and it shows what came back.
+4. **Run it.** It opens the camera, you photograph the page, it converts the photograph to JPEG, and
+   it shows what came back. The conversion happens on the phone because a camera set to *High
+   Efficiency* (the iPhone default) photographs in HEIC, which neither your instance nor its model
+   provider reads. Location and other metadata are dropped in the same step.
 
 Add it to the Home Screen or to the Action button if you want it one tap away. That is a convenience,
 not a requirement.
@@ -64,7 +67,14 @@ not a requirement.
 ## What has not been verified here
 
 The definition parses as a property list and its actions are the documented Shortcuts action
-identifiers, and both are checked by `tests/slice5/shortcut-definition-committed-and-clean`.
+identifiers, and both are checked by `tests/slice5/shortcut-definition-committed-and-clean`. That the
+upload sends exactly the camera's photograph, converted once to JPEG and passed through nothing else,
+that it declares the type the conversion makes, and that the conversion drops metadata, is traced
+through the definition by `tests/protections/vendor-image-formats.test.ts`.
+
+What that trace cannot show is that Shortcuts, told `JPEG`, writes JPEG bytes. If a HEIC arrives
+anyway, the instance refuses it before any model call and says it has to be sent as JPEG. Nor can it
+show that a photograph taken sideways arrives upright once its metadata is dropped (`OQ-49`).
 
 **It has not been imported on a device from this repository.** No iOS device is reachable from the
 environment this was built in, so "Shortcuts accepts this file and the flow runs" is an operator
