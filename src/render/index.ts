@@ -27,6 +27,7 @@ export {
   type MediaSrcResolver,
   type NutritionView,
   type PictureAbsence,
+  type PictureSource,
   type PictureView,
   type RecipeView,
   type SectionView,

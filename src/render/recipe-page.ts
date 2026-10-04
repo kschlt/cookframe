@@ -47,6 +47,8 @@ export const NO_PICTURE_OF_THE_DISH: Readonly<Record<PictureAbsence, string>> = 
   photographed_page:
     "No picture of the dish. The photographed page is kept as this recipe's source, and a photographed page is not a picture of the dish.",
   none_kept: "No picture of the dish: none was kept from the source.",
+  source_unread:
+    "No picture of the dish is kept with this recipe, and its source could not be read to say why.",
   not_served: "This recipe has a picture of the dish that this page cannot show.",
 }
 

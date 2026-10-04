@@ -54,14 +54,26 @@ export type MediaSrcResolver = (storageIdentity: string, recipeId: string) => st
 export interface ViewOptions {
   readonly mediaSrc?: MediaSrcResolver
   /**
-   * Whether this recipe's source is a photographed page. It is a fact about the
+   * What the caller found out about this recipe's source. It is a fact about the
    * Source Snapshot, which the Canonical Recipe does not carry, so the caller
    * that loaded the snapshot says it. It changes only what the page says when
    * there is no picture of the dish: a photographed page is kept, and it is
    * deliberately not one (`docs/recipe-ontology.md` §7).
+   *
+   * Absent means `unread`, never "not a photograph": a caller that did not look,
+   * or could not, has learned nothing, and a page that read that as a fact would
+   * say "none was kept" about a recipe whose photograph the instance holds.
    */
-  readonly photographedSource?: boolean
+  readonly pictureSource?: PictureSource
 }
+
+/**
+ * What is known about a recipe's source, for the sentence its page says when it
+ * has no picture of the dish. Three values rather than a boolean, because "it is
+ * not a photograph" and "nobody could find out" are different facts and only
+ * the first may be stated as one.
+ */
+export type PictureSource = "photographed_page" | "not_photographed" | "unread"
 
 /**
  * The recipe's name as a page may show it: the source's own wording, or the
@@ -153,11 +165,15 @@ export interface HeroImageView {
  *
  *  - `photographed_page` — the source is a photographed page, which is kept and
  *    is not a picture of the dish;
- *  - `none_kept` — the recipe holds no picture of the dish;
+ *  - `none_kept` — the recipe holds no picture of the dish, and its source is
+ *    known not to be a photographed page;
+ *  - `source_unread` — the recipe holds no picture of the dish, and whether its
+ *    source is a photographed page could not be read, so the page says that
+ *    instead of guessing either way;
  *  - `not_served` — it holds one, and this rendering was given no way to serve
  *    it.
  */
-export type PictureAbsence = "photographed_page" | "none_kept" | "not_served"
+export type PictureAbsence = "photographed_page" | "none_kept" | "source_unread" | "not_served"
 
 /**
  * The recipe page's picture: shown, or a declared absence with its reason.
@@ -300,10 +316,12 @@ const pictureOf = (recipe: CanonicalRecipe, options: ViewOptions): PictureView =
   const shown = heroImageOf(recipe, options)
   if (shown !== undefined) return { state: "shown", ...shown }
   if (recipe.media?.heroImage !== undefined) return { state: "absent", reason: "not_served" }
-  return {
-    state: "absent",
-    reason: options.photographedSource === true ? "photographed_page" : "none_kept",
+  const absence: Record<PictureSource, PictureAbsence> = {
+    photographed_page: "photographed_page",
+    not_photographed: "none_kept",
+    unread: "source_unread",
   }
+  return { state: "absent", reason: absence[options.pictureSource ?? "unread"] }
 }
 
 /**

@@ -84,7 +84,12 @@ import { Hono } from "hono"
 import type { CanonicalRecipe } from "../../schema/index.js"
 import { deriveCookingPlan } from "../cooking/index.js"
 import type { RecipeRepository } from "../persistence/index.js"
-import { renderCookingPage, renderLibraryPage, renderRecipePage } from "../render/index.js"
+import {
+  type PictureSource,
+  renderCookingPage,
+  renderLibraryPage,
+  renderRecipePage,
+} from "../render/index.js"
 import { bringImportUrl } from "../shopping/bring-handoff.js"
 import { type CapabilityStore, isPathSafeToken } from "../shopping/capability-token.js"
 import { type ByteStore, recordedIdentity } from "../storage/index.js"
@@ -225,21 +230,37 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
     deps.credential.accepts(bearerCredential(authorization))
 
   /**
+   * What this recipe's Source Snapshot says about it, for the one sentence the
+   * page says when there is no picture of the dish.
+   *
+   * Reading it must never cost the page: the recipe is authoritative and this is
+   * a footnote to it. A store does more than answer `undefined` here — the
+   * Postgres store validates the row on the way out and THROWS for a snapshot
+   * that no longer satisfies the contract, on purpose — so a failed read is
+   * caught, and the recipe page and the page the cooking address degrades to
+   * stay readable. Measured in review: without this both answered 500.
+   *
+   * And a read that failed, or found nothing, is `unread`, never "not a
+   * photograph": the page then says its source could not be read, instead of
+   * saying "none was kept" about a recipe whose photograph the instance holds.
+   * Nothing else observes the failure; the stated gap on the page is its trace.
+   */
+  const pictureSourceOf = async (recipe: CanonicalRecipe): Promise<PictureSource> => {
+    try {
+      const snapshot = await deps.repo.loadSnapshot(recipe.provenance.sourceSnapshotId)
+      if (snapshot === undefined) return "unread"
+      return snapshot.sourceType === "image" ? "photographed_page" : "not_photographed"
+    } catch {
+      return "unread"
+    }
+  }
+
+  /**
    * The recipe page as this instance serves it, wherever it is served from: its
    * own address, and the cooking address when that degrades to it.
-   *
-   * The snapshot is read for one sentence only, what the page says when there
-   * is no picture of the dish. A snapshot that cannot be found changes that
-   * sentence and nothing else, so the page still renders from the Canonical
-   * Recipe alone.
    */
-  const recipePage = async (recipe: CanonicalRecipe): Promise<string> => {
-    const snapshot = await deps.repo.loadSnapshot(recipe.provenance.sourceSnapshotId)
-    return renderRecipePage(recipe, {
-      ...servedPicture,
-      photographedSource: snapshot?.sourceType === "image",
-    })
-  }
+  const recipePage = async (recipe: CanonicalRecipe): Promise<string> =>
+    renderRecipePage(recipe, { ...servedPicture, pictureSource: await pictureSourceOf(recipe) })
 
   app.get("/", async (c) => {
     if (!admitted(c.req.header("authorization"))) return c.notFound()
@@ -283,7 +304,10 @@ export function createPagesApp(deps: PagesAppDeps): Hono {
    * recipe's latest Canonical Recipe names, so this address can serve that
    * picture and nothing else the store holds — the kept photographs above all,
    * which a route taking an identity from the request would hand to anyone
-   * holding the library credential.
+   * holding the library credential. Held by
+   * `picture/the-address-is-the-librarys`, which names another image's identity
+   * in the request and requires the recipe's own bytes back; before that proof,
+   * a route reading `?identity=` passed every other one.
    *
    * **The type comes from the bytes.** The picture was somebody else's to begin
    * with, and a stored file carries no label; bytes that are not one of the
