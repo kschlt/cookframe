@@ -52,3 +52,20 @@ export interface ByteStore {
    */
   get(identity: StorageIdentity): Promise<Uint8Array | undefined>
 }
+
+/**
+ * Re-admit an identity a record kept, so the bytes it names can be read back.
+ *
+ * A Canonical Recipe stores its hero image's identity as a plain string (the
+ * schema owns that field, and it has no brand). Reading that string back is not
+ * minting: the string was a {@link StorageIdentity} when `put` returned it, and
+ * this only restores the type the record could not carry. Nothing about it is
+ * trusted for that reason — a recorded string the store could not have issued
+ * still reaches no location, because {@link ByteStore.get} resolves it to
+ * `undefined`. Kept in this module so that the cast stays where
+ * `slice1/storage-identity-confinement` allows it, and so that every other
+ * module names what it is doing rather than casting.
+ */
+export function recordedIdentity(recorded: string): StorageIdentity {
+  return recorded as StorageIdentity
+}

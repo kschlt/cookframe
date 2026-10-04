@@ -422,13 +422,12 @@ const ROWS: readonly Row[] = [
   },
   {
     id: "a picture of the dish",
-    // Stated, not measured, and deliberately. The renderer takes a
-    // `mediaSrc` resolver and calls it itself, so "is it wired" is whether a
-    // caller HANDS one over — a property in an options object, which no call
-    // can decide. The only call to `mediaSrc` sits in the renderer and runs the
-    // same whether or not the pages pass one, so a `called` measure here would
-    // read "reached" today and be wrong. `ADR-0004`'s seam is what a measure
-    // would have to read; until one does, the page keeps saying it.
+    // Stated, not measured, and deliberately. The pages hand the renderer a
+    // resolver now and serve the bytes (`tests/run/recipe-picture.test.ts`), so
+    // what keeps this off a running instance is that nothing WRITES
+    // `media.heroImage`: no import sets it. That is a field in an object
+    // literal, which no `called` measure can decide, and a measure for it
+    // would have to read the writers; until one does, the page keeps saying it.
     measure: { stated: true },
     built: "a picture of the dish on a recipe's page",
     notYet: "**A recipe's page has no picture.**",
@@ -481,10 +480,6 @@ const NOT_LOADED: ReadonlyMap<string, string> = new Map([
   [
     "src/pipeline/providers.ts",
     "interfaces only; every import of it is `import type`, which loads nothing",
-  ],
-  [
-    "src/storage/byte-store.ts",
-    "types only; every import of it is `import type`, which loads nothing",
   ],
 ])
 
