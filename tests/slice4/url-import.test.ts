@@ -39,6 +39,7 @@ import {
 } from "../../src/pipeline/url-jsonld-adapter.js"
 import { SafeFetchError } from "../../src/security/safe-fetch.js"
 import { createSafeUrlByteSource, type UrlByteSource } from "../../src/security/url-byte-source.js"
+import { unsuppliedPictures } from "../security/unsupplied-byte-source.js"
 
 /** A synthetic, self-authored complete Recipe served by the loopback fixture. */
 const completeRecipe = {
@@ -133,6 +134,7 @@ const deps = (byteSource: UrlByteSource): UrlImportDeps => ({
   capture: createDeterministicUrlCaptureProvider(),
   normalization: createFakeNormalizationProvider(),
   policy,
+  pictures: unsuppliedPictures(),
 })
 
 describe("slice4/contract-convergence-with-image-import (url import)", () => {

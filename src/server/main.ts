@@ -34,7 +34,10 @@ import {
 import { createOpenAITransport } from "../pipeline/openai-transport.js"
 import { createUrlCaptureProvider } from "../pipeline/url-capture.js"
 import { createDeterministicUrlCaptureProvider } from "../pipeline/url-jsonld-adapter.js"
-import { createSafeUrlByteSource } from "../security/url-byte-source.js"
+import {
+  createSafePictureByteSource,
+  createSafeUrlByteSource,
+} from "../security/url-byte-source.js"
 import { createCapabilityStore } from "../shopping/capability-token.js"
 import { createFilesystemByteStore } from "../storage/index.js"
 import { readConfiguration } from "./config.js"
@@ -167,6 +170,9 @@ async function main(): Promise<void> {
   // defaults ADR-0010 specifies. A production instance that could be talked into
   // fetching 127.0.0.1 is the whole reason that guard exists.
   const byteSource = createSafeUrlByteSource()
+  // The same guard for a recipe's picture of the dish, with the same reason for
+  // passing no options; only what it admits differs (`url-byte-source.ts`).
+  const pictureSource = createSafePictureByteSource()
 
   /**
    * The model-backed capture provider, named because BOTH entries are built
@@ -212,6 +218,7 @@ async function main(): Promise<void> {
       adapterVersion: "1.0.0",
       scanStore,
       byteSource,
+      pictureSource,
       // The composite from CFV1-SL4, on the path at last: deterministic reader
       // first, `modelCapture` only for a page whose structured data is missing
       // or unusable. A page that publishes its recipe machine-readably costs no
@@ -232,6 +239,7 @@ async function main(): Promise<void> {
       closeStore: () => store.close(),
       // The connector's pool, released on the same drained boundary as the store.
       closeByteSource: () => byteSource.close(),
+      closePictureSource: () => pictureSource.close(),
     },
     config.port,
   )

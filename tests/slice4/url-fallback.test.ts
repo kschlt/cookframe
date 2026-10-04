@@ -29,6 +29,7 @@ import { createUrlCaptureProvider } from "../../src/pipeline/url-capture.js"
 import { importFromUrl, type UrlImportDeps } from "../../src/pipeline/url-import.js"
 import { createDeterministicUrlCaptureProvider } from "../../src/pipeline/url-jsonld-adapter.js"
 import type { UrlByteSource, UrlFetchResult } from "../../src/security/url-byte-source.js"
+import { unsuppliedPictures } from "../security/unsupplied-byte-source.js"
 
 const policy = createContentDerivedBlockIdPolicy()
 
@@ -260,6 +261,7 @@ describe("slice4/fallback-composes-into-importFromUrl", () => {
       ),
       normalization: createFakeNormalizationProvider(),
       policy,
+      pictures: unsuppliedPictures(),
     }
     const { snapshot } = await importFromUrl(
       deps,

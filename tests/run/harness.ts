@@ -160,6 +160,13 @@ export interface TestInstanceOptions {
    */
   readonly byteSource?: UrlByteSource
   /**
+   * The source a URL import fetches a recipe's picture through. A proof about
+   * pictures passes the shipped `createSafePictureByteSource` with
+   * `allowLoopback`; the default refuses, which an import survives without a
+   * picture, so it changes nothing for a proof that never declares one.
+   */
+  readonly pictureSource?: UrlByteSource
+  /**
    * The capture path the URL route runs through. A proof about the URL route
    * passes what `main.ts` composes — the deterministic reader with a model
    * fallback — rather than the deterministic reader alone, because the
@@ -245,6 +252,7 @@ export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanc
     adapterVersion: "1.0.0",
     scanStore: options.scanStore ?? scratchByteStore().store,
     byteSource: options.byteSource ?? unsuppliedByteSource(),
+    pictureSource: options.pictureSource ?? unsuppliedByteSource(),
     urlCapture: options.urlCapture ?? unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",
     urlAdapterVersion: "1.0.0",
@@ -255,6 +263,9 @@ export function testInstanceDeps(options: TestInstanceOptions = {}): TestInstanc
     // no pool — it refuses rather than fetching — so there is nothing to close.
     closeByteSource: async () => {
       await options.byteSource?.close()
+    },
+    closePictureSource: async () => {
+      await options.pictureSource?.close()
     },
   }
 

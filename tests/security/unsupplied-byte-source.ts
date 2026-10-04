@@ -14,8 +14,10 @@
  * fourth recurring defect shape of this repository, a proof that builds its own
  * subject — so the only thing this can safely do is make its own use visible.
  */
+import type { PictureDeps } from "../../src/pipeline/hero-image.js"
 import type { CaptureProvider } from "../../src/pipeline/providers.js"
 import type { UrlByteSource } from "../../src/security/url-byte-source.js"
+import { scratchByteStore } from "../support/scratch-byte-store.js"
 
 /** The sentence a proof sees when it reaches the URL route without asking for a source. */
 export const NO_BYTE_SOURCE_SUPPLIED =
@@ -52,4 +54,15 @@ export function unsuppliedUrlCapture(): CaptureProvider {
       throw new Error(NO_URL_CAPTURE_SUPPLIED)
     },
   }
+}
+
+/**
+ * What a URL import keeps a picture with, as a proof gets it when it does not
+ * ask: a source that refuses, over a scratch store. A refused picture fetch
+ * costs the import nothing (`src/pipeline/hero-image.ts`), so a proof that
+ * never declares a picture is unaffected, and one that expects a picture gets a
+ * recipe without one rather than a quiet pass.
+ */
+export function unsuppliedPictures(): PictureDeps {
+  return { source: unsuppliedByteSource(), store: scratchByteStore().store }
 }

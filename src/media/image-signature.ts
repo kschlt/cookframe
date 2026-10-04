@@ -13,6 +13,10 @@
  * The set is the three the photo route admits (`src/http/ingest-app.ts`), and
  * the signatures are the formats' own: JPEG starts `FF D8 FF`, PNG with its
  * eight-byte signature, WebP as a RIFF container whose form type is `WEBP`.
+ *
+ * Two readers, one rule: the picture route asks before it serves, and a URL
+ * import asks before it keeps a picture it fetched (`src/pipeline/hero-image.ts`),
+ * so what is kept and what is served are judged by the same bytes.
  */
 
 /** The content types a served picture can carry. */
