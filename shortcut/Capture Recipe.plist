@@ -18,9 +18,9 @@
   model-provider credential, cannot be exchanged for one, and reaches no part of
   the library. Losing the phone costs submission to that instance.
 
-  What it does: photograph a recipe page, POST the image to <base>/capture, and
-  show what came back — the imported recipe's title, or the refusal's own
-  sentence. The refusal matters most: a page holding several recipes is refused
+  What it does: photograph a recipe page, convert it to JPEG, POST it to
+  <base>/capture, and show what came back — the imported recipe's title, or the
+  refusal's own sentence. The refusal matters most: a page holding several recipes is refused
   rather than truncated to one, and the message names how many were found and
   what they were called.
 -->
@@ -94,8 +94,47 @@
 				<true/>
 			</dict>
 		</dict>
-		<!-- 3. Submit it. One request: the image is the body, the credential is a
-		     bearer token, and the media type is stated rather than guessed. -->
+		<!-- 3. Make it a JPEG. A camera set to High Efficiency photographs in HEIC,
+		     which neither the instance nor its model provider reads, so the
+		     photograph is converted here, on the phone, before any byte leaves.
+		     The upload below sends THIS action's output, not the photograph, and
+		     declares the type this action makes. Metadata is dropped: the image
+		     is passed on to a model provider, and where it was taken is not
+		     something a recipe needs. -->
+		<dict>
+			<key>WFWorkflowActionIdentifier</key>
+			<string>is.workflow.actions.image.convert</string>
+			<key>WFWorkflowActionParameters</key>
+			<dict>
+				<key>UUID</key>
+				<string>3F1B0A2C-0008-4C6E-9A21-C0F3E1A40008</string>
+				<key>CustomOutputName</key>
+				<string>JPEG Page</string>
+				<key>WFImageFormat</key>
+				<string>JPEG</string>
+				<key>WFImageCompressionQuality</key>
+				<real>0.85</real>
+				<key>WFImagePreserveMetadata</key>
+				<false/>
+				<key>WFInput</key>
+				<dict>
+					<key>Value</key>
+					<dict>
+						<key>Type</key>
+						<string>ActionOutput</string>
+						<key>OutputName</key>
+						<string>Page</string>
+						<key>OutputUUID</key>
+						<string>3F1B0A2C-0003-4C6E-9A21-C0F3E1A40003</string>
+					</dict>
+					<key>WFSerializationType</key>
+					<string>WFTextTokenAttachment</string>
+				</dict>
+			</dict>
+		</dict>
+		<!-- 4. Submit it. One request: the converted image is the body, the
+		     credential is a bearer token, and the media type is stated rather
+		     than guessed. -->
 		<dict>
 			<key>WFWorkflowActionIdentifier</key>
 			<string>is.workflow.actions.downloadurl</string>
@@ -116,9 +155,9 @@
 						<key>Type</key>
 						<string>ActionOutput</string>
 						<key>OutputName</key>
-						<string>Page</string>
+						<string>JPEG Page</string>
 						<key>OutputUUID</key>
-						<string>3F1B0A2C-0003-4C6E-9A21-C0F3E1A40003</string>
+						<string>3F1B0A2C-0008-4C6E-9A21-C0F3E1A40008</string>
 					</dict>
 					<key>WFSerializationType</key>
 					<string>WFTextTokenAttachment</string>
@@ -218,7 +257,7 @@
 				</dict>
 			</dict>
 		</dict>
-		<!-- 4. The refusal's own sentence, if there is one. `message` is present on
+		<!-- 5. The refusal's own sentence, if there is one. `message` is present on
 		     a refusal and absent on a success, so it is the discriminator. -->
 		<dict>
 			<key>WFWorkflowActionIdentifier</key>
@@ -247,7 +286,7 @@
 				</dict>
 			</dict>
 		</dict>
-		<!-- 5. If the reply carried a refusal, SHOW IT. This branch is the whole
+		<!-- 6. If the reply carried a refusal, SHOW IT. This branch is the whole
 		     point of `slice5/multi-recipe-refusal-reaches-the-person`: the count
 		     and the titles are in that sentence, and a person reads them. -->
 		<dict>
@@ -310,7 +349,7 @@
 				</dict>
 			</dict>
 		</dict>
-		<!-- 6. Otherwise: it was imported, and `message` says what was imported.
+		<!-- 7. Otherwise: it was imported, and `message` says what was imported.
 		     The Shortcut reads the SENTENCE, never the `title` field beside it.
 		     Since PDR-0005 a title is a declared state rather than a string — a
 		     source that gives none carries `not_in_source` and no wording at all
