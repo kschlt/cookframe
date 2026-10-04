@@ -159,14 +159,21 @@ const NODE_26: MajorHarness = {
         },
         {
           name: "the declared @types/node major drifts above the runtime",
-          find: '"@types/node": "^26.6.2"',
-          replace: '"@types/node": "^27.0.0"',
+          // Anchored on the major, not the patch: a find that names `^26.6.2`
+          // stops occurring the day Dependabot moves the patch, and every such
+          // bump went red here for a reason that has nothing to do with Node
+          // (#118). The replacement leaves the rest of the version behind, so
+          // `^26.6.2` becomes `^27.6.2` — still a caret range, now one major up.
+          find: '"@types/node": "^26',
+          replace: '"@types/node": "^27',
           mustFail: "every place that pins a Node version pins the same major",
         },
         {
           name: "the @types/node caret range is gone, so its major cannot be read",
-          find: '"@types/node": "^26.6.2"',
-          replace: '"@types/node": "latest"',
+          // `^26.6.2` becomes `latest.6.2`: no caret and no leading major, which
+          // is the declaration this guard must refuse, whatever the tail reads.
+          find: '"@types/node": "^26',
+          replace: '"@types/node": "latest',
           mustFail: "every place that pins a Node version pins the same major",
         },
       ],
