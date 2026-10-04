@@ -79,7 +79,11 @@ export function createSafeUrlByteSource(options: SafeFetcherOptions = {}): UrlBy
  */
 export const PICTURE_CONTENT_TYPES: readonly string[] = ["image/jpeg", "image/png", "image/webp"]
 
-/** The most a picture fetch reads before it is refused: the connector's own page bound. */
+/**
+ * The most a picture fetch reads before it is refused: 5 MiB, the connector's
+ * own page bound. Passing it replaces the connector's default, so this value is
+ * the whole bound; the proofs hold it from their own literal, not from here.
+ */
 export const PICTURE_MAX_BYTES = 5 * 1024 * 1024
 
 /**

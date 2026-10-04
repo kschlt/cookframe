@@ -47,7 +47,6 @@ import { NO_PICTURE_OF_THE_DISH } from "../../src/render/recipe-page.js"
 import {
   createSafePictureByteSource,
   createSafeUrlByteSource,
-  PICTURE_MAX_BYTES,
   type UrlByteSource,
 } from "../../src/security/url-byte-source.js"
 import { composeInstance } from "../../src/server/instance.js"
@@ -84,7 +83,23 @@ function onePixelPng(): Buffer {
 
 const PNG = onePixelPng()
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, ...Buffer.from("JFIF\0"), 1, 1])
+const WEBP = Buffer.concat([
+  Buffer.from("RIFF"),
+  Buffer.from([0x0c, 0, 0, 0]),
+  Buffer.from("WEBPVP8 "),
+  Buffer.alloc(4),
+])
 const HTML = Buffer.from("<!doctype html><script>alert(1)</script>")
+
+/**
+ * The most a picture fetch may read, written out here and not imported: a proof
+ * that sized its fixture from the source's own constant would follow that
+ * constant wherever it moved, and hold nothing (review of #120).
+ */
+const PICTURE_BOUND = 5 * 1024 * 1024
+
+/** A PNG padded to exactly `size` bytes: still a picture by its signature. */
+const pngOfSize = (size: number): Buffer => Buffer.concat([PNG, Buffer.alloc(size - PNG.length)])
 
 // --- the pages and pictures, served -------------------------------------------
 
@@ -95,10 +110,10 @@ const PICTURES: Record<string, { readonly type: string; readonly body: Buffer }>
   "/img/jpeg-labelled-png": { type: "image/png", body: JPEG },
   "/img/html-labelled-png": { type: "image/png", body: HTML },
   "/img/png-labelled-html": { type: "text/html", body: PNG },
-  "/img/too-large.png": {
-    type: "image/png",
-    body: Buffer.concat([PNG, Buffer.alloc(PICTURE_MAX_BYTES + 1 - PNG.length)]),
-  },
+  "/img/dish.jpg": { type: "image/jpeg", body: JPEG },
+  "/img/dish.webp": { type: "image/webp", body: WEBP },
+  "/img/at-the-bound.png": { type: "image/png", body: pngOfSize(PICTURE_BOUND) },
+  "/img/too-large.png": { type: "image/png", body: pngOfSize(PICTURE_BOUND + 1) },
 }
 
 const recipe = (extra: Record<string, unknown>): Record<string, unknown> => ({
@@ -124,6 +139,9 @@ const PAGES: Record<string, Record<string, unknown>> = {
   "/page/jpeg-labelled-png": recipe({ image: "/img/jpeg-labelled-png", ...publisher }),
   "/page/html-labelled-png": recipe({ image: "/img/html-labelled-png" }),
   "/page/png-labelled-html": recipe({ image: "/img/png-labelled-html" }),
+  "/page/jpeg": recipe({ image: "/img/dish.jpg" }),
+  "/page/webp": recipe({ image: "/img/dish.webp" }),
+  "/page/at-the-bound": recipe({ image: "/img/at-the-bound.png" }),
   "/page/too-large": recipe({ image: "/img/too-large.png" }),
   "/page/missing": recipe({ image: "/img/nowhere.png" }),
   "/page/private-address": recipe({ image: "http://10.255.255.1/dish.png" }),
@@ -142,12 +160,19 @@ const pageHtml = (jsonLd: unknown): string =>
   `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` +
   `</head><body><p>rendered body, ignored by the adapter</p></body></html>`
 
-/** Every picture request this server answered, by path, in order. */
-const pictureRequests: string[] = []
+/**
+ * Every request this server answered, by path, in order: pages, redirects and
+ * pictures alike, counted before anything answers. A proof about what an import
+ * fetched states the whole sequence, so a fetch it did not expect shows up
+ * whatever its address looks like (review of #120: a filter on picture-shaped
+ * paths missed the import fetching its own page again through the picture door).
+ */
+const requests: string[] = []
 
 function handle(req: IncomingMessage, res: ServerResponse): void {
   res.on("error", () => {})
   const path = req.url ?? ""
+  requests.push(path)
   const redirect = REDIRECTS[path]
   if (redirect !== undefined) {
     res.writeHead(302, { location: redirect })
@@ -160,7 +185,6 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
     res.end(pageHtml(page))
     return
   }
-  if (path.startsWith("/img/") || path.endsWith(".png")) pictureRequests.push(path)
   const picture = PICTURES[path]
   if (picture === undefined) {
     res.writeHead(404, { "content-type": "text/plain" })
@@ -358,6 +382,42 @@ describe("picture/a-linked-page-brings-the-picture-it-declares", () => {
 
 // --- 2. judged by the bytes, and never the import's failure -------------------
 
+describe("picture/the-picture-door-admits-what-the-instance-serves", () => {
+  it("keeps each format the instance serves, labelled as itself, and serves it as itself", async () => {
+    const lib = library()
+    const cases: [string, string][] = [
+      ["/page/declared", "image/png"],
+      ["/page/jpeg", "image/jpeg"],
+      ["/page/webp", "image/webp"],
+    ]
+    const outcomes = []
+    for (const [path] of cases) {
+      const { recipeId, recipe: kept } = await importPage(lib, path)
+      const picture = await libraryGet(lib, `/recipes/${recipeId}/picture`)
+      outcomes.push([path, kept?.media?.heroImage?.origin, picture.headers.get("content-type")])
+    }
+    expect(outcomes).toEqual(cases.map(([path, type]) => [path, "source_url", type]))
+  })
+
+  it("keeps a picture of exactly the bound, and not one byte more", async () => {
+    const lib = library()
+    const at = await importPage(lib, "/page/at-the-bound")
+    const over = await importPage(lib, "/page/too-large")
+    expect([at.status, over.status]).toEqual([201, 201])
+    expect(at.recipe?.media?.heroImage?.origin, "a picture at the bound was refused").toBe(
+      "source_url",
+    )
+    expect(over.recipe?.media, "a picture over the bound was kept").toBeUndefined()
+  })
+
+  it("fetches the page, then the one picture it declares, and nothing else", async () => {
+    const lib = library()
+    const before = requests.length
+    await importPage(lib, "/page/declared")
+    expect(requests.slice(before)).toEqual(["/page/declared", "/img/dish.png"])
+  })
+})
+
 describe("picture/a-declared-picture-is-judged-by-its-bytes", () => {
   it("keeps JPEG bytes labelled PNG, and serves them as what they are", async () => {
     const lib = library()
@@ -406,11 +466,13 @@ describe("picture/a-declared-picture-is-judged-by-its-bytes", () => {
 describe("picture/no-declaration-fetches-nothing", () => {
   it("makes no picture request for a page that declares no picture", async () => {
     const lib = library()
-    const before = pictureRequests.length
+    const before = requests.length
     const imported = await importPage(lib, "/page/no-image")
     expect(imported.status).toBe(201)
     expect(imported.recipe?.media).toBeUndefined()
-    expect(pictureRequests.slice(before)).toEqual([])
+    expect(requests.slice(before), "the import fetched more than its page").toEqual([
+      "/page/no-image",
+    ])
   })
 })
 
@@ -448,7 +510,7 @@ describe("picture/the-picture-is-the-pipelines", () => {
   it("carries the kept picture when a stored source is re-converted, and fetches nothing", async () => {
     const lib = library()
     const imported = await importPage(lib, "/page/declared")
-    const before = pictureRequests.length
+    const before = requests.length
 
     const again = await reprocess(lib.repo, naming("sha256:0000"), imported.snapshotId, {
       runId: "reprocess-1",
@@ -456,7 +518,7 @@ describe("picture/the-picture-is-the-pipelines", () => {
     })
     expect(again.version).toBe(2)
     expect(again.recipe.media).toEqual(imported.recipe?.media)
-    expect(pictureRequests.slice(before), "re-converting fetched the picture again").toEqual([])
+    expect(requests.slice(before), "re-converting fetched something").toEqual([])
   })
 })
 
