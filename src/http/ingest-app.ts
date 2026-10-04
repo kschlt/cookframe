@@ -186,6 +186,14 @@ export interface IngestAppDeps {
    */
   readonly byteSource: UrlByteSource
   /**
+   * The egress seam a URL import fetches the recipe's picture of the dish
+   * through (`createSafePictureByteSource`): the same guard as
+   * {@link byteSource}, admitting pictures instead of pages. Required for the
+   * reason {@link byteSource} is, and kept apart from it so that the page source
+   * still refuses a link that answers with a picture.
+   */
+  readonly pictureSource: UrlByteSource
+  /**
    * The capture provider a URL import runs through, SEPARATE from {@link capture}.
    *
    * Two providers rather than one, because the two entries are not the same
@@ -462,6 +470,9 @@ export function createIngestApp(deps: IngestAppDeps): Hono {
             capture: deps.urlCapture,
             normalization: deps.normalization,
             policy: deps.policy,
+            // Kept in the SAME store the photographs are, and read back by the
+            // picture route by the identity the recipe names (ADR-0009).
+            pictures: { source: deps.pictureSource, store: deps.scanStore },
           },
           url,
           {

@@ -21,7 +21,7 @@
  * independently.
  */
 
-import type { SourceSnapshot } from "../../schema/index.js"
+import type { RecipeMedia, SourceSnapshot } from "../../schema/index.js"
 import type { CanonicalVersion, RecipeRepository } from "../persistence/repository.js"
 import type { BlockIdPolicy } from "./block-id-policy.js"
 import { captureSnapshot } from "./capture.js"
@@ -39,6 +39,17 @@ export interface IngestResult {
   readonly canonical: CanonicalVersion
 }
 
+/** What an entry adds to the shared spine without leaving it. */
+export interface IngestOptions {
+  /**
+   * The picture of the dish to keep for this snapshot's recipe, decided between
+   * storing the snapshot and normalizing it, because what it reads is the
+   * captured snapshot. Only the URL import supplies one (`src/pipeline/hero-image.ts`).
+   * It must not reject: a picture is never the import's failure.
+   */
+  readonly mediaFor?: (snapshot: SourceSnapshot) => Promise<RecipeMedia | undefined>
+}
+
 /**
  * Ingest `input` end to end: capture it into a validated snapshot (block ids from
  * `policy`), persist the snapshot, then normalize it into its first Canonical
@@ -53,9 +64,13 @@ export async function ingest(
   input: Uint8Array,
   captureCtx: CaptureContext,
   normalizationCtx: NormalizationContext,
+  options: IngestOptions = {},
 ): Promise<IngestResult> {
   const snapshot = await captureSnapshot(capture, policy, input, captureCtx)
   await repo.storeSnapshot(snapshot)
-  const canonical = await reprocess(repo, normalization, snapshot.id, normalizationCtx)
+  const media = await options.mediaFor?.(snapshot)
+  const canonical = await reprocess(repo, normalization, snapshot.id, normalizationCtx, {
+    ...(media === undefined ? {} : { media }),
+  })
   return { snapshot, canonical }
 }

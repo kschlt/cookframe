@@ -83,6 +83,7 @@
 import { Hono } from "hono"
 import type { CanonicalRecipe } from "../../schema/index.js"
 import { deriveCookingPlan } from "../cooking/index.js"
+import { servedImageType } from "../media/image-signature.js"
 import type { RecipeRepository } from "../persistence/index.js"
 import {
   type PictureSource,
@@ -93,7 +94,6 @@ import {
 import { bringImportUrl } from "../shopping/bring-handoff.js"
 import { type CapabilityStore, isPathSafeToken } from "../shopping/capability-token.js"
 import { type ByteStore, recordedIdentity } from "../storage/index.js"
-import { servedImageType } from "./image-signature.js"
 import type { InstanceCredential } from "./instance-credential.js"
 import { bearerCredential } from "./instance-credential.js"
 import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "./not-found.js"

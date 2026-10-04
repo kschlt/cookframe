@@ -36,8 +36,12 @@ import { MultipleRecipesError, type RecipeInventory } from "./recipe-inventory.j
 /**
  * The fields the Canonical Recipe contract needs to build a record without
  * inventing (S2's "sufficient" set): a name, ingredients, instructions and a
- * yield. Optional fields (author, times, nutrition, image) are represented when
- * present and simply absent otherwise — their absence is not a fallback trigger.
+ * yield. Author, times and description become blocks when present and are
+ * simply absent otherwise — their absence is not a fallback trigger. Nutrition
+ * and image become no block: they stay in the verbatim `structuredSourcePayload`,
+ * which is where a URL import reads the declared picture from
+ * (`src/pipeline/hero-image.ts`). An earlier version of this sentence said the
+ * image was "represented when present", and nothing represented it.
  */
 const REQUIRED_FIELDS = ["name", "recipeIngredient", "recipeInstructions", "recipeYield"] as const
 

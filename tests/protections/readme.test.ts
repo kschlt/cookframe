@@ -422,13 +422,14 @@ const ROWS: readonly Row[] = [
   },
   {
     id: "a picture of the dish",
-    // Stated, not measured, and deliberately. The pages hand the renderer a
-    // resolver now and serve the bytes (`tests/run/recipe-picture.test.ts`), so
-    // what keeps this off a running instance is that nothing WRITES
-    // `media.heroImage`: no import sets it. That is a field in an object
-    // literal, which no `called` measure can decide, and a measure for it
-    // would have to read the writers; until one does, the page keeps saying it.
-    measure: { stated: true },
+    // Measured now. It was `stated` while the pages could show a picture and
+    // nothing wrote one; a URL import writes it by calling
+    // `keepDeclaredPicture` (`src/pipeline/url-import.ts`), so the capability
+    // is reached exactly when the process loads a module that calls it. What
+    // it DOES is held by `tests/run/url-import-picture.test.ts`. The two old
+    // phrases stay, so a page that went back to calling it missing is caught.
+    measure: { called: ["keepDeclaredPicture"] },
+    working: "**A picture of the dish, when the page you linked names one.**",
     built: "a picture of the dish on a recipe's page",
     notYet: "**A recipe's page has no picture.**",
   },

@@ -35,6 +35,7 @@ import { createUrlCaptureProvider } from "../../src/pipeline/url-capture.js"
 import { importFromUrl, type UrlImportDeps } from "../../src/pipeline/url-import.js"
 import { createDeterministicUrlCaptureProvider } from "../../src/pipeline/url-jsonld-adapter.js"
 import type { UrlByteSource, UrlFetchResult } from "../../src/security/url-byte-source.js"
+import { unsuppliedPictures } from "../security/unsupplied-byte-source.js"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const read = (...p: string[]) => readFileSync(join(repoRoot, ...p), "utf8")
@@ -123,6 +124,7 @@ describe("slice4/url-import-provenance", () => {
     ),
     normalization: createFakeNormalizationProvider(),
     policy,
+    pictures: unsuppliedPictures(),
   })
 
   it("records capture and normalization provenance on the deterministic path", async () => {

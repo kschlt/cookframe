@@ -70,6 +70,11 @@ Working today:
   steps, times, temperatures, equipment — in the same shape every time, with what the source
   actually said kept alongside it.
 - **Your library on one page**, and each recipe on its own.
+- **A picture of the dish, when the page you linked names one.** A recipe page's structured data
+  usually says which picture is the dish's. Your instance fetches it through the same guard as the
+  page, keeps it only if its bytes are a picture, and shows it with the publisher's name. A
+  photographed cookbook page is kept as the recipe's source and is not shown as a picture of the
+  dish ([`docs/recipe-ontology.md`](docs/recipe-ontology.md)); the page says so instead.
 - **A cooking view derived from the recipe**, not a rewrite of it: what to get out first, what has
   to start early, and the step you are on.
 - **A refusal instead of a guess.** A photograph holding four recipes is refused and says so; a
@@ -82,7 +87,6 @@ Working today:
 Built and tested, but not reachable from a running instance yet — the section below says why each
 one is still here:
 
-- a picture of the dish on a recipe's page;
 - re-converting a recipe you already have with a better model or a newer ontology.
 
 ## Status
@@ -104,10 +108,6 @@ Not there yet, stated as plainly as the rest:
 - **Capture quality has not passed its own gate.** The threshold run against real photographs
   returned FAIL, and the thresholds themselves turned out to be under-specified for sources a human
   transcribes ([`docs/open-questions.md`](docs/open-questions.md), OQ-14).
-- **A recipe's page has no picture.** The pages show one when a recipe has it, and say so when it
-  does not, but nothing gives a recipe one yet: a photographed cookbook page is kept, and it is
-  deliberately not treated as a picture of the dish
-  ([`docs/recipe-ontology.md`](docs/recipe-ontology.md)), and an imported link does not bring one.
 - **Nothing re-converts a recipe you already have.** Re-normalizing a stored source is what keeping
   the source is *for*, and it happens today only as part of an import.
 - **No library search, and no accounts** — an instance has two credentials, not users.

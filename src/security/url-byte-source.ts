@@ -67,3 +67,43 @@ export function createSafeUrlByteSource(options: SafeFetcherOptions = {}): UrlBy
     },
   }
 }
+
+/**
+ * The content types a picture fetch admits at the door: the three formats the
+ * instance can serve (`src/media/image-signature.ts`).
+ *
+ * The door reads the publisher's label, so it decides nothing on its own. It is
+ * here to refuse, before a body is read, anything that does not even CLAIM to be
+ * a picture: a page, a script, a document. What the bytes are is decided after
+ * the fetch, from the bytes, by the caller that keeps them.
+ */
+export const PICTURE_CONTENT_TYPES: readonly string[] = ["image/jpeg", "image/png", "image/webp"]
+
+/**
+ * The most a picture fetch reads before it is refused: 5 MiB, the connector's
+ * own page bound. Passing it replaces the connector's default, so this value is
+ * the whole bound; the proofs hold it from their own literal, not from here.
+ */
+export const PICTURE_MAX_BYTES = 5 * 1024 * 1024
+
+/**
+ * Create the {@link UrlByteSource} a URL import fetches a recipe's picture of
+ * the dish through.
+ *
+ * The SAME connector as {@link createSafeUrlByteSource}, with the same guard on
+ * every address, redirect and deadline; only what it admits differs. A separate
+ * source rather than a wider page source, because the page source refusing
+ * `image/*` is itself a property: a recipe link that answers with a picture is
+ * not a page, and widening that list to fetch pictures would have quietly
+ * changed what the import route accepts. `options` carries the connector's
+ * test-only seams; the content types and the size bound are not among them.
+ */
+export function createSafePictureByteSource(
+  options: Pick<SafeFetcherOptions, "allowLoopback" | "resolve"> = {},
+): UrlByteSource {
+  return createSafeUrlByteSource({
+    ...options,
+    allowedContentTypes: PICTURE_CONTENT_TYPES,
+    maxBytes: PICTURE_MAX_BYTES,
+  })
+}

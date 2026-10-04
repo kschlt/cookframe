@@ -32,6 +32,7 @@
 import type { RecipeRepository } from "../persistence/repository.js"
 import type { UrlByteSource } from "../security/url-byte-source.js"
 import type { BlockIdPolicy } from "./block-id-policy.js"
+import { keepDeclaredPicture, type PictureDeps } from "./hero-image.js"
 import { type IngestResult, ingest } from "./ingest.js"
 import type {
   CaptureContext,
@@ -51,6 +52,13 @@ export interface UrlImportDeps {
   readonly capture: CaptureProvider
   readonly normalization: NormalizationProvider
   readonly policy: BlockIdPolicy
+  /**
+   * Where the recipe's picture of the dish is fetched through and kept, when
+   * the page's structured data declares one (`src/pipeline/hero-image.ts`).
+   * Required, so a composition cannot forget it and quietly import recipes
+   * without their pictures.
+   */
+  readonly pictures: PictureDeps
 }
 
 /**
@@ -77,5 +85,12 @@ export async function importFromUrl(
     fetched.bytes,
     captureCtx,
     normalizationCtx,
+    {
+      // The declaration is the page's structured data, which only the
+      // deterministic reader keeps; a model-read page has none, and gets none.
+      // Resolved against the address the page was finally fetched from.
+      mediaFor: (snapshot) =>
+        keepDeclaredPicture(deps.pictures, snapshot.structuredSourcePayload, fetched.finalUrl),
+    },
   )
 }

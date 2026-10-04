@@ -154,6 +154,7 @@ function harness(capture?: CaptureProvider): Harness {
     adapterVersion: "1.0.0",
     scanStore: scratchByteStore().store,
     byteSource: unsuppliedByteSource(),
+    pictureSource: unsuppliedByteSource(),
     urlCapture: unsuppliedUrlCapture(),
     urlSourceAdapter: "url-import",
     urlAdapterVersion: "1.0.0",

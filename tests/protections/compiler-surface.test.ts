@@ -166,6 +166,13 @@ const COMPILER_API_IN_USE: Readonly<Record<string, readonly string[]>> = {
     "ts.forEachChild",
     "ts.is*",
   ],
+  "tests/run/url-import-picture.test.ts": [
+    "Node.getText",
+    "ts.ScriptTarget",
+    "ts.createSourceFile",
+    "ts.forEachChild",
+    "ts.is*",
+  ],
   "tests/slice2/render.test.ts": ["ts.preProcessFile"],
   "tests/slice6/generation-policy.test.ts": ["ts.preProcessFile"],
   "tests/support/src-program.test.ts": [

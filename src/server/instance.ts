@@ -94,6 +94,12 @@ export interface InstanceDeps {
    */
   readonly byteSource: UrlByteSource
   /**
+   * The egress seam a URL import fetches a recipe's picture of the dish
+   * through. `main.ts` builds it with `createSafePictureByteSource`; a proof
+   * builds a loopback-allowed one, like {@link byteSource}.
+   */
+  readonly pictureSource: UrlByteSource
+  /**
    * The capture provider the URL route runs through — the composite, not the
    * photo path's model provider. `main.ts` builds it; what holds that it is the
    * composite rather than anything else is
@@ -118,6 +124,8 @@ export interface InstanceDeps {
    * documented for.
    */
   readonly closeByteSource?: () => Promise<void>
+  /** The picture source's pool, released on the same boundary as the page source's. */
+  readonly closePictureSource?: () => Promise<void>
 }
 
 /**
@@ -151,6 +159,7 @@ export function composeInstance(deps: InstanceDeps): Hono {
       adapterVersion: deps.adapterVersion,
       scanStore: deps.scanStore,
       byteSource: deps.byteSource,
+      pictureSource: deps.pictureSource,
       urlCapture: deps.urlCapture,
       urlSourceAdapter: deps.urlSourceAdapter,
       urlAdapterVersion: deps.urlAdapterVersion,
@@ -204,7 +213,11 @@ export function startInstance(deps: InstanceDeps, port: number): Promise<Running
       server = serve({ fetch: app.fetch, port }, (info) => {
         resolve({
           port: info.port,
-          stop: () => stopServer(server, deps.closeStore, deps.closeByteSource),
+          stop: () =>
+            stopServer(server, deps.closeStore, async () => {
+              await deps.closeByteSource?.()
+              await deps.closePictureSource?.()
+            }),
         })
       })
     } catch (error) {
@@ -216,11 +229,11 @@ export function startInstance(deps: InstanceDeps, port: number): Promise<Running
   })
 }
 
-/** Stop accepting, drain, then release the store and the fetch pool. */
+/** Stop accepting, drain, then release the store and the fetch pools. */
 async function stopServer(
   server: ReturnType<typeof serve>,
   closeStore: (() => Promise<void>) | undefined,
-  closeByteSource: (() => Promise<void>) | undefined,
+  closeSources: () => Promise<void>,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     // `close` stops new connections and calls back once the last in-flight
@@ -235,5 +248,5 @@ async function stopServer(
     if ("closeIdleConnections" in server) server.closeIdleConnections()
   })
   await closeStore?.()
-  await closeByteSource?.()
+  await closeSources()
 }
