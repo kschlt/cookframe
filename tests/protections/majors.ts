@@ -333,36 +333,52 @@ const ZOD_4: MajorHarness = {
 // --- @hono/node-server 2 (#77) ---------------------------------------------
 
 /**
- * This adapter is not an ordinary dependency here: it is where CFV1-HDR's
- * defect lives. It writes the content length back into the very record a
- * handler passed to `c.body(...)`, so a one-key record reused across responses
- * is poisoned by the first response and every one after it is a 500. Two guards
- * and one un-exported constant exist because of that.
+ * This adapter is where CFV1-HDR's defect lived. Up to 2.1.1 it wrote the
+ * content length back into the very record a handler passed to `c.body(...)`,
+ * so a one-key record reused across responses was poisoned by the first
+ * response and every one after it was a 500. Two guards and one un-exported
+ * constant exist because of that.
  *
- * A green suite decides nothing here, and that is worth being precise about:
- * every guard in question would stay green if the adapter had quietly STOPPED
- * mutating the caller's record, because the proofs assert that responses
- * survive repetition and they survive it trivially once there is nothing to
- * poison. What settles the bump is whether the defect still reproduces. It
- * does — `[200, 500, 500]` over a real socket, and the line is still in the
- * adapter's own source at a new line number — so the copying stays, and these
- * plants are what hold it.
+ * The paragraph that stood here said a green suite decides nothing, because
+ * every guard would stay green if the adapter had quietly STOPPED mutating the
+ * caller's record — the proofs asserted that responses survive repetition, and
+ * they survive it trivially once there is nothing to poison. **That is what
+ * happened.** 2.1.2 shipped `fix(listener): avoid mutating response headers
+ * when setting Content-Length` (#402), and from 2.1.3 on (#122) the fixture
+ * that answered `[200, 500, 500]` answers `[200, 200, 200]`.
+ *
+ * So the defect no longer reproduces, and the plants here had to change rather
+ * than be re-measured:
+ *
+ *  - The behavioural proof of the miss factory's body died with the symptom it
+ *    read, and a plant naming it would have reported a survivor forever. Its
+ *    group now targets `tests/unit/miss-header-factory-is-fresh.test.ts`, which
+ *    holds the same subject by REFERENCE — a factory must not hand out the same
+ *    object twice — and is therefore independent of the adapter's version.
+ *  - The two structural groups are unchanged: they read `src/` and never
+ *    depended on the adapter at all.
+ *
+ * The copying in `src/` stays. What justified it was a runtime symptom; what
+ * justifies it now is that a record shared across responses is a hazard the
+ * structural guard forbids on sight, and that the adapter could regain the
+ * mutation in any release. `run/the-adapter-does-not-write-back-into-the-caller-header-record`
+ * is the tripwire that reports it if it does.
  */
 const HONO_NODE_SERVER_2: MajorHarness = {
   id: "hono-node-server-2",
   threat:
-    "the adapter writes content length back into the caller's header record, so a shared record is poisoned after its first response; two guards and one un-exported constant exist only for that",
+    "the adapter wrote content length back into the caller's header record until 2.1.2, so a shared record was poisoned after its first response; two guards and one un-exported constant exist only for that",
   landedIn: "#77",
   groups: [
     {
       subject: "src/http/not-found.ts",
-      target: "tests/run/served-headers-survive-repetition.test.ts",
+      target: "tests/unit/miss-header-factory-is-fresh.test.ts",
       mutations: [
         {
           name: "the miss helper hands out its constant instead of a copy",
           find: "  return { ...NOT_FOUND_HEADERS }",
           replace: "  return NOT_FOUND_HEADERS as unknown as Record<string, string>",
-          mustFail: "serves the same miss over and over, never a 500, over a real socket",
+          mustFail: "hands out a different object on every call",
         },
       ],
     },

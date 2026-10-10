@@ -1,27 +1,50 @@
 /**
- * CFV1-HDR — the header record served over a real socket, twice.
+ * CFV1-HDR — the upstream premise behind the fresh-copy convention, measured over
+ * a real socket.
  *
- * This is the BEHAVIOURAL half of the unit; the structural half is
- * `tests/unit/response-header-record.test.ts`. Both exist because neither alone
- * is enough:
+ * ## What this file used to be, and why it could not stay that
  *
- *  - `@hono/node-server` writes the content length back into the very record a
- *    handler passed to `c.body(...)` (`header["Content-Length"] = ...`). A record
- *    reused across responses is therefore poisoned by the first one and the
- *    SECOND response over it is a 500. `app.request(...)` never touches that
- *    adapter, so nineteen pull requests could not see it; only a real socket can.
- *    That is what this file adds — and it asks TWICE, because one request passes
- *    either way.
- *  - But the runtime symptom only appears on a ONE-KEY record: with more than one
- *    key Hono builds a `Headers` object and never writes back into the caller's
- *    record (both measured below and in the structural test's header). So a
- *    behavioural proof cannot catch a two-key regression like `pageHeaders`'s at
- *    all — that is the structural guard's job. This file pins the mechanism and
- *    the one-key helper the instance actually ships (`notFoundHeaders`).
+ * Until `@hono/node-server` 2.1.2 this adapter wrote the content length back into
+ * the very record a handler passed to `c.body(...)`
+ * (`header["Content-Length"] = …` in `dist/index.mjs`). A one-key record reused
+ * across responses was therefore poisoned by the first response, Hono's next
+ * response over it took the non-string branch and threw, and the SECOND response
+ * the process served was a 500. This file made that defect executable: a shared
+ * record served three times answered `[200, 500, 500]`.
  *
- * `serve` is used directly here rather than through `tests/run/harness.ts`,
- * because the control needs a handler that deliberately reuses a bad record — the
- * real instance never would. The chokepoint scan (`tests/url-fetch/network-chokepoint.test.ts`)
+ * 2.1.2 removed it — `fix(listener): avoid mutating response headers when setting
+ * Content-Length` (#402). The same fixture now answers `[200, 200, 200]`, which is
+ * exactly what the old assertion's own comment said to treat as a signal rather
+ * than a break. So the mechanism can no longer be reproduced here, and every proof
+ * in this file that asked whether a response SURVIVES repetition now passes
+ * trivially, because there is nothing left to poison. Two such proofs lived here
+ * (a fresh record answering alike, and the shipped miss helper served three times)
+ * and both are gone: a proof that cannot be red is coverage that proves nothing,
+ * and leaving it would have read as a guard.
+ *
+ * ## What this file is now
+ *
+ * The one thing a socket can still settle is the PREMISE itself, from the other
+ * side: the adapter does not write back into the caller's record. That is the
+ * single proof below, and it is red exactly when the premise changes — measured in
+ * both directions, against 2.1.1 (red, `[200, 500, 500]`) and against 2.1.3
+ * (green). If it ever goes red again, the fresh-copy convention is load-bearing at
+ * RUNTIME once more, and the two deleted proofs are worth restoring from history.
+ *
+ * ## What carries the convention in the meantime
+ *
+ * The convention itself does not rest on this file and never did:
+ *
+ *  - `tests/unit/response-header-record.test.ts` reads `src/` and forbids handing
+ *    any response builder a record that outlives one response. Version-independent.
+ *  - `tests/unit/header-factory-freshness.test.ts` holds the shipped miss factory
+ *    to returning a fresh record, by reference rather than by symptom — the proof
+ *    that replaces the deleted helper-served-three-times one, and the only thing
+ *    that still catches `notFoundHeaders()` handing out its constant.
+ *
+ * `serve` is used directly here rather than through `tests/run/harness.ts`, because
+ * the fixture deliberately reuses one record across responses — the real instance
+ * never would. The chokepoint scan (`tests/url-fetch/network-chokepoint.test.ts`)
  * scans `src/` only, and `@hono/node-server` is a legitimate test dependency.
  *
  * Every fixture is a bare string body; no recipe text, no credential, no cost.
@@ -31,7 +54,6 @@ import type { AddressInfo } from "node:net"
 import { serve } from "@hono/node-server"
 import { type Handler, Hono } from "hono"
 import { afterEach, describe, expect, it } from "vitest"
-import { NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders } from "../../src/http/not-found.js"
 
 let stop: (() => Promise<void>) | undefined
 
@@ -66,41 +88,22 @@ async function statusesOf(origin: string, n: number): Promise<number[]> {
   return out
 }
 
-describe("run/a-reused-header-record-poisons-the-next-response", () => {
-  it("a shared one-key record answers the FIRST request and 500s every one after", async () => {
-    // The defect, made executable. The adapter mutates this object on the first
-    // response; the second takes the non-string branch and throws.
+describe("run/the-adapter-does-not-write-back-into-the-caller-header-record", () => {
+  it("serves one shared one-key record three times without poisoning it", async () => {
+    // A one-key record is the only shape that could ever show the defect: with more
+    // than one key Hono builds a `Headers` object and never writes back into the
+    // caller's record at all. So this fixture is the strongest form of the premise.
     const shared: Record<string, string> = { "content-type": "text/plain" }
     const origin = await serving((c) => c.body("hello", 200, shared))
 
-    // If this ever reads [200, 200, 200], @hono/node-server has stopped writing
-    // back into the caller's record: the premise behind `notFoundHeaders()` and
-    // `pageHeaders()` would no longer hold, and the fresh-copy precaution could be
-    // revisited. So a change here is a signal, not merely a break.
-    expect(await statusesOf(origin, 3)).toEqual([200, 500, 500])
-  })
-
-  it("a FRESH one-key record per response answers every request the same", async () => {
-    // The fix, made executable: a new object each call has nothing poisoned to
-    // carry into the next response.
-    const origin = await serving((c) => c.body("hello", 200, { "content-type": "text/plain" }))
+    // `[200, 500, 500]` here means the adapter has RESUMED writing the content
+    // length back into this record, as it did up to 2.1.1. That is a signal, not a
+    // break: the fresh-copy convention would be load-bearing at runtime again, and
+    // the behavioural proofs this file used to carry should come back.
     expect(await statusesOf(origin, 3)).toEqual([200, 200, 200])
-  })
-})
 
-describe("run/the-shipped-not-found-helper-is-fresh-per-response", () => {
-  it("serves the same miss over and over, never a 500, over a real socket", async () => {
-    // The instance's one-key miss headers come from `notFoundHeaders()`. This
-    // binds that shipped helper to the mechanism above: mutate it to return a
-    // shared reference and the second miss becomes a 500 — planted and confirmed
-    // red. `run/absent-and-forbidden-are-one-answer` proves the same helper is
-    // fresh through the whole instance; this proves the helper itself, in
-    // isolation, so a regression is localized rather than diagnosed end to end.
-    const origin = await serving((c) => c.body(NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders()))
-    expect(await statusesOf(origin, 3)).toEqual([
-      NOT_FOUND_STATUS,
-      NOT_FOUND_STATUS,
-      NOT_FOUND_STATUS,
-    ])
+    // And the premise stated directly, not only through its symptom: nothing was
+    // added to the caller's record by serving over it.
+    expect(Object.keys(shared)).toEqual(["content-type"])
   })
 })

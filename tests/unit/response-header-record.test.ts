@@ -3,31 +3,47 @@
  * response.
  *
  * The measured defect, twice now (CFV1-RUN on the 404 path, CFV1-S4 on a cooking
- * page's success path), both found by a human by hand: `@hono/node-server` writes
- * the content length back into the very record a handler passed to `c.body(...)`:
+ * page's success path), both found by a human by hand: up to `@hono/node-server`
+ * 2.1.1 the adapter wrote the content length back into the very record a handler
+ * passed to `c.body(...)`:
  *
  * ```js
  * header["Content-Length"] = Buffer.byteLength(body)   // dist/index.mjs
  * ```
  *
- * `header` there is the caller's own object. A record shared across responses is
- * therefore mutated by the first one that uses it, gains a `Content-Length` key
- * whose value is a NUMBER, and Hono's next response over the same record takes the
- * non-string branch (`for (const v2 of v)`) and throws `TypeError: v is not
- * iterable` — so the SECOND response the process serves over that record is a 500,
- * and every one after it. Measured directly against the real adapter: a one-key
- * shared record served over a socket answers `[200, 500, 500]`.
+ * `header` there is the caller's own object. A record shared across responses was
+ * therefore mutated by the first one that used it, gained a `Content-Length` key
+ * whose value is a NUMBER, and Hono's next response over the same record took the
+ * non-string branch (`for (const v2 of v)`) and threw `TypeError: v is not
+ * iterable` — so the SECOND response the process served over that record was a
+ * 500, and every one after it. Measured directly against the adapter at 2.1.1: a
+ * one-key shared record served over a socket answered `[200, 500, 500]`.
+ *
+ * **2.1.2 removed the write-back** (`fix(listener): avoid mutating response
+ * headers when setting Content-Length`, #402; taken here in #122), so the same
+ * fixture now answers `[200, 200, 200]` and the runtime symptom is gone. This scan
+ * is unaffected: it reads source, not responses, and the shape it forbids is a
+ * hazard whether or not today's adapter punishes it. What the removal did change is
+ * the division of labour below — see the paragraph on the behavioural half.
  *
  * `not-found.ts`, `pages-app.ts` and `cooking-app.ts` already hand `c.body` a
  * FRESH object each time (`notFoundHeaders()`, `pageHeaders()`, `htmlHeaders()`).
  * But nothing forbade the shared form, and that is exactly why it came back a
  * second time. This is that guard, and it is the STRUCTURAL half of the unit: the
- * runtime symptom is invisible on a multi-key record (Hono builds a `Headers`
- * object once there is more than one key, and never writes back into the caller's
- * record — measured: `[200, 200, 200]`), so a behavioural proof cannot catch a
- * `pageHeaders`-shaped regression at all. Only reading the source can. The
- * behavioural half — the mechanism served twice over a real socket — is
- * `tests/run/served-headers-survive-repetition.test.ts`.
+ * runtime symptom was invisible on a multi-key record even at 2.1.1 (Hono builds a
+ * `Headers` object once there is more than one key, and never writes back into the
+ * caller's record — measured: `[200, 200, 200]`), so a behavioural proof could not
+ * catch a `pageHeaders`-shaped regression at all. Only reading the source can.
+ *
+ * The behavioural half — the mechanism served twice over a real socket — was
+ * `tests/run/served-headers-survive-repetition.test.ts`. Since 2.1.2 there is no
+ * mechanism left for it to serve, so that file now holds one tripwire on the
+ * upstream PREMISE and nothing else, and the proof it used to carry for the miss
+ * factory's BODY moved to `tests/unit/miss-header-factory-is-fresh.test.ts`, which
+ * asks it by reference instead of by symptom. That matters for this file's own
+ * breadth: the scan spares a factory CALL on purpose, so nothing here looks inside
+ * `notFoundHeaders()`, and without that referential proof the bump would have left
+ * the factory's body guarded by nothing.
  *
  * ## What "shared" means here, and why the first cut was too narrow
  *
