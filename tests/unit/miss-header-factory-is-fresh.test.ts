@@ -52,12 +52,15 @@ describe("unit/the-miss-header-factory-returns-a-fresh-record", () => {
     expect(notFoundHeaders()).not.toBe(notFoundHeaders())
   })
 
-  it("hands out the same VALUES on every call", () => {
-    // Freshness must not have been bought by returning something else: the two
-    // records are distinct objects carrying one identical header.
-    // Against an inline literal, not against a second call: comparing the factory
-    // with itself passes for ANY deterministic factory, so it would be satisfied by
-    // a no-op. This pins the record the miss actually carries.
+  it("hands out the header a miss actually carries", () => {
+    // Freshness must not have been bought by returning something else, so the
+    // record's CONTENT is pinned here — against an inline literal, not against a
+    // second call of the factory. Comparing the factory with itself passes for any
+    // deterministic factory, so a no-op would satisfy it; and a single call cannot
+    // assert cross-call stability anyway, which is why this is named for the
+    // content rather than for "every call". The literal is written out rather than
+    // read from `NOT_FOUND_HEADERS`, which this module cannot reach, so it cannot
+    // follow the constant it pins.
     expect(notFoundHeaders()).toEqual({ "content-type": "text/plain; charset=utf-8" })
   })
 

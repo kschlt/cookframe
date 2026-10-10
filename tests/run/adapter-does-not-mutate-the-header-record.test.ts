@@ -30,8 +30,9 @@
  * both directions, against 2.1.1 (red, `[200, 500, 500]`) and against 2.1.3
  * (green). 2.1.2 itself was installed and measured green, so the boundary named
  * throughout this repository is the one that was measured rather than the one the
- * release notes claim: the write-back is live at 2.1.1 and gone at 2.1.2. If it ever goes red again, the fresh-copy convention is load-bearing at
- * RUNTIME once more, and the two deleted proofs are worth restoring from history.
+ * release notes claim: the write-back is live at 2.1.1 and gone at 2.1.2. If this
+ * ever goes red again, the fresh-copy convention is load-bearing at RUNTIME once
+ * more, and the two deleted proofs are worth restoring from history.
  *
  * ## What carries the convention in the meantime
  *

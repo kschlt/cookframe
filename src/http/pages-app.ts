@@ -156,8 +156,9 @@ const PAGE_HEADERS = {
  * length back into whatever headers record a handler handed `c.body`, so a
  * shared constant was poisoned after its first response. A two-key record
  * dodged it even then, because Hono builds a `Headers` object once there is
- * more than one key. 2.1.2 removed the write-back altogether (#402, taken here
- * in #122), so neither hazard is live right now — but a shared mutable record
+ * more than one key. 2.1.2 stopped the adapter mutating the caller's record
+ * (#402 — it copies the record before setting the length; taken here in #122),
+ * so neither hazard is live right now — but a shared mutable record
  * handed across responses is the thing the structural guard forbids on sight,
  * and the adapter could regain the mutation in any release. The copy stays for
  * that reason, not for a symptom; the tripwire that reports a return of the
