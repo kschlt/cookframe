@@ -66,10 +66,11 @@ export function createCapabilityApp(deps: CapabilityAppDeps): Hono {
   // the pages CFV1-RUN added must answer an uncredentialed caller with exactly
   // these bytes. Two copies would be two things that can drift apart.
   //
-  // A FRESH headers object per response, never the shared constant: the node
-  // adapter writes the content length back into whatever record it is handed,
-  // which turns the second miss the process serves into a 500. The reason is
-  // written out in `not-found.ts`.
+  // A FRESH headers object per response, never the shared constant. Up to
+  // `@hono/node-server` 2.1.1 the adapter wrote the content length back into
+  // whatever record it was handed, which turned the second miss the process
+  // served into a 500; 2.1.2 removed that, and the copy stays anyway. The
+  // reason is written out in `not-found.ts`.
   app.notFound((c) => c.body(NOT_FOUND_BODY, NOT_FOUND_STATUS, notFoundHeaders()))
 
   app.get("/r/:token", async (c) => {

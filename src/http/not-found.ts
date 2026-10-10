@@ -38,27 +38,41 @@ const NOT_FOUND_HEADERS = { "content-type": "text/plain; charset=utf-8" } as con
 /**
  * A FRESH headers object for one response. Never the constant itself.
  *
- * This is not defensive style, it is a measured defect, and it is the first one
- * CFV1-RUN found by binding a socket at all. `@hono/node-server` writes the
- * content length back into the object a handler passed to `c.body(...)`:
+ * This did not start as defensive style. It is a measured defect, and the first
+ * one CFV1-RUN found by binding a socket at all: up to `@hono/node-server`
+ * 2.1.1 the adapter wrote the content length back into the object a handler
+ * passed to `c.body(...)`:
  *
  * ```js
  * header["Content-Length"] = Buffer.byteLength(body)   // dist/index.mjs
  * ```
  *
  * `header` there is the caller's own record. A module-level constant handed to
- * `c.body` is therefore mutated by the first response that uses it, and gains a
- * key whose value is a NUMBER. Hono's next response over the same record takes
- * the non-string branch and does `for (const v2 of v)`, which throws
- * `TypeError: v is not iterable` — so the SECOND miss the process serves is a
+ * `c.body` was therefore mutated by the first response that used it, and gained
+ * a key whose value is a NUMBER. Hono's next response over the same record took
+ * the non-string branch and did `for (const v2 of v)`, which throws
+ * `TypeError: v is not iterable` — so the SECOND miss the process served was a
  * `500`, and every one after it.
  *
  * Nineteen pull requests never saw it because nothing in the repository bound a
- * socket: `app.request(...)` never reaches that code, so the same constant is
+ * socket: `app.request(...)` never reaches that code, so the same constant was
  * safe in process and poisoned over HTTP. That is the precise shape of thing
  * this unit exists to surface, and it is also why the equalized-miss proof runs
- * against a real server and asks for the miss TWICE — one miss passes either
+ * against a real server and asks for the miss TWICE — one miss passed either
  * way.
+ *
+ * **The write-back is gone as of 2.1.2** (`fix(listener): avoid mutating
+ * response headers when setting Content-Length`, #402; taken here in #122), so
+ * the symptom above no longer reproduces and from here on this copy IS
+ * defensive style — deliberately kept, for two reasons worth stating rather
+ * than assuming. A record shared across responses is a hazard on its own terms,
+ * which is why `response-header-record.test.ts` forbids the shape by reading
+ * source rather than by catching a 500; and an adapter that had this write-back
+ * once can have it again in any release. What guards THIS function's body is
+ * `unit/the-miss-header-factory-returns-a-fresh-record`, which asks by
+ * reference and so does not depend on the adapter's version at all; what reports
+ * the write-back's return is
+ * `run/the-adapter-does-not-write-back-into-the-caller-header-record`.
  */
 export function notFoundHeaders(): Record<string, string> {
   return { ...NOT_FOUND_HEADERS }

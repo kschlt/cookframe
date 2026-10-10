@@ -152,11 +152,17 @@ const PAGE_HEADERS = {
 
 /**
  * A FRESH copy for one response, for the same measured reason `notFoundHeaders`
- * exists: the node adapter writes the content length back into whatever headers
- * record a handler hands `c.body`, so a shared constant is poisoned after its
- * first response. A two-key record happens to dodge it today, because Hono
- * builds a `Headers` object once there is more than one key — which means the
- * bug would come back the day someone removes a header here.
+ * exists: up to `@hono/node-server` 2.1.1 the node adapter wrote the content
+ * length back into whatever headers record a handler handed `c.body`, so a
+ * shared constant was poisoned after its first response. A two-key record
+ * dodged it even then, because Hono builds a `Headers` object once there is
+ * more than one key. 2.1.2 stopped the adapter mutating the caller's record
+ * (#402 — it copies the record before setting the length; taken here in #122),
+ * so neither hazard is live right now — but a shared mutable record
+ * handed across responses is the thing the structural guard forbids on sight,
+ * and the adapter could regain the mutation in any release. The copy stays for
+ * that reason, not for a symptom; the tripwire that reports a return of the
+ * write-back is `tests/run/adapter-does-not-mutate-the-header-record.test.ts`.
  *
  * **No proof guards this one**, and saying so is the point: reverting it to the
  * shared constant changes nothing measurable today, so a mutation planted here

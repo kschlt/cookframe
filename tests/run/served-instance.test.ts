@@ -194,23 +194,29 @@ describe("run/absent-and-forbidden-are-one-answer", () => {
     // This case exists because of a measured defect, and it is the one case in
     // this suite that a second reviewer would call redundant. It is not.
     //
-    // `@hono/node-server` writes the content length back into the headers record
-    // a handler passed to `c.body(...)`:
+    // Up to `@hono/node-server` 2.1.1 the adapter wrote the content length back
+    // into the headers record a handler passed to `c.body(...)`:
     //     header["Content-Length"] = Buffer.byteLength(body)
-    // A module-level constant handed to `c.body` is therefore mutated by the
-    // first response that uses it, and carries a NUMBER afterwards. Hono's next
-    // response over that record throws `TypeError: v is not iterable`, so the
-    // second miss the process ever serves is a 500 — an instance that tells one
+    // A module-level constant handed to `c.body` was therefore mutated by the
+    // first response that used it, and carried a NUMBER afterwards. Hono's next
+    // response over that record threw `TypeError: v is not iterable`, so the
+    // second miss the process ever served was a 500 — an instance that tells one
     // caller "Not Found" and the next one "Internal Server Error" has the oracle
     // back, and a smoke test that asks once sees nothing wrong.
+    //
+    // 2.1.2 removed the write-back (#402, taken here in #122), so asking twice
+    // no longer reproduces that defect. It stays: the equalization this suite is
+    // about has to hold across repetition whatever the adapter does, and the
+    // write-back's return is watched by
+    // `run/the-adapter-does-not-write-back-into-the-caller-header-record`.
     //
     // It survived nineteen pull requests because `app.request(...)` never
     // reaches that code. Asking twice is what makes the proof discriminating.
     //
     // **All three shared values, not just one.** `not-found.ts` exports a body,
-    // a status and a headers object; only the OBJECT can be mutated, because a
-    // string and a number are immutable in JavaScript and the adapter writes
-    // into a record. The comparison below is over all three response fields
+    // a status and a headers object; only the OBJECT could ever be mutated,
+    // because a string and a number are immutable in JavaScript and what the
+    // adapter wrote into was a record. The comparison below is over all three response fields
     // anyway — status, content type and body — so a second response that
     // differed in any of them fails here.
     const first = await shapeOf(await fetch(`${it_.origin}/nothing-here`))
