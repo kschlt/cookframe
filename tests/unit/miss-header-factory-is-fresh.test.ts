@@ -12,7 +12,7 @@
  *    (`notFoundHeaders()`) constructs something per response by definition, so it
  *    is spared on purpose — the scan never follows the call into the factory's
  *    body.
- *  - `tests/run/served-headers-survive-repetition.test.ts` used to catch the body
+ *  - `tests/run/adapter-does-not-mutate-the-header-record.test.ts` used to catch the body
  *    instead, by symptom: with `@hono/node-server` up to 2.1.1 a factory handing
  *    out its module constant made the second miss a 500 over a real socket. 2.1.2
  *    removed that mutation (`fix(listener): avoid mutating response headers when
@@ -55,8 +55,10 @@ describe("unit/the-miss-header-factory-returns-a-fresh-record", () => {
   it("hands out the same VALUES on every call", () => {
     // Freshness must not have been bought by returning something else: the two
     // records are distinct objects carrying one identical header.
-    expect(notFoundHeaders()).toEqual(notFoundHeaders())
-    expect(Object.keys(notFoundHeaders())).toEqual(["content-type"])
+    // Against an inline literal, not against a second call: comparing the factory
+    // with itself passes for ANY deterministic factory, so it would be satisfied by
+    // a no-op. This pins the record the miss actually carries.
+    expect(notFoundHeaders()).toEqual({ "content-type": "text/plain; charset=utf-8" })
   })
 
   it("does not carry a key written into one response's record into the next", () => {

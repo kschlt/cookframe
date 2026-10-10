@@ -36,7 +36,7 @@
  * catch a `pageHeaders`-shaped regression at all. Only reading the source can.
  *
  * The behavioural half — the mechanism served twice over a real socket — was
- * `tests/run/served-headers-survive-repetition.test.ts`. Since 2.1.2 there is no
+ * `tests/run/adapter-does-not-mutate-the-header-record.test.ts`. Since 2.1.2 there is no
  * mechanism left for it to serve, so that file now holds one tripwire on the
  * upstream PREMISE and nothing else, and the proof it used to carry for the miss
  * factory's BODY moved to `tests/unit/miss-header-factory-is-fresh.test.ts`, which
@@ -453,7 +453,9 @@ function bindsFreshly(fn: ts.Node, name: string, reference: Reference): boolean 
  * The body (arg 0) and status (arg 1) are not the headers slot: a shared object
  * handed as a JSON BODY is serialized, never mutated, and must not be flagged (see
  * `src/http/ingest-app.ts`, which shares `TOO_LARGE_BODY` as a body). Only the
- * third argument is the record the adapter writes `Content-Length` back into.
+ * third argument is the headers slot — the record the adapter wrote
+ * `Content-Length` back into up to 2.1.1, and the only argument the convention is
+ * about whatever the adapter does today.
  */
 function sharedHeaderFindings(
   source: string,
@@ -502,9 +504,12 @@ describe("http/response-headers-are-fresh-per-response", () => {
       expect(
         found.map((f) => `${f.name}@${f.line}`),
         `${relative(repoRoot, file)} hands a response builder a header record that is not built inside the handler. ` +
-          "The node adapter writes Content-Length back into that record, so the SECOND response over it is a 500 " +
-          "(TypeError: v is not iterable). Give c.body(...) a FRESH object each response — a factory like " +
-          "pageHeaders()/notFoundHeaders(), an inline literal, or a const declared inside the handler. See src/http/not-found.ts.",
+          "Up to @hono/node-server 2.1.1 the adapter wrote Content-Length back into that record, which made the " +
+          "SECOND response over it a 500 (TypeError: v is not iterable); 2.1.2 removed that write-back, so do not " +
+          "expect to reproduce a 500 today — the shape is forbidden anyway, because a record shared across responses " +
+          "is a hazard and the adapter can regain the mutation in any release. Give c.body(...) a FRESH object each " +
+          "response — a factory like pageHeaders()/notFoundHeaders(), an inline literal, or a const declared inside " +
+          "the handler. See src/http/not-found.ts.",
       ).toEqual([])
     }
   })

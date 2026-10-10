@@ -28,7 +28,9 @@
  * side: the adapter does not write back into the caller's record. That is the
  * single proof below, and it is red exactly when the premise changes — measured in
  * both directions, against 2.1.1 (red, `[200, 500, 500]`) and against 2.1.3
- * (green). If it ever goes red again, the fresh-copy convention is load-bearing at
+ * (green). 2.1.2 itself was installed and measured green, so the boundary named
+ * throughout this repository is the one that was measured rather than the one the
+ * release notes claim: the write-back is live at 2.1.1 and gone at 2.1.2. If it ever goes red again, the fresh-copy convention is load-bearing at
  * RUNTIME once more, and the two deleted proofs are worth restoring from history.
  *
  * ## What carries the convention in the meantime
@@ -37,7 +39,7 @@
  *
  *  - `tests/unit/response-header-record.test.ts` reads `src/` and forbids handing
  *    any response builder a record that outlives one response. Version-independent.
- *  - `tests/unit/header-factory-freshness.test.ts` holds the shipped miss factory
+ *  - `tests/unit/miss-header-factory-is-fresh.test.ts` holds the shipped miss factory
  *    to returning a fresh record, by reference rather than by symptom — the proof
  *    that replaces the deleted helper-served-three-times one, and the only thing
  *    that still catches `notFoundHeaders()` handing out its constant.

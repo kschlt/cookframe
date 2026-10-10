@@ -214,9 +214,9 @@ describe("run/absent-and-forbidden-are-one-answer", () => {
     // reaches that code. Asking twice is what makes the proof discriminating.
     //
     // **All three shared values, not just one.** `not-found.ts` exports a body,
-    // a status and a headers object; only the OBJECT can be mutated, because a
-    // string and a number are immutable in JavaScript and the adapter writes
-    // into a record. The comparison below is over all three response fields
+    // a status and a headers object; only the OBJECT could ever be mutated,
+    // because a string and a number are immutable in JavaScript and what the
+    // adapter wrote into was a record. The comparison below is over all three response fields
     // anyway — status, content type and body — so a second response that
     // differed in any of them fails here.
     const first = await shapeOf(await fetch(`${it_.origin}/nothing-here`))

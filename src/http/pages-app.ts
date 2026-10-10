@@ -161,7 +161,7 @@ const PAGE_HEADERS = {
  * handed across responses is the thing the structural guard forbids on sight,
  * and the adapter could regain the mutation in any release. The copy stays for
  * that reason, not for a symptom; the tripwire that reports a return of the
- * write-back is `tests/run/served-headers-survive-repetition.test.ts`.
+ * write-back is `tests/run/adapter-does-not-mutate-the-header-record.test.ts`.
  *
  * **No proof guards this one**, and saying so is the point: reverting it to the
  * shared constant changes nothing measurable today, so a mutation planted here
