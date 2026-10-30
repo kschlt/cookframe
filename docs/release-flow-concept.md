@@ -1,7 +1,8 @@
 # Konzept: Changelog und Release-Flow
 
-Status: Entscheidungsvorlage, nichts davon ist eingeschaltet. Entscheiden muss Kornelius; wird
-der Vorschlag angenommen, entstehen daraus ein ADR (Entwurf unten) und ein eigenes Bau-Item.
+Status: Die Richtung ist von Kornelius angenommen (30.10.2026). Eingeschaltet ist nichts; daraus
+entstehen ein ADR (Entwurf unten) und ein eigenes Bau-Item. Offen sind noch das
+Pre-Release-Etikett und der Zeitpunkt von `v0.1.0`.
 
 ## Ausgangslage
 
@@ -38,8 +39,9 @@ Cookframe ähnelt collibra-agent, nicht aos: ein Produkt mit Nutzern und Selbst-
 Releases, mehrere Threads arbeiten parallel. Deshalb:
 
 1. **Notes für Leser, nicht aus Commit-Titeln.** Pro Version `docs/release-notes/<version>.md`, auf
-   Englisch wie das übrige Repo. Gruppen in fester Reihenfolge: *Added, Changed, Removed, Fixed,
-   Security*, dazu zuerst **Action needed** für Betreiber (Migration, neue oder geänderte Variable,
+   Englisch wie das übrige Repo. Gruppen in fester Reihenfolge nach Keep a Changelog: *Added,
+   Changed, Deprecated, Removed, Fixed, Security*, leere Gruppen fallen weg. *Deprecated* nennt,
+   was noch geht, aber in einer späteren Version wegfällt, und was stattdessen zu nutzen ist. Dazu zuerst **Action needed** für Betreiber (Migration, neue oder geänderte Variable,
    `fly.toml`) und zuletzt **Known limits**. Jeder Eintrag beschreibt in ein bis zwei Sätzen die
    Wirkung. Item-IDs, ADR-Nummern und reine Bau- oder Testarbeit kommen nicht hinein. Die
    Merge-Commits seit dem letzten Tag (`git log --first-parent`) sind die Arbeitsliste, nicht der
@@ -50,18 +52,33 @@ Releases, mehrere Threads arbeiten parallel. Deshalb:
    Release-Nummer ist und dass es Notes für sie gibt. Damit kennt auch der laufende Code seine
    Version, falls sie später angezeigt werden soll.
 4. **Eigener Release-PR als eigenes Item**, `chore(release): v0.1.0`: Marke, Notes, Changelog. Die
-   Nummer schlägt die Sitzung vor, Kornelius bestätigt sie. Bau-PRs fassen nichts davon an, also
+   Sitzung wählt die Nummer nach den Regeln in Punkt 6, der Review prüft sie mit. Bau-PRs fassen nichts davon an, also
    gibt es keine Konflikte zwischen parallelen Threads. Der aos-Weg (Schnitt im Bau-PR) lohnt sich
    erst bei vielen Releases am Tag.
 5. **Tag und Release macht CI**, wie in beiden Vorbildern: ein Workflow `release.yml` startet per
    `workflow_run`, wenn `CI` auf einem Push nach `main` grün endet. Er sucht den
    First-Parent-Commit, der die aktuelle Marke gebracht hat, setzt `v<version>`, falls es den Tag
-   noch nicht gibt, und legt das GitHub-Release mit der Notes-Datei als Text an (Pre-Release,
-   solange die erste Zahl 0 ist). Bei jedem anderen Push endet er nach Sekunden ohne Wirkung.
+   noch nicht gibt, und legt das GitHub-Release mit der Notes-Datei als Text an (ob als
+   Pre-Release, ist noch offen, siehe unten). Bei jedem anderen Push endet er nach Sekunden ohne Wirkung.
    `ci.yml` bleibt ohne Schreibrechte und ohne Deploy (`slice0/no-deploy-from-fork-prs`).
 6. **Semver mit `0.y.z` bis V1**: ein Fix erhöht `z`; Neues oder eine Änderung, auf die ein Betreiber
    reagieren muss, erhöht `y`. Das erste Release ist `v0.1.0`. Wann `1.0.0` kommt, ist ein
    Produkt-Entscheid und hier nicht getroffen.
+
+   **Was `0.y.z` bedeutet:** Die Schnittstelle ist noch nicht stabil. Das ist keine Aussage
+   darüber, ob das Produkt fertig oder brauchbar ist. Nach SemVer darf sich vor `1.0.0` die
+   öffentliche Schnittstelle zwischen Minor-Versionen ändern. Bei Cookframe sind das die HTTP-Routen,
+   der Vertrag mit dem iOS-Shortcut, die Konfigurationsvariablen, das Datenbankschema samt
+   Migrationen und das Format des Canonical Recipe. `1.0.0` verspricht, dass sich davon nichts mehr
+   ohne neue Major-Version bricht. Die Notes sagen es in einem Satz im Kopf von `CHANGELOG.md`.
+
+7. **Zurückgezogene Releases (*yanked*), nach Keep a Changelog.** Ein Release wird zurückgezogen,
+   wenn es nicht betrieben werden soll, etwa wegen eines Datenverlusts oder einer Sicherheitslücke.
+   Der Tag bleibt stehen, denn ein Tag wird nie gelöscht oder verschoben. Ein Release-PR setzt
+   hinter die Überschrift der Notes-Datei `[YANKED]`, fügt einen Satz mit Grund und Ersatzversion
+   hinzu und generiert den Changelog neu. Im selben PR oder kurz danach kommt das Fix-Release,
+   das den Deploy ersetzt. Den Text des bestehenden GitHub-Releases passt Kornelius von Hand an,
+   weil der Workflow ein bestehendes Release nie bearbeitet.
 
 ## Was bei uns anders sein muss
 
@@ -71,8 +88,17 @@ Docs, *Events that trigger workflows*: Ereignisse des `GITHUB_TOKEN` erzeugen ke
 `workflow_dispatch` und `repository_dispatch`). `deploy.yml` auf `release: published` würde also
 nie anspringen. Lösung: `deploy.yml` bekommt zusätzlich `on: workflow_call`, und `release.yml` ruft
 es nach dem Anlegen des Releases als Job auf. Die Freigabe im Environment `production` bleibt das
-Tor, nur an anderer Stelle: Kornelius mergt den Release-PR, dann gibt er den Deploy frei. Der
-bisherige Auslöser bleibt für ein von Hand angelegtes Release bestehen.
+Tor, nur an anderer Stelle. Der bisherige Auslöser bleibt für ein von Hand angelegtes Release bestehen.
+
+**Wer was tut** (entschieden von Kornelius am 30.10.2026):
+
+| Schritt | Wer |
+| --- | --- |
+| Release-Item anlegen, Notes schreiben, Nummer wählen, PR öffnen | eine Sitzung |
+| Review und Merge des Release-PR | das Merge-Gate (`merge_authority: gated`), wie bei jedem anderen PR |
+| Tag setzen, GitHub-Release anlegen, Deploy-Job starten | `release.yml`, nach grünem CI auf `main` |
+| Deploy in `production` freigeben | **Kornelius**, das ist sein einziger Schritt |
+| Text eines bestehenden GitHub-Releases ändern (etwa bei *yanked*) | Kornelius von Hand |
 
 **Der Deploy ist unsere „Zertifizierung“.** Wie bei collibra-agent hält er kein Release zurück: Das
 Release existiert, sobald CI grün ist. Schlägt der Deploy fehl, bleibt die alte Version auf Fly
@@ -96,7 +122,8 @@ ohne neue Abhängigkeit), getestet mit vitest, so wie collibra-agent `delivery/`
 
 ## Noch offen, für Kornelius
 
-1. Passt die Richtung (collibra-agent-Muster, CI taggt, Deploy hängt am Release-Workflow)?
+1. Bekommt ein `0.y.z`-Release auf GitHub das Pre-Release-Etikett? Dafür spricht collibra-agent;
+   dagegen, dass GitHub dann kein Release als „Latest“ zeigt und das Etikett nach „unfertig“ klingt.
 2. Wann kommt `v0.1.0`? Der erste Lauf misst zugleich `release.yml`, `deploy.yml` und die
    Einstellung, dass das Workflow-Token Inhalte schreiben darf.
 3. Soll `1.0.0` an „V1 ausgerufen“ hängen? (Produkt-Entscheid, gegebenenfalls ein eigenes PDR.)
@@ -109,10 +136,13 @@ bis 0009 liegen in #134, `PDR-0010` ist belegt. Ein PDR ist nicht nötig, solang
 > **ADR-00NN: Ein Release wird in einem eigenen PR vorbereitet, von CI getaggt und veröffentlicht,
 > und der Release-Workflow ruft den Deploy auf.**
 > Entscheidung: Die Versionsmarke ist `version` in `package.json` (`0.y.z` bis V1). Ein Release-PR
-> trägt die Marke, `docs/release-notes/<version>.md` und den daraus generierten `CHANGELOG.md`.
+> trägt die Marke, `docs/release-notes/<version>.md` und den daraus generierten `CHANGELOG.md` und
+> wird wie jeder PR vom Merge-Gate gemergt.
 > Nach grünem CI auf `main` setzt `release.yml` den Tag `v<version>` auf den Commit, der die Marke
 > brachte, legt das GitHub-Release mit den Notes an und ruft `deploy.yml` hinter der Freigabe von
-> `production` auf. Kein Tag wird verschoben, kein Release überschrieben.
+> `production` auf; diese Freigabe ist der einzige Schritt des Owners. Kein Tag wird verschoben
+> oder gelöscht, kein Release vom Workflow überschrieben; ein zurückgezogenes Release wird in
+> seinen Notes als `[YANKED]` markiert.
 > Folgen: zwei Workflows mit Schreib- beziehungsweise Deploy-Rechten außerhalb von `ci.yml`;
 > Release-Notes sind Text für Leser und werden geprüft, nicht abgeleitet.
 > Falsifikator: Wenn Releases so häufig werden, dass Release-PRs die Arbeit bremsen (in aos ab etwa
