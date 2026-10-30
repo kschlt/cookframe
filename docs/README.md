@@ -13,6 +13,7 @@ The outcome of pre-implementation discovery. Product constraints, not a frozen i
 - [`ai-processing-and-reprocessing.md`](ai-processing-and-reprocessing.md) — processing stages and versioning
 - [`open-source-self-hosting-principles.md`](open-source-self-hosting-principles.md) — public/private boundary and security posture
 - [`validation-and-evaluation.md`](validation-and-evaluation.md) — validation gates and required spikes
+- [`deploy-fly.md`](deploy-fly.md) — the maintainer's reference-instance guide for Fly.io and Neon
 
 ## Decisions
 
