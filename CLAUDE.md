@@ -144,6 +144,8 @@ the first tool call, with the session's working directory still at `/home/user`.
 
 The last item is a session-boundary step in every configuration.
 
-<!-- aos:begin id=task-workflow rev=1 managed by aos touchpoint writer - do not edit by hand -->
-This project's backlog, session protocol, and workflow tooling are managed by **aos** (the meta-workflow layer mounted at `.aos/`). Machinery lives at `.aos/sys/`; the authoritative session protocol is `.aos/sys/core/CLAUDE.md`. Instance state (backlog, specs, work-log) lives in the nested state repo at `.aos/` (host-ignored, its own git history). Do not edit this managed region by hand.
+<!-- aos:begin id=task-workflow rev=3 managed by aos touchpoint writer - do not edit by hand -->
+This project's backlog, session protocol, and workflow tooling are managed by **aos** (the meta-workflow layer mounted at `.aos/`). Machinery lives at `.aos/sys/`; the agent card, `.aos/sys/core/CLAUDE.md`, is imported below. Instance state (backlog, specs, work log) lives in the nested state repo at `.aos/` (host-ignored, its own git history). Do not edit this managed region by hand.
+
+@.aos/sys/core/CLAUDE.md
 <!-- aos:end id=task-workflow -->
