@@ -1,7 +1,7 @@
 /**
  * Where a running instance keeps the photographs it is sent, read from the tree.
  *
- * `PDR-0001`'s tenth invariant keeps scan deletion disabled until the
+ * `PDR-0001`'s tenth invariant keeps scan deletion disabled (superseded by PDR-0007: V1 never deletes) until the
  * capture-quality gate passes, and ADR-0009 built the store that keeps them.
  * Then nothing on the running path constructed it: `STORAGE_ROOT` was read
  * nowhere under `src/`, `createFilesystemByteStore` had no caller outside the

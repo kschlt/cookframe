@@ -41,11 +41,10 @@ Future text/share ──→ other adapter ──────────┘
 
 For photos/screenshots:
 - use multimodal extraction to capture all recipe-relevant text and document structure;
-- treat the input image as transient processing input;
-- discard the scan image after successful capture under the product's capture-quality policy;
+- keep the input image: V1 retains every scan image and never deletes one (`PDR-0007`);
 - do not treat a photographed cookbook page as the recipe's hero image.
 
-Image deletion is an intentional simplicity decision, not a statement that pixels and captured text are equivalent. Once deleted, improved image capture cannot be re-run for that item.
+Pixels and captured text are not equivalent. Because V1 retains the image (`PDR-0007`), improved image capture can be re-run for any item; were an image ever deleted, it could not.
 
 ### 2.2 URL Source Adapter
 
@@ -586,9 +585,9 @@ Current product-level requirements for the Bring adapter:
 
 ## 10. Image deletion decision and release gate
 
-V1 intends to discard scan images after successful capture.
+**Superseded for V1 by `PDR-0007`: V1 keeps every original photograph and deletes none.** The conditions below describe what a future decision to delete would have to meet; they gate nothing in V1.
 
-This is acceptable only under two separate conditions:
+The earlier intent was to discard scan images after successful capture, acceptable only under two separate conditions:
 
 1. **Per-item capture success:** the capture output is structurally usable and contains the recipe-relevant sections needed for normalization; exact checks are an implementation detail.
 2. **Product-level capture eval:** a representative public/private golden set demonstrates acceptable critical-field accuracy for the intended source types before this becomes the production default.

@@ -134,7 +134,7 @@ Instead:
 - build representative fixtures;
 - evaluate critical-field accuracy;
 - improve prompts/models/pipeline;
-- gate irreversible behavior such as scan deletion on capture quality.
+- keep the originals: V1 does not delete scan images (`PDR-0007`); any future irreversible behavior would be gated on capture quality.
 
 The product may later add editing as a feature, but it is not a V1 dependency.
 
@@ -154,7 +154,7 @@ Canonical Recipe
 
 Reprocessing should preserve run provenance and allow comparison.
 
-A deleted scan image cannot be re-captured; improved capture quality applies only to retained/new source assets.
+V1 retains every scan image (`PDR-0007`), so improved capture can be re-run against stored originals. A deleted scan image (not a V1 behavior) could not be re-captured.
 
 ## 10. Cooking Plan generation timing remains open
 

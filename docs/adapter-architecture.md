@@ -85,7 +85,7 @@ Cookframe distinguishes:
 
 Evidence used for capture, such as a photographed cookbook page.
 
-V1 direction: transient; not retained after the capture-quality policy permits deletion.
+V1 direction: retained. V1 never deletes an original photograph (`PDR-0007`).
 
 ### Hero media
 
