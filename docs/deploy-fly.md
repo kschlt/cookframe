@@ -1,18 +1,18 @@
 # Deploying an instance to Fly.io
 
-This is the maintainer's reference-instance guide. It records how the maintainer's own instance is
-deployed (ADR-0026), written down so a second person can repeat it. It is **not** a promised or
-supported deployment path: the documented way to self-host Cookframe is to run it on a machine you
-control (README, "Running an instance"; PDR-0002 intends a container composition, which this
-repository does not ship yet), and a platform account holds your machine and data in a way that
-path does not. Use this if you accept that trade.
+This is the one path that has been run as a real deployment: it is how the maintainer's own
+instance runs (ADR-0026), written down so a second person can repeat it. The other way, running the
+instance on a machine you control (README, "Running an instance"), is exercised by the test suite
+but has not been operated in practice yet. PDR-0002 still names self-hosting as the reference
+posture; whether that changes is a product decision this guide does not make. A platform account
+holds your machine and data in a way self-hosting does not, so use this if you accept that trade.
 
 ## Other ways to run an instance
 
 Cookframe is one container (`Dockerfile.runtime`) that needs a PostgreSQL database, a directory for
 photographs and four secrets. Anything that provides those works:
 
-- **Your own machine or VPS** — the documented path (README, "Running an instance"): `npm start`
+- **Your own machine or VPS** — not yet operated in practice (README, "Running an instance"): `npm start`
   or `Dockerfile.runtime`. You hold machine, data and credentials.
 - **Fly.io with Neon** — this guide. Scale-to-zero: the machine stops when idle and the database
   sleeps, so an unused instance costs close to nothing.

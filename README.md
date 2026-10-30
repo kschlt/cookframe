@@ -135,6 +135,11 @@ record can name the question it closes.
 
 ## Running an instance
 
+The path that has been run as a real deployment is Fly.io with a Neon database:
+[`docs/deploy-fly.md`](docs/deploy-fly.md) walks through it and has a setup script. Running the
+instance on a machine of your own, as below, is what the test suite exercises; nobody has operated
+it that way yet.
+
 You need Node 26, a PostgreSQL database, a directory to keep photographs in and an OpenAI API key.
 Copy [`.env.example`](.env.example) and fill it in. There are no defaults: an instance that is
 missing configuration refuses to start and names every variable at fault in one message, with the
