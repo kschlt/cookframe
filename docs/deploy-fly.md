@@ -122,25 +122,24 @@ credential.
 
 ## Later deploys
 
-Today a deploy is `fly deploy --ha=false` from your machine; migrations run as part of it.
+A deploy is `fly deploy --ha=false` from your machine, or, once set up, publishing a GitHub Release.
+Either way the migrations run as part of it.
 
-### Proposal: deploying from the pipeline (not enabled)
+### Deploying from a release
 
-CI deliberately does not deploy: the repository is public, the workflow token is read-only and
-`ci.yml` holds no secrets (CFV1-SL0), so a fork's pull request cannot reach anything. A deploy job
-needs a Fly token as a repository secret, which is the first secret the pipeline would hold. The
-options:
+`.github/workflows/deploy.yml` deploys when a release is published. CI deliberately does not deploy
+(the repository is public, the workflow token is read-only and `ci.yml` holds no secrets,
+CFV1-SL0), so this is a separate workflow with its own narrow trigger and the repository's first
+secret. It is inert until you set that up:
 
-| | Manual `fly deploy` | Manual-trigger workflow | Tag-triggered workflow |
-| --- | --- | --- | --- |
-| Secret in GitHub | none | scoped Fly deploy token | scoped Fly deploy token |
-| Who can trigger | the maintainer's machine | repository writers, via `workflow_dispatch` on `main` | whoever can push a tag |
-| Fork PR exposure | none | none if the job is not on `pull_request` | none |
-| CI minutes | none | one build per deploy (free on a public repository) | same |
-| Fits a scale-to-zero, single-user instance | yes | yes, when deploys become frequent | needs a release habit this project does not have |
+1. Create a deploy token for the one app: `fly tokens create deploy --app my-cookframe`.
+2. In the repository, Settings, Environments, create `production`, add yourself as a required
+   reviewer, and add the token as the environment secret `FLY_API_TOKEN`.
+3. Publish a release. The job pauses for your approval, builds on Fly's builder (`--remote-only`,
+   so GitHub only waits), runs the migrations as the release command and swaps the version in. A
+   failed migration fails the job and leaves the running version in place.
 
-The recommended order is to stay manual until deploys are routine, then add the manual-trigger
-workflow behind a GitHub Environment with required reviewers and a deploy token scoped to the one
-app (`fly tokens create deploy --app my-cookframe`), pinned actions, and `permissions: contents:
-read`. Enabling it is a repository setting and a secret, so it is the owner's decision; nothing in
-this repository does it.
+Cost: one job of a few minutes per release, which is free on a public repository. Tests are not
+repeated, since a release is cut from a green `main`. Pull requests, forks and pushes cannot
+trigger it, and without the environment's approval the token cannot be read. Fork this repository
+and the workflow runs on your fork's releases with your own token, or delete the file.
