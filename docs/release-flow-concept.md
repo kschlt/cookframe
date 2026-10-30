@@ -73,7 +73,9 @@ eigener Abschnitt **Upgrade** für Selbst-Hoster, ausgelöst durch Änderungen a
 2. PR `chore(release): v0.1.0` mit nur dieser Änderung, normales CI, normaler Review.
 3. Nach dem Merge legt ein kleiner Workflow `release-draft.yml` (`on: push` auf `main`,
    `paths: [CHANGELOG.md]`, `contents: write`, ca. 15 Sekunden) ein **Entwurfs-Release** an:
-   Tag `v0.1.0` auf dem Merge-Commit, Text = der Abschnitt. Ein Entwurf löst `deploy.yml` nicht aus.
+   Tag `v0.1.0`, Ziel (`target_commitish`) ist der Merge-Commit, Text = der Abschnitt. Ein Entwurf
+   löst `deploy.yml` nicht aus; der Tag entsteht nach meinem Kenntnisstand erst beim Publish
+   (die GitHub-Doku sagt dazu nichts Ausdrückliches, beim ersten Lauf prüfen).
 4. Kornelius prüft den Entwurf und drückt **Publish**. Das ist die einzige Freigabe-Handlung für
    das Release; `deploy.yml` startet, wartet auf die Freigabe im Environment `production`, deployt.
 
