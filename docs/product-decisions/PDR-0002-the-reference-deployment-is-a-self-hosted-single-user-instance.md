@@ -1,7 +1,8 @@
 ---
 id: "PDR-0002"
 title: "The reference deployment is a self-hosted single-user instance, not platform tenancy"
-status: accepted
+status: superseded
+superseded_by: ["PDR-0010"]
 date: 2026-09-17
 tags: ["deployment", "self-hosting", "product", "posture"]
 related_to: ["ADR-0001", "ADR-0005"]

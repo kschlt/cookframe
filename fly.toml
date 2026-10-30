@@ -102,6 +102,15 @@ primary_region = "fra"
   # keep it on a disk that does not survive the machine stopping.
   STORAGE_ROOT = "/data"
 
+[deploy]
+  # Applies the migrations the database is missing before a new version takes
+  # traffic, so a database that predates a migration is brought up to date by the
+  # deploy rather than by SQL typed into a console. `scripts/migrate.ts` skips
+  # what is already applied and stops on a database it cannot classify; a failure
+  # here fails the deploy and leaves the running version in place. It needs only
+  # `DATABASE_URL`, which the release machine receives like the instance does.
+  release_command = "npm run migrate"
+
 [http_service]
   internal_port = 8080
   force_https = true
