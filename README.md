@@ -150,9 +150,9 @@ psql "$DATABASE_URL" -f migrations/0003-the-capability-grant.sql
 npm start
 ```
 
-`npm run migrate` does the same job for you: it applies the migrations your database is still
-missing and skips the ones it already has. Applying a file by hand a second time fails on purpose,
-so it cannot overwrite a database that already holds recipes.
+The `psql` lines are the manual way. The simple way is `npm run migrate`: it applies the migrations
+your database is missing and skips the ones it already has. A file applied by hand a second time
+fails on purpose, so it cannot overwrite a database that already holds recipes.
 
 It would rather not start than start half-configured. It reads the database *before* it binds its
 port, so a database it cannot reach, or one whose migrations have not been applied, stops it with a
