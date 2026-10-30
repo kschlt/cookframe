@@ -32,14 +32,26 @@ The rest of this page is the Fly path only.
 ## The short way
 
 ```bash
-scripts/fly-setup.sh my-cookframe --deploy
+fly auth login
+scripts/fly-setup.sh --deploy --release-deploys
 ```
 
-It creates the app and the volume, asks for your database URL and OpenAI key without echoing them,
-generates the two credentials, stages all four secrets, deploys, applies migrations and smoke-tests
-the result. It prints the two credentials once; save them. Pass your own app name, because
-`cookframe` is a name only one Fly user can hold: the script then updates the app name and
-`PUBLIC_BASE_URL` in `fly.toml`, which you should commit on your own fork.
+It runs five or six numbered steps and says which one it is on: checks your tools, names the app in
+`fly.toml`, creates the app and volume, sets the four secrets, deploys and smoke-tests, and (with
+`--release-deploys` and the `gh` CLI) sets up deploys from GitHub Releases.
+
+Values come from a file called `.env.local`, which git ignores, and are asked for when missing:
+
+```bash
+FLY_APP=my-cookframe                  # `cookframe` is taken by the maintainer, pick your own
+DEPLOY_DATABASE_URL="postgres://…"    # the direct Neon connection, not the pooler; keep the quotes
+OPENAI_API_KEY="sk-…"
+```
+
+With all three present the script asks nothing, so a console or an agent can run it unattended. It
+generates the two instance credentials and saves them in the same file (mode 600), which is where
+you read them back for the iOS Shortcut and the smoke test. Commit the `fly.toml` change on your
+own fork; never commit `.env.local`.
 
 The steps below are what it does, for when you want to run them yourself or something fails.
 
