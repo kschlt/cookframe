@@ -161,7 +161,7 @@ export interface IngestAppDeps {
    * Where a submitted photograph is kept (ADR-0009): the byte store, which on a
    * running instance is the filesystem volume `STORAGE_ROOT` names.
    *
-   * `PDR-0001`'s tenth invariant keeps scan deletion disabled until the
+   * `PDR-0001`'s tenth invariant keeps scan deletion disabled (superseded by PDR-0007: V1 never deletes) until the
    * capture-quality gate passes, and ADR-0009 says what follows from it:
    * captured images are RETAINED. Before this field existed nothing on the
    * running path constructed a store, so every photograph was read by the model

@@ -19,13 +19,17 @@ Therefore reliability must be established through:
 
 The purpose of this document is to define **what must be validated**, not prematurely choose the testing framework.
 
-## 2. Gate A — capture quality before default scan deletion
+## 2. Gate A — capture quality (deletion gate deferred)
 
-The intended product behavior is to discard source scan images after successful capture.
+`PDR-0007`: V1 keeps every original photograph and never deletes one, so this gate no longer blocks
+anything in V1. It is deferred (`CFV1-S1` is in the icebox). The text below stays as the design of
+the eval, which applies if a later decision ever wants scan deletion.
+
+The earlier intended product behavior was to discard source scan images after successful capture.
 
 That is irreversible.
 
-Before this becomes the normal production policy, a representative image-capture eval must demonstrate acceptable quality on critical recipe facts.
+Before deletion could become a production policy, a representative image-capture eval must demonstrate acceptable quality on critical recipe facts.
 
 The eval set should include real-world variation such as:
 
@@ -46,7 +50,7 @@ Critical fields should be assessed separately from generic text similarity.
 
 The exact quantitative acceptance threshold remains an implementation-time decision.
 
-Until the gate passes, implementation may retain source images temporarily or keep deletion disabled.
+V1 keeps all source images (`PDR-0007`); deletion is not implemented.
 
 ## 3. Gate B — normalization correctness
 
