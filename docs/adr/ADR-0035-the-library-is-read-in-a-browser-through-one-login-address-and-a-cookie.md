@@ -17,7 +17,7 @@ one byte-identical `404`. Its fourth decision left a browser-friendly sign-in ex
 gets "Not Found". The obvious fixes each move the secret somewhere new: a query parameter puts it in
 logs and history, basic auth reopens the "this address exists" answer, and a cookie needs a session.
 
-On 2026-10-30 Kornelius decided on a login page with a cookie. This record is a **proposal** that
+On 2026-10-30 Kornelius decided on a login page with a cookie. This record, accepted by Kornelius on 2026-10-30,
 extends `ADR-0024` decision 4 (that record is not rewritten); it is built by the item
 `ALP`.
 
