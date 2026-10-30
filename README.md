@@ -135,6 +135,11 @@ record can name the question it closes.
 
 ## Running an instance
 
+The path that has been run as a real deployment is Fly.io with a Neon database:
+[`docs/deploy-fly.md`](docs/deploy-fly.md) walks through it and has a setup script. Running the
+instance on a machine of your own, as below, is what the test suite exercises; nobody has operated
+it that way yet.
+
 You need Node 26, a PostgreSQL database, a directory to keep photographs in and an OpenAI API key.
 Copy [`.env.example`](.env.example) and fill it in. There are no defaults: an instance that is
 missing configuration refuses to start and names every variable at fault in one message, with the
@@ -150,8 +155,9 @@ psql "$DATABASE_URL" -f migrations/0003-the-capability-grant.sql
 npm start
 ```
 
-There is no migration runner and no version table: these are files you apply, and applying one
-twice fails loudly rather than passing over a database that already holds recipes.
+The `psql` lines are the manual way. The simple way is `npm run migrate`: it applies the migrations
+your database is missing and skips the ones it already has. A file applied by hand a second time
+fails on purpose, so it cannot overwrite a database that already holds recipes.
 
 It would rather not start than start half-configured. It reads the database *before* it binds its
 port, so a database it cannot reach, or one whose migrations have not been applied, stops it with a
