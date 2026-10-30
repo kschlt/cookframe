@@ -2,8 +2,9 @@
 
 This is the maintainer's reference-instance guide. It records how the maintainer's own instance is
 deployed (ADR-0026), written down so a second person can repeat it. It is **not** a promised or
-supported deployment path: the documented way to self-host Cookframe stays `docker compose` on a
-machine you control (PDR-0002), and a platform account holds your machine and data in a way that
+supported deployment path: the documented way to self-host Cookframe is to run it on a machine you
+control (README, "Running an instance"; PDR-0002 intends a container composition, which this
+repository does not ship yet), and a platform account holds your machine and data in a way that
 path does not. Use this if you accept that trade.
 
 ## Other ways to run an instance
@@ -11,8 +12,8 @@ path does not. Use this if you accept that trade.
 Cookframe is one container (`Dockerfile.runtime`) that needs a PostgreSQL database, a directory for
 photographs and four secrets. Anything that provides those works:
 
-- **Your own machine or VPS with `docker compose`** — the documented path (README, "Running an
-  instance"). You hold machine, data and credentials.
+- **Your own machine or VPS** — the documented path (README, "Running an instance"): `npm start`
+  or `Dockerfile.runtime`. You hold machine, data and credentials.
 - **Fly.io with Neon** — this guide. Scale-to-zero: the machine stops when idle and the database
   sleeps, so an unused instance costs close to nothing.
 - **Any other container host** — replace `fly.toml` and set the same values. ADR-0026's portability
