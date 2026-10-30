@@ -364,6 +364,14 @@ describe("slice5/capture-entry-point-reaches-ingestion", () => {
     for (const res of answers) {
       const body = (await res.json()) as Record<string, unknown>
       for (const key of keys) {
+        // `reasonCode` is the Shortcut's refusal test (CFV1-SCC): present on a
+        // refusal and absent on an import, so it is required of one and forbidden
+        // of the other rather than required of both.
+        if (key === "reasonCode") {
+          const refused = res.status === 422
+          expect(Object.keys(body).includes(key), `HTTP ${res.status} and \`${key}\``).toBe(refused)
+          continue
+        }
         expect(Object.keys(body), `HTTP ${res.status} carries no \`${key}\``).toContain(key)
       }
     }
