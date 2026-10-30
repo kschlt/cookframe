@@ -1,7 +1,7 @@
 ---
 id: "ADR-0035"
 title: "The library is read in a browser through one login address and a cookie"
-status: proposed
+status: accepted
 date: 2026-10-30
 tags: ["http", "credentials", "privacy", "browser"]
 decides: ["OQ-42"]
