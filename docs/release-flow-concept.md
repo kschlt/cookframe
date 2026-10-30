@@ -1,8 +1,8 @@
 # Konzept: Changelog und Release-Flow
 
 Status: Die Richtung ist von Kornelius angenommen (30.10.2026). Eingeschaltet ist nichts; daraus
-entstehen ein ADR (Entwurf unten) und ein eigenes Bau-Item. Offen sind noch das
-Pre-Release-Etikett und der Zeitpunkt von `v0.1.0`.
+entstehen ein ADR, ein PDR (Entwürfe unten) und ein eigenes Bau-Item. Offen ist nur noch der
+Zeitpunkt von `v0.1.0`.
 
 ## Ausgangslage
 
@@ -58,12 +58,12 @@ Releases, mehrere Threads arbeiten parallel. Deshalb:
 5. **Tag und Release macht CI**, wie in beiden Vorbildern: ein Workflow `release.yml` startet per
    `workflow_run`, wenn `CI` auf einem Push nach `main` grün endet. Er sucht den
    First-Parent-Commit, der die aktuelle Marke gebracht hat, setzt `v<version>`, falls es den Tag
-   noch nicht gibt, und legt das GitHub-Release mit der Notes-Datei als Text an (ob als
-   Pre-Release, ist noch offen, siehe unten). Bei jedem anderen Push endet er nach Sekunden ohne Wirkung.
+   noch nicht gibt, und legt das GitHub-Release mit der Notes-Datei als Text an als
+   Pre-Release, solange die erste Zahl 0 ist (Punkt 6). Bei jedem anderen Push endet er nach Sekunden ohne Wirkung.
    `ci.yml` bleibt ohne Schreibrechte und ohne Deploy (`slice0/no-deploy-from-fork-prs`).
 6. **Semver mit `0.y.z` bis V1**: ein Fix erhöht `z`; Neues oder eine Änderung, auf die ein Betreiber
    reagieren muss, erhöht `y`. Das erste Release ist `v0.1.0`. Wann `1.0.0` kommt, ist ein
-   Produkt-Entscheid und hier nicht getroffen.
+   Produkt-Entscheid (Kriterien unten).
 
    **Was `0.y.z` bedeutet:** Die Schnittstelle ist noch nicht stabil. Das ist keine Aussage
    darüber, ob das Produkt fertig oder brauchbar ist. Nach SemVer darf sich vor `1.0.0` die
@@ -71,6 +71,18 @@ Releases, mehrere Threads arbeiten parallel. Deshalb:
    der Vertrag mit dem iOS-Shortcut, die Konfigurationsvariablen, das Datenbankschema samt
    Migrationen und das Format des Canonical Recipe. `1.0.0` verspricht, dass sich davon nichts mehr
    ohne neue Major-Version bricht. Die Notes sagen es in einem Satz im Kopf von `CHANGELOG.md`.
+
+   **Pre-Release-Etikett** (Kornelius, 30.10.2026): Jedes `0.y.z`-Release wird auf GitHub als
+   Pre-Release markiert, als zusätzliches Signal bis zur ersten stabilen Version. Ab `1.0.0` fällt
+   das Etikett weg.
+
+   **Wann `1.0.0` kommt** (Kornelius, 30.10.2026), wenn alle drei Bedingungen gelten:
+   1. Der Funktionsumfang ist nutzbar.
+   2. Alles, was die Dokumentation beschreibt, ist end-to-end geprüft und stimmt.
+   3. Kornelius hat genau diese Version selbst über einige Tage aktiv genutzt.
+
+   Die Entscheidung bleibt bei Kornelius, auch wenn die Bedingungen erfüllt scheinen. Eine Sitzung
+   schlägt `1.0.0` nie von sich aus vor.
 
 7. **Zurückgezogene Releases (*yanked*), nach Keep a Changelog.** Ein Release wird zurückgezogen,
    wenn es nicht betrieben werden soll, etwa wegen eines Datenverlusts oder einer Sicherheitslücke.
@@ -122,16 +134,25 @@ ohne neue Abhängigkeit), getestet mit vitest, so wie collibra-agent `delivery/`
 
 ## Noch offen, für Kornelius
 
-1. Bekommt ein `0.y.z`-Release auf GitHub das Pre-Release-Etikett? Dafür spricht collibra-agent;
-   dagegen, dass GitHub dann kein Release als „Latest“ zeigt und das Etikett nach „unfertig“ klingt.
-2. Wann kommt `v0.1.0`? Der erste Lauf misst zugleich `release.yml`, `deploy.yml` und die
+1. Wann kommt `v0.1.0`? Der erste Lauf misst zugleich `release.yml`, `deploy.yml` und die
    Einstellung, dass das Workflow-Token Inhalte schreiben darf.
-3. Soll `1.0.0` an „V1 ausgerufen“ hängen? (Produkt-Entscheid, gegebenenfalls ein eigenes PDR.)
 
-## ADR-Entwurf (zur Aufnahme, wenn angenommen)
+## Entwürfe der Records
 
-Die Nummer vergibt der Review-Thread. Auf `main` ist `ADR-0034` die höchste; die PDR-Nummern 0007
-bis 0009 liegen in #134, `PDR-0010` ist belegt. Ein PDR ist nicht nötig, solange Frage 3 offen ist.
+Die Nummern vergibt der Review-Thread. Auf `main` ist `ADR-0034` die höchste. Die PDR-Nummern 0007
+bis 0009 liegen in #134, `PDR-0010` ist belegt. Die Aufteilung folgt `docs/README.md`: Wann eine
+Version stabil heißt, überlebt einen Neubau in einem anderen Stack, ist also ein PDR. Wie
+getaggt und deployt wird, ist ein ADR.
+
+> **PDR-00NN: Vor `1.0.0` ist jedes Release ein Pre-Release, und `1.0.0` setzt Nutzbarkeit,
+> geprüfte Dokumentation und eigene Nutzung voraus.**
+> Entscheidung: Versionen folgen SemVer. `0.y.z` heißt, dass die öffentliche Schnittstelle noch nicht
+> stabil ist, nicht, dass das Produkt unfertig ist. Jedes `0.y.z`-Release trägt auf GitHub das
+> Pre-Release-Etikett. `1.0.0` wird erst vergeben, wenn der Funktionsumfang nutzbar ist, alles in
+> der Dokumentation end-to-end geprüft stimmt und der Maintainer genau diese Version über einige
+> Tage selbst genutzt hat. Er entscheidet das selbst.
+> Folgen: Bis dahin zeigt GitHub kein Release als „Latest“. Wer Cookframe betreibt, liest
+> den Stand aus den Notes und aus der Versionsnummer, nicht aus diesem Etikett.
 
 > **ADR-00NN: Ein Release wird in einem eigenen PR vorbereitet, von CI getaggt und veröffentlicht,
 > und der Release-Workflow ruft den Deploy auf.**
