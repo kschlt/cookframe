@@ -1,5 +1,5 @@
 ---
-id: "PDR-0007"
+id: "PDR-0010"
 title: "The reference deployment is the maintainer's platform instance; self-hosting stays possible and unproven"
 status: accepted
 date: 2026-10-30

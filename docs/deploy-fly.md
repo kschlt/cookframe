@@ -3,7 +3,7 @@
 This is the one path that has been run as a real deployment: it is how the maintainer's own
 instance runs (ADR-0026), written down so a second person can repeat it. The other way, running the
 instance on a machine you control (README, "Running an instance"), is exercised by the test suite
-but has not been operated in practice yet. PDR-0007 makes it the reference deployment and keeps self-hosting possible. A platform account
+but has not been operated in practice yet. PDR-0010 makes it the reference deployment and keeps self-hosting possible. A platform account
 holds your machine and data in a way self-hosting does not, so use this if you accept that trade.
 
 ## Other ways to run an instance
