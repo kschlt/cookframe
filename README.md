@@ -150,10 +150,9 @@ psql "$DATABASE_URL" -f migrations/0003-the-capability-grant.sql
 npm start
 ```
 
-These are files you apply, and applying one twice fails loudly rather than passing over a database
-that already holds recipes. There is no version table. `npm run migrate` does the same job for a
-database that already has some of them: it applies the files whose tables are missing, in order, and
-skips the rest.
+`npm run migrate` does the same job for you: it applies the migrations your database is still
+missing and skips the ones it already has. Applying a file by hand a second time fails on purpose,
+so it cannot overwrite a database that already holds recipes.
 
 It would rather not start than start half-configured. It reads the database *before* it binds its
 port, so a database it cannot reach, or one whose migrations have not been applied, stops it with a
