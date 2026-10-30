@@ -14,6 +14,7 @@ The outcome of pre-implementation discovery. Product constraints, not a frozen i
 - [`open-source-self-hosting-principles.md`](open-source-self-hosting-principles.md) — public/private boundary and security posture
 - [`validation-and-evaluation.md`](validation-and-evaluation.md) — validation gates and required spikes
 - [`deploy-fly.md`](deploy-fly.md) — the maintainer's reference-instance guide for Fly.io and Neon
+- [`deploy-fly-agent.md`](deploy-fly-agent.md) — the same path as a runbook for a coding agent
 
 ## Decisions
 

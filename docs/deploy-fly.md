@@ -6,6 +6,9 @@ instance on a machine you control (README, "Running an instance"), is exercised 
 but has not been operated in practice yet. PDR-0010 makes it the reference deployment and keeps self-hosting possible. A platform account
 holds your machine and data in a way self-hosting does not, so use this if you accept that trade.
 
+Using a coding agent? Tell it to follow [`deploy-fly-agent.md`](deploy-fly-agent.md); it runs the
+same script with the same guardrails.
+
 ## Other ways to run an instance
 
 Cookframe is one container (`Dockerfile.runtime`) that needs a PostgreSQL database, a directory for
