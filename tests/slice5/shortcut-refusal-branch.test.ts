@@ -61,3 +61,21 @@ describe("slice5/shortcut-readme-says-how-to-sign", () => {
     expect(sign).toBeLessThan(readme.indexOf("Transfer"))
   })
 })
+
+describe("slice5/shortcut-strips-a-trailing-slash-from-the-instance", () => {
+  it("builds the request address from the cleaned instance, not the entered text", () => {
+    const entered = actions.find((a) => params(a)["CustomOutputName"] === "Entered address")
+    const cleaned = named("is.workflow.actions.text.replace").find(
+      (a) => params(a)["CustomOutputName"] === "Instance",
+    )
+    expect(cleaned && params(cleaned)["WFReplaceTextFind"]).toBe("/+$")
+    expect(cleaned && params(cleaned)["WFReplaceTextReplace"]).toBe("")
+    expect(cleaned && JSON.stringify(params(cleaned)["WFInput"])).toContain(
+      String(entered && params(entered)["UUID"]),
+    )
+    const request = named("is.workflow.actions.downloadurl")[0]
+    expect(JSON.stringify(request && params(request)["WFURL"])).toContain(
+      String(cleaned && params(cleaned)["UUID"]),
+    )
+  })
+})

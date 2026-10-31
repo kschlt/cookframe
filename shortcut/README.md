@@ -51,7 +51,8 @@ than promised: see `tests/slice5/`.
 3. **Transfer `Capture Recipe.shortcut` to the phone** — AirDrop, iCloud Drive, or any file transfer.
 
 4. **Import it.** Shortcuts asks the two questions above as you import; answer them with your base
-   URL and the credential from step 1.
+   URL, written like `https://<your-app>.fly.dev` (the Shortcut drops a trailing slash, but nothing else),
+   and the credential from step 1.
 
 5. **Run it.** It opens the camera, you photograph the page, it converts the photograph to JPEG, and
    it shows what came back. The conversion happens on the phone because a camera set to *High
