@@ -39,10 +39,13 @@ than promised: see `tests/slice5/`.
    ```
 
 2. **Sign it, on a Mac.** A definition that is not signed is refused or imported with parts missing
-   on current iOS. Signing for *anyone* needs no Apple account sign-in on the phone:
+   on current iOS. `shortcuts sign` recognises its input by the `.shortcut` extension and refuses a
+   file named `.plist` ("isn't in the correct format"), so sign a copy under that name. Signing for
+   *anyone* needs no Apple account sign-in on the phone:
 
    ```
-   shortcuts sign --mode anyone --input "Capture Recipe.plist" --output "Capture Recipe.shortcut"
+   cp "Capture Recipe.plist" /tmp/CaptureRecipe.shortcut
+   shortcuts sign --mode anyone --input /tmp/CaptureRecipe.shortcut --output "Capture Recipe.shortcut"
    ```
 
 3. **Transfer `Capture Recipe.shortcut` to the phone** — AirDrop, iCloud Drive, or any file transfer.
