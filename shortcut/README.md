@@ -38,13 +38,23 @@ than promised: see `tests/slice5/`.
    node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))'
    ```
 
-2. **Transfer `Capture Recipe.plist` to the phone** — AirDrop, iCloud Drive, or any file transfer.
+2. **Sign it, on a Mac.** A definition that is not signed is refused or imported with parts missing
+   on current iOS. `shortcuts sign` recognises its input by the `.shortcut` extension and refuses a
+   file named `.plist` ("isn't in the correct format"), so sign a copy under that name. Signing for
+   *anyone* needs no Apple account sign-in on the phone:
 
-3. **Import it.** Shortcuts asks the two questions above as you import; answer them with your base
-   URL and the credential from step 1. An unsigned shortcut needs *Settings → Shortcuts → Allow
-   Untrusted Shortcuts* enabled once.
+   ```
+   cp "Capture Recipe.plist" /tmp/CaptureRecipe.shortcut
+   shortcuts sign --mode anyone --input /tmp/CaptureRecipe.shortcut --output "Capture Recipe.shortcut"
+   ```
 
-4. **Run it.** It opens the camera, you photograph the page, it converts the photograph to JPEG, and
+3. **Transfer `Capture Recipe.shortcut` to the phone** — AirDrop, iCloud Drive, or any file transfer.
+
+4. **Import it.** Shortcuts asks the two questions above as you import; answer them with your base
+   URL, written like `https://<your-app>.fly.dev` (the Shortcut drops a trailing slash, but nothing else),
+   and the credential from step 1.
+
+5. **Run it.** It opens the camera, you photograph the page, it converts the photograph to JPEG, and
    it shows what came back. The conversion happens on the phone because a camera set to *High
    Efficiency* (the iPhone default) photographs in HEIC, which neither your instance nor its model
    provider reads. Location and other metadata are dropped in the same step.
