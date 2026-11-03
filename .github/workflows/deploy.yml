@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
-      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@1.6
       # `--remote-only` builds on Fly's builder, so this job only waits. The
       # release command in fly.toml (`npm run migrate`) runs before the new
       # version takes traffic, and a failure there fails this job and leaves the
