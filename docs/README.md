@@ -15,6 +15,7 @@ The outcome of pre-implementation discovery. Product constraints, not a frozen i
 - [`validation-and-evaluation.md`](validation-and-evaluation.md) — validation gates and required spikes
 - [`deploy-fly.md`](deploy-fly.md) — the maintainer's reference-instance guide for Fly.io and Neon
 - [`deploy-fly-agent.md`](deploy-fly-agent.md) — the same path as a runbook for a coding agent
+- [`release-flow-concept.md`](release-flow-concept.md) — proposal for changelog, tags and the release flow (not in force)
 
 ## Decisions
 
